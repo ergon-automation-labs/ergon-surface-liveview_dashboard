@@ -1,0 +1,47 @@
+defmodule SurfaceLiveviewTemplate.Application do
+  use Application
+
+  @impl true
+  def start(_type, _args) do
+    port = Application.fetch_env!(:surface_liveview_template, :port)
+
+    children = [
+      {Phoenix.PubSub, name: SurfaceLiveviewTemplate.PubSub},
+      # Optional: NATS bridge for subscribing to topics from other bots (e.g. chore, gtd, notifications)
+      # Uncomment to enable: SurfaceLiveviewTemplate.NATS.Bridge
+      {Plug.Cowboy,
+       scheme: :http,
+       plug: SurfaceLiveviewTemplate.Router,
+       options: [port: port]}
+    ]
+
+    opts = [strategy: :one_for_one, name: SurfaceLiveviewTemplate.Supervisor]
+    Supervisor.start_link(children, opts)
+  end
+end
+
+# --- Multi-App Pattern (for bundling multiple surfaces in one container) ---
+#
+# If you're combining multiple LiveView surfaces into one OTP release (breaking Docker rules
+# for consistency with bot packs), each surface would have its own Phoenix app + router.
+#
+# Example: Combining fitness_liveview + chore_liveview + notifications_liveview:
+#
+#   1. Create three separate app configs in mix.exs (one per surface, as separate libraries)
+#   2. In docker-compose.yml, build ONE release with all three as deps
+#   3. In this Application module, supervise multiple routers on different ports:
+#
+#       children = [
+#         {Phoenix.PubSub, name: SurfaceLiveviewTemplate.PubSub},
+#         {Plug.Cowboy, [scheme: :http, plug: FitnessLiveview.Router, options: [port: 4001]]},
+#         {Plug.Cowboy, [scheme: :http, plug: ChoreLiveview.Router, options: [port: 4002]]},
+#         {Plug.Cowboy, [scheme: :http, plug: NotificationsLiveview.Router, options: [port: 4003]]},
+#       ]
+#
+#   4. In docker-compose.yml, expose all three ports (4001, 4002, 4003)
+#   5. Each surface has its own routes, LiveView modules, and assets
+#   6. All share the same NATS connection (gnat), PubSub, and runtime environment
+#
+# This keeps deployment simple (one Docker image, one OTP release) while maintaining
+# separation between surfaces (different routes, modules, ports). A reverse proxy can
+# route /chore -> 4002, /fitness -> 4001, etc. if desired.

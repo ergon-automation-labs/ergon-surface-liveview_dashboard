@@ -1,0 +1,112 @@
+version: '3.8'
+
+services:
+  # Single LiveView surface (or multiple surfaces in one container — see below)
+  # NOTE: By default, surfaces are NOT exposed on the host machine (ports commented out).
+  # All surfaces listen internally on their configured ports within the Docker network.
+  # For external access, use a reverse proxy (nginx) that listens on a single host port (e.g., 8080).
+  web:
+    build: .
+    container_name: surface_liveview_template
+    # Uncomment to expose individual surface port on host (not recommended for multi-app):
+    # ports:
+    #   - "4000:4000"
+    environment:
+      # Internal HTTP port (used within Docker network)
+      SURFACE_LIVEVIEW_PORT: 4000
+
+      # NATS connection to external Bot Army cluster
+      # On same host (Mac with Docker Desktop): host.docker.internal:4222
+      # On same Docker network (if NATS in another container): nats:4222
+      # On Kubernetes or remote: nats.default.svc.cluster.local:4222 or IP:4222
+      NATS_HOST: host.docker.internal
+      NATS_PORT: 4222
+
+      # LiveView signing salt (random, or set to fixed for dev)
+      PHOENIX_SIGNING_SALT: "surface_template_salt_change_me"
+      SECRET_KEY_BASE: "dev_secret_key_base_change_in_prod"
+    networks:
+      - bot-army
+    # Uncomment to add dependencies (e.g., if NATS runs in Docker):
+    # depends_on:
+    #   - nats
+    restart: unless-stopped
+    # For development, mount source and run `mix run --no-halt`
+    # volumes:
+    #   - .:/app
+    # entrypoint: bash -c 'mix deps.get && mix run --no-halt'
+
+  # Reverse proxy (for accessing all surfaces via single host port)
+  # Only needed if you want external access to the surfaces.
+  # Uncomment to enable:
+  # reverse-proxy:
+  #   image: nginx:latest
+  #   container_name: surfaces_reverse_proxy
+  #   ports:
+  #     - "8080:8080"
+  #   volumes:
+  #     - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+  #   depends_on:
+  #     - web
+  #   networks:
+  #     - bot-army
+
+# --- Multi-App Pattern (Combining Multiple Surfaces) ---
+#
+# If you're bundling multiple LiveView surfaces (e.g., chore + fitness + notifications)
+# into one Docker container for consistency with bot packs:
+#
+# 1. In mix.exs, add multiple LiveView apps as dependencies:
+#    {:chore_liveview, path: "../chore_liveview"},
+#    {:fitness_liveview, path: "../fitness_liveview"},
+#    {:notifications_liveview, path: "../notifications_liveview"}
+#
+# 2. In application.ex, supervise multiple routers on different internal ports:
+#    {Plug.Cowboy, plug: ChoreLiveview.Router, options: [port: 4001]},
+#    {Plug.Cowboy, plug: FitnessLiveview.Router, options: [port: 4002]},
+#    {Plug.Cowboy, plug: NotificationsLiveview.Router, options: [port: 4003]},
+#
+# 3. Expose multiple ports in docker-compose.yml:
+#    ports:
+#      - "4001:4001"  # chore_liveview
+#      - "4002:4002"  # fitness_liveview
+#      - "4003:4003"  # notifications_liveview
+#
+# 4. Add a reverse proxy (nginx, caddy) in docker-compose.yml to route:
+#    /chore -> localhost:4001
+#    /fitness -> localhost:4002
+#    /notifications -> localhost:4003
+#
+# 5. All surfaces share:
+#    - Same NATS connection (NATS_HOST, NATS_PORT)
+#    - Same Phoenix.PubSub (for inter-surface communication)
+#    - Same OTP release binary (one Docker build, one container process)
+#
+# Example nginx config (surfaces/elixir/liveview-surface-template/nginx.conf):
+#   upstream chore { server localhost:4001; }
+#   upstream fitness { server localhost:4002; }
+#   upstream notifications { server localhost:4003; }
+#   server {
+#     listen 8080;
+#     location /chore/ { proxy_pass http://chore/; }
+#     location /fitness/ { proxy_pass http://fitness/; }
+#     location /notifications/ { proxy_pass http://notifications/; }
+#   }
+
+# Uncomment to run NATS in the same compose file (for testing/dev)
+# networks:
+#   nats:
+#     driver: bridge
+#
+# services:
+#   nats:
+#     image: nats:latest
+#     container_name: nats_dev
+#     ports:
+#       - "4222:4222"
+#     networks:
+#       - nats
+
+networks:
+  bot-army:
+    driver: bridge

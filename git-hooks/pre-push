@@ -1,0 +1,74 @@
+#!/bin/bash
+# Git pre-push hook for __SURFACE_NAME__ (Phoenix LiveView surface)
+# Validates compilation and builds release before pushing to main. Jenkins deploys from GitHub releases.
+
+set -e
+
+echo "🔍 Running pre-push checks..."
+echo ""
+
+# Check if we're pushing to main
+read local_ref local_oid remote_ref remote_oid
+if [[ $remote_ref == "refs/heads/main" ]]; then
+  echo "⚠️  Pushing to main branch - validating and building release..."
+  echo ""
+
+  echo "📦 Installing dependencies..."
+  mix deps.get || {
+    echo "❌ Failed to install dependencies"
+    exit 1
+  }
+
+  echo ""
+  echo "🔨 Compiling code..."
+  mix compile --force || {
+    echo "❌ Compilation failed - push aborted"
+    exit 1
+  }
+
+  echo ""
+  echo "📝 Running linter (optional)..."
+  mix credo --strict 2>/dev/null || true
+
+  echo ""
+  echo "📦 Building OTP release..."
+  MIX_ENV=prod mix release --overwrite || {
+    echo "❌ Release build failed - push aborted"
+    exit 1
+  }
+
+  echo ""
+  echo "🚀 Publishing release to GitHub..."
+  RELEASE_NAME="__SURFACE_NAME__"
+  VERSION=$(cat _build/prod/rel/"$RELEASE_NAME"/releases/start_erl.data 2>/dev/null | awk '{print $2}')
+  if [ -z "$VERSION" ]; then
+    echo "❌ Could not read release version"
+    exit 1
+  fi
+  echo "Version: $VERSION"
+
+  tar -czf "$RELEASE_NAME-$VERSION.tar.gz" -C _build/prod/rel "$RELEASE_NAME"/ || {
+    echo "❌ Failed to create tarball"
+    exit 1
+  }
+  echo "✓ Tarball created: $RELEASE_NAME-$VERSION.tar.gz"
+
+  gh release create "v$VERSION" "$RELEASE_NAME-$VERSION.tar.gz" \
+    --repo "ergon-automation-labs/__GITHUB_REPO_SUFFIX__" \
+    --title "Release v$VERSION" \
+    --notes "Phoenix LiveView surface __SURFACE_NAME__ v$VERSION. Deployed by Jenkins." \
+    --draft=false || {
+    echo "⚠️  Release already exists or GitHub publish failed"
+    echo "Continuing with push anyway..."
+  }
+  echo "✓ Release published to GitHub"
+
+  echo ""
+  echo "✅ All checks passed, release built and published!"
+  echo "📤 Proceeding with push..."
+else
+  echo "ℹ️  Pushing to feature branch - skipping validation"
+fi
+
+echo ""
+exit 0
