@@ -247,26 +247,35 @@ defmodule BotArmyDashboardLiveview.DashboardLive do
 
   @impl true
   def handle_info({:status_update, status}, socket) do
+    Logger.debug("[DashboardLive] Status update: #{status}")
     {:noreply, assign(socket, nats_connected: status)}
   end
 
-  def handle_info({:task_event, _subject, event}, socket) do
+  def handle_info({:task_event, subject, event}, socket) do
+    Logger.debug("[DashboardLive] Task event from #{subject}: #{inspect(event, limit: 50)}")
     new_feed = [event | socket.assigns.task_feed] |> Enum.take(20)
     {:noreply, assign(socket, task_feed: new_feed)}
   end
 
-  def handle_info({:decomposition_event, _subject, event}, socket) do
+  def handle_info({:decomposition_event, subject, event}, socket) do
+    Logger.debug("[DashboardLive] Decomposition event from #{subject}")
     new_decomps = [event | socket.assigns.decompositions] |> Enum.take(10)
     {:noreply, assign(socket, decompositions: new_decomps)}
   end
 
-  def handle_info({:health_event, _subject, event}, socket) do
+  def handle_info({:health_event, subject, event}, socket) do
+    Logger.debug("[DashboardLive] Health event from #{subject}")
     bot_name = event["bot_name"] || "unknown"
     new_health = Map.put(socket.assigns.bot_health, bot_name, event)
     {:noreply, assign(socket, bot_health: new_health)}
   end
 
   def handle_info({:presence_event, _subject, _event}, socket) do
+    {:noreply, socket}
+  end
+
+  def handle_info(msg, socket) do
+    Logger.debug("[DashboardLive] Received unknown message: #{inspect(msg, limit: 50)}")
     {:noreply, socket}
   end
 
