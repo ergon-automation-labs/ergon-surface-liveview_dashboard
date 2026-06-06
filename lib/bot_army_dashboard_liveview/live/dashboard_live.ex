@@ -12,10 +12,13 @@ defmodule BotArmyDashboardLiveview.DashboardLive do
       Phoenix.PubSub.subscribe(BotArmyDashboardLiveview.PubSub, "dashboard:health")
       Phoenix.PubSub.subscribe(BotArmyDashboardLiveview.PubSub, "dashboard:presence")
 
-      # Initial state - NATS not connected yet
+      # Query current NATS connection status
+      nats_status = BotArmyDashboardLiveview.NATSBridge.get_status()
+
+      # Initial state
       {:ok,
        assign(socket,
-         nats_connected: false,
+         nats_connected: nats_status,
          task_feed: [],
          decompositions: [],
          bot_health: %{},
@@ -29,7 +32,15 @@ defmodule BotArmyDashboardLiveview.DashboardLive do
     rescue
       error ->
         Logger.error("[DashboardLive] Mount error: #{inspect(error)}")
-        {:ok, assign(socket, error: "Failed to initialize dashboard")}
+
+        {:ok,
+         assign(socket,
+           nats_connected: false,
+           task_feed: [],
+           decompositions: [],
+           bot_health: %{},
+           stats: %{tasks_today: 0, completed_today: 0, in_progress: 0, blocked: 0}
+         )}
     end
   end
 

@@ -25,8 +25,22 @@ defmodule BotArmyDashboardLiveview.NATSBridge do
     {:ok,
      %{
        conn: nil,
-       subscriptions: []
+       subscriptions: [],
+       status: false
      }}
+  end
+
+  def get_status do
+    try do
+      GenServer.call(__MODULE__, :get_status, 1000)
+    catch
+      :exit, _ -> false
+    end
+  end
+
+  @impl true
+  def handle_call(:get_status, _from, state) do
+    {:reply, state.status, state}
   end
 
   @impl true
@@ -57,7 +71,7 @@ defmodule BotArmyDashboardLiveview.NATSBridge do
           )
 
           send(self(), :subscribe)
-          {:noreply, state}
+          {:noreply, Map.put(state, :status, true)}
 
         {:error, reason} ->
           Logger.error("[NATSBridge] Failed to connect: #{inspect(reason)}")
