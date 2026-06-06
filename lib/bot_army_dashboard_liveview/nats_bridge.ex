@@ -49,6 +49,13 @@ defmodule BotArmyDashboardLiveview.NATSBridge do
       case Gnat.start_link(connection_settings, name: :nats_connection) do
         {:ok, _pid} ->
           Logger.info("[NATSBridge] Connected to NATS at #{@nats_host}:#{@nats_port}")
+          # Broadcast connection status to dashboard
+          PubSub.broadcast(
+            BotArmyDashboardLiveview.PubSub,
+            "dashboard:status",
+            {:status_update, true}
+          )
+
           send(self(), :subscribe)
           {:noreply, state}
 

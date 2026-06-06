@@ -5,13 +5,11 @@ defmodule BotArmyDashboardLiveview.Application do
   @impl true
   def start(_type, _args) do
     Logger.info("[Application] Starting Bot Army Dashboard...")
-    port = Application.fetch_env!(:bot_army_dashboard_liveview, :port)
-    Logger.info("[Application] Listening on port #{port}...")
 
     children = [
       {Phoenix.PubSub, name: BotArmyDashboardLiveview.PubSub},
-      {BotArmyDashboardLiveview.NATSBridge, []},
-      {Plug.Cowboy, scheme: :http, plug: BotArmyDashboardLiveview.Router, options: [port: port]}
+      BotArmyDashboardLiveview.NATSBridge,
+      BotArmyDashboardLiveview.Endpoint
     ]
 
     opts = [strategy: :one_for_one, name: BotArmyDashboardLiveview.Supervisor]

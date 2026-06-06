@@ -3,11 +3,18 @@ defmodule BotArmyDashboardLiveview.Endpoint do
 
   @session_options [
     store: :cookie,
-    key: "_bot_army_dashboard_liveview_key",
-    signing_salt: "random_salt_12345"
+    key: "_dashboard_key",
+    signing_salt: "dashboard_salt_123"
   ]
 
   socket("/live", Phoenix.LiveView.Socket, websocket: [connect_info: [session: @session_options]])
+
+  plug(Plug.Static,
+    at: "/",
+    from: :bot_army_dashboard_liveview,
+    gzip: false,
+    only: ~w(assets fonts images favicon.ico robots.txt)
+  )
 
   plug(Plug.RequestId)
   plug(Plug.Logger)

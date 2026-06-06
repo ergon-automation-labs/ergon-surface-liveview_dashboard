@@ -1,26 +1,20 @@
 defmodule BotArmyDashboardLiveview.DashboardLive do
-  @moduledoc """
-  Real-time Bot Army dashboard showing:
-  - Live task feed (completions, creations, updates)
-  - Decompositions in progress
-  - Bot health status
-  - Quick stats (tasks today, etc)
-  """
-
   use Phoenix.LiveView
   require Logger
 
-  alias Phoenix.PubSub
-
+  @impl true
   def mount(_params, _session, socket) do
-    # Subscribe to PubSub channels
-    PubSub.subscribe(BotArmyDashboardLiveview.PubSub, "dashboard:tasks")
-    PubSub.subscribe(BotArmyDashboardLiveview.PubSub, "dashboard:decompositions")
-    PubSub.subscribe(BotArmyDashboardLiveview.PubSub, "dashboard:health")
-    PubSub.subscribe(BotArmyDashboardLiveview.PubSub, "dashboard:presence")
+    # Subscribe to NATS bridge status and events
+    Phoenix.PubSub.subscribe(BotArmyDashboardLiveview.PubSub, "dashboard:status")
+    Phoenix.PubSub.subscribe(BotArmyDashboardLiveview.PubSub, "dashboard:tasks")
+    Phoenix.PubSub.subscribe(BotArmyDashboardLiveview.PubSub, "dashboard:decompositions")
+    Phoenix.PubSub.subscribe(BotArmyDashboardLiveview.PubSub, "dashboard:health")
+    Phoenix.PubSub.subscribe(BotArmyDashboardLiveview.PubSub, "dashboard:presence")
 
+    # Initial state - NATS not connected yet
     {:ok,
      assign(socket,
+       nats_connected: false,
        task_feed: [],
        decompositions: [],
        bot_health: %{},
@@ -29,59 +23,11 @@ defmodule BotArmyDashboardLiveview.DashboardLive do
          completed_today: 0,
          in_progress: 0,
          blocked: 0
-       },
-       nats_connected: check_nats_connection()
+       }
      )}
   end
 
-  def handle_info({:task_event, subject, event}, socket) do
-    task_feed = [
-      %{
-        type: extract_task_event_type(subject),
-        title: event["payload"]["title"] || "Unknown task",
-        timestamp: event["timestamp"] || DateTime.utc_now() |> DateTime.to_iso8601(),
-        duration: event["payload"]["duration_minutes"]
-      }
-      | Enum.take(socket.assigns.task_feed, 19)
-    ]
-
-    {:noreply, assign(socket, :task_feed, task_feed)}
-  end
-
-  def handle_info({:decomposition_event, subject, event}, socket) do
-    decomposition = %{
-      type: extract_decomposition_event_type(subject),
-      subtask_count: length(event["payload"]["subtasks"] || []),
-      timestamp: event["timestamp"] || DateTime.utc_now() |> DateTime.to_iso8601(),
-      status: event["payload"]["status"]
-    }
-
-    decompositions = [decomposition | Enum.take(socket.assigns.decompositions, 9)]
-
-    {:noreply, assign(socket, :decompositions, decompositions)}
-  end
-
-  def handle_info({:health_event, subject, event}, socket) do
-    bot_name = String.split(subject, ".") |> Enum.at(-1)
-
-    health = %{
-      status: event["payload"]["status"] || "unknown",
-      timestamp: event["timestamp"] || DateTime.utc_now() |> DateTime.to_iso8601()
-    }
-
-    bot_health = Map.put(socket.assigns.bot_health, bot_name, health)
-
-    {:noreply, assign(socket, :bot_health, bot_health)}
-  end
-
-  def handle_info({:presence_event, _subject, _event}, socket) do
-    {:noreply, socket}
-  end
-
-  def handle_info(_, socket) do
-    {:noreply, socket}
-  end
-
+  @impl true
   def render(assigns) do
     ~H"""
     <div class="dashboard">
@@ -173,61 +119,18 @@ defmodule BotArmyDashboardLiveview.DashboardLive do
 
         .feed-item {
           padding: 12px;
-          background: #080c1a;
-          border-left: 3px solid #00ff88;
-          margin-bottom: 10px;
-          border-radius: 4px;
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          font-size: 13px;
+          border-bottom: 1px solid #1e2749;
+          font-size: 14px;
         }
 
-        .feed-title {
-          flex: 1;
-          color: #e0e0e0;
+        .feed-item:last-child {
+          border-bottom: none;
         }
 
-        .feed-time {
-          color: #666;
-          font-size: 12px;
-          margin-left: 10px;
-        }
-
-        .event-badge {
-          display: inline-block;
-          padding: 4px 8px;
-          background: #1a3a1a;
-          color: #00ff88;
-          border-radius: 4px;
+        .feed-item-time {
           font-size: 11px;
-          font-weight: 500;
-          margin-right: 10px;
-        }
-
-        .decomposition-item {
-          padding: 12px;
-          background: #080c1a;
-          border-left: 3px solid #4488ff;
-          margin-bottom: 10px;
-          border-radius: 4px;
-          font-size: 13px;
-        }
-
-        .bot-status {
-          display: inline-block;
-          padding: 6px 12px;
-          background: #1a3a1a;
-          color: #00ff88;
-          border-radius: 4px;
-          font-size: 12px;
-          margin-right: 10px;
-          margin-bottom: 8px;
-        }
-
-        .bot-status.offline {
-          background: #3a1a1a;
-          color: #ff4444;
+          color: #666;
+          margin-top: 4px;
         }
 
         .empty-state {
@@ -248,7 +151,7 @@ defmodule BotArmyDashboardLiveview.DashboardLive do
           <%= if @nats_connected do %>
             🟢 NATS Connected
           <% else %>
-            🔴 NATS Disconnected
+            🔴 NATS Connecting...
           <% end %>
         </div>
       </div>
@@ -277,16 +180,13 @@ defmodule BotArmyDashboardLiveview.DashboardLive do
         <%= if Enum.empty?(@task_feed) do %>
           <div class="empty-state">
             <div class="emoji">🎯</div>
-            <p>No task events yet. Complete a task to see it here.</p>
+            <p>No tasks yet. Tasks will appear here as they are created.</p>
           </div>
         <% else %>
           <%= for item <- @task_feed do %>
             <div class="feed-item">
-              <span class="event-badge"><%= item.type %></span>
-              <span class="feed-title"><%= item.title %></span>
-              <%= if item.duration do %>
-                <span class="feed-time"><%= item.duration %>m</span>
-              <% end %>
+              <span><strong><%= item["title"] || "Unnamed task" %></strong></span>
+              <div class="feed-item-time"><%= format_time(item["timestamp"]) %> ago</div>
             </div>
           <% end %>
         <% end %>
@@ -296,21 +196,21 @@ defmodule BotArmyDashboardLiveview.DashboardLive do
         <div class="section-title">🔄 Decompositions in Progress</div>
         <%= if Enum.empty?(@decompositions) do %>
           <div class="empty-state">
-            <div class="emoji">🎲</div>
-            <p>No decompositions yet. Break down a complex goal to see it here.</p>
+            <div class="emoji">📝</div>
+            <p>No active decompositions. Complex tasks will show here when being broken down.</p>
           </div>
         <% else %>
-          <%= for decomp <- @decompositions do %>
-            <div class="decomposition-item">
-              <strong><%= decomp.type %></strong> • <%= decomp.subtask_count %> subtasks
-              <div class="feed-time" style="margin-top: 4px;"><%= format_time(decomp.timestamp) %></div>
+          <%= for item <- @decompositions do %>
+            <div class="feed-item">
+              <span><strong><%= item["title"] || "Decomposition" %></strong></span>
+              <div class="feed-item-time"><%= format_time(item["timestamp"]) %> ago</div>
             </div>
           <% end %>
         <% end %>
       </div>
 
       <div class="section">
-        <div class="section-title">🤖 Bot Health</div>
+        <div class="section-title">💚 Bot Health</div>
         <%= if Enum.empty?(@bot_health) do %>
           <div class="empty-state">
             <div class="emoji">💤</div>
@@ -318,8 +218,8 @@ defmodule BotArmyDashboardLiveview.DashboardLive do
           </div>
         <% else %>
           <%= for {bot_name, health} <- @bot_health do %>
-            <div class={"bot-status" <> if health.status == "healthy", do: "", else: " offline"}>
-              <%= bot_name %>: <%= health.status %>
+            <div class="feed-item">
+              <%= bot_name %>: <strong><%= health["status"] %></strong>
             </div>
           <% end %>
         <% end %>
@@ -328,44 +228,46 @@ defmodule BotArmyDashboardLiveview.DashboardLive do
     """
   end
 
-  # Private
-
-  defp extract_task_event_type(subject) do
-    case String.split(subject, ".") do
-      ["events", "gtd", "task", type] -> String.capitalize(type)
-      _ -> "task"
-    end
+  @impl true
+  def handle_info({:status_update, status}, socket) do
+    {:noreply, assign(socket, nats_connected: status)}
   end
 
-  defp extract_decomposition_event_type(subject) do
-    case String.split(subject, ".") do
-      ["events", "gtd", "decomposition", type] -> String.capitalize(type)
-      _ -> "decomposition"
-    end
+  def handle_info({:task_event, _subject, event}, socket) do
+    new_feed = [event | socket.assigns.task_feed] |> Enum.take(20)
+    {:noreply, assign(socket, task_feed: new_feed)}
   end
 
-  defp format_time(iso_string) do
-    case DateTime.from_iso8601(iso_string) do
+  def handle_info({:decomposition_event, _subject, event}, socket) do
+    new_decomps = [event | socket.assigns.decompositions] |> Enum.take(10)
+    {:noreply, assign(socket, decompositions: new_decomps)}
+  end
+
+  def handle_info({:health_event, _subject, event}, socket) do
+    bot_name = event["bot_name"] || "unknown"
+    new_health = Map.put(socket.assigns.bot_health, bot_name, event)
+    {:noreply, assign(socket, bot_health: new_health)}
+  end
+
+  def handle_info({:presence_event, _subject, _event}, socket) do
+    {:noreply, socket}
+  end
+
+  defp format_time(timestamp) when is_binary(timestamp) do
+    case DateTime.from_iso8601(timestamp) do
       {:ok, dt, _} ->
-        now = DateTime.utc_now()
-        diff = DateTime.diff(now, dt, :second)
+        seconds_ago = DateTime.diff(DateTime.utc_now(), dt)
+        format_duration(seconds_ago)
 
-        cond do
-          diff < 60 -> "#{diff}s ago"
-          diff < 3600 -> "#{div(diff, 60)}m ago"
-          diff < 86400 -> "#{div(diff, 3600)}h ago"
-          true -> "#{div(diff, 86400)}d ago"
-        end
-
-      :error ->
+      _ ->
         "recently"
     end
   end
 
-  defp check_nats_connection do
-    case GenServer.whereis(:nats_connection) do
-      nil -> false
-      _pid -> true
-    end
-  end
+  defp format_time(_), do: "recently"
+
+  defp format_duration(seconds) when seconds < 60, do: "#{seconds}s"
+  defp format_duration(seconds) when seconds < 3600, do: "#{div(seconds, 60)}m"
+  defp format_duration(seconds) when seconds < 86400, do: "#{div(seconds, 3600)}h"
+  defp format_duration(seconds), do: "#{div(seconds, 86400)}d"
 end
