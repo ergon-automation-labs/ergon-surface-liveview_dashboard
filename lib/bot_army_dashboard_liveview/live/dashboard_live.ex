@@ -43,6 +43,13 @@ defmodule BotArmyDashboardLiveview.DashboardLive do
          decompositions: [],
          bot_health: %{},
          learning_focused_task: nil,
+         learning_form: %{
+           "what_learned" => "",
+           "key_insights" => "",
+           "mistakes_made" => "",
+           "difficulty_level" => "medium",
+           "tags" => ""
+         },
          stats: %{
            tasks_today: Enum.count(tasks),
            completed_today: Enum.count(completed_tasks),
@@ -264,7 +271,7 @@ defmodule BotArmyDashboardLiveview.DashboardLive do
           </div>
         <% else %>
           <%= for task <- Enum.take(@completed_tasks, 10) do %>
-            <div class="feed-item" style="cursor: pointer; border-left: 3px solid #4CAF50;">
+            <div class="feed-item" style="cursor: pointer; border-left: 3px solid #4CAF50;" phx-click="open_learning_form" phx-value-task_id={task["id"]}>
               <div style="display: flex; justify-content: space-between; align-items: start;">
                 <div style="flex: 1;">
                   <span><strong><%= task["title"] %></strong></span>
@@ -296,6 +303,51 @@ defmodule BotArmyDashboardLiveview.DashboardLive do
           <% end %>
         <% end %>
       </div>
+      <%= if @learning_focused_task do %>
+        <div style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 1000;">
+          <div style="background: #0f1535; border: 1px solid #1e2749; border-radius: 8px; padding: 30px; width: 90%; max-width: 600px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+              <h2 style="color: #00ff88; margin: 0; font-size: 20px;">📚 Learning from: <%= @learning_focused_task["title"] %></h2>
+              <button phx-click="close_learning_form" style="background: none; border: none; color: #888; font-size: 24px; cursor: pointer;">×</button>
+            </div>
+
+            <div style="margin-bottom: 15px;">
+              <label style="display: block; color: #aaa; font-size: 12px; margin-bottom: 5px; text-transform: uppercase;">What did you learn?</label>
+              <textarea phx-change="update_learning_field" phx-value-field="what_learned" value={@learning_form["what_learned"]} style="width: 100%; height: 80px; background: #1a3a1a; color: #00ff88; border: 1px solid #1e2749; padding: 10px; border-radius: 4px; font-family: monospace; font-size: 13px; resize: vertical;" placeholder="Key takeaways, skills gained, understanding deepened..."></textarea>
+            </div>
+
+            <div style="margin-bottom: 15px;">
+              <label style="display: block; color: #aaa; font-size: 12px; margin-bottom: 5px; text-transform: uppercase;">Key insights</label>
+              <textarea phx-change="update_learning_field" phx-value-field="key_insights" value={@learning_form["key_insights"]} style="width: 100%; height: 60px; background: #1a3a1a; color: #00ff88; border: 1px solid #1e2749; padding: 10px; border-radius: 4px; font-family: monospace; font-size: 13px; resize: vertical;" placeholder="Patterns, principles, surprising discoveries..."></textarea>
+            </div>
+
+            <div style="margin-bottom: 15px;">
+              <label style="display: block; color: #aaa; font-size: 12px; margin-bottom: 5px; text-transform: uppercase;">Mistakes / what to avoid</label>
+              <textarea phx-change="update_learning_field" phx-value-field="mistakes_made" value={@learning_form["mistakes_made"]} style="width: 100%; height: 60px; background: #1a3a1a; color: #00ff88; border: 1px solid #1e2749; padding: 10px; border-radius: 4px; font-family: monospace; font-size: 13px; resize: vertical;" placeholder="What went wrong, gotchas, edge cases..."></textarea>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px;">
+              <div>
+                <label style="display: block; color: #aaa; font-size: 12px; margin-bottom: 5px; text-transform: uppercase;">Difficulty</label>
+                <select phx-change="update_learning_field" phx-value-field="difficulty_level" value={@learning_form["difficulty_level"]} style="width: 100%; background: #1a3a1a; color: #00ff88; border: 1px solid #1e2749; padding: 8px; border-radius: 4px; font-size: 13px;">
+                  <option value="easy">Easy</option>
+                  <option value="medium">Medium</option>
+                  <option value="hard">Hard</option>
+                </select>
+              </div>
+              <div>
+                <label style="display: block; color: #aaa; font-size: 12px; margin-bottom: 5px; text-transform: uppercase;">Tags (comma-separated)</label>
+                <input type="text" phx-change="update_learning_field" phx-value-field="tags" value={@learning_form["tags"]} style="width: 100%; background: #1a3a1a; color: #00ff88; border: 1px solid #1e2749; padding: 8px; border-radius: 4px; font-size: 13px;" placeholder="elixir, debugging, architecture...">
+              </div>
+            </div>
+
+            <div style="display: flex; gap: 10px; justify-content: flex-end;">
+              <button phx-click="close_learning_form" style="background: #2a2a2a; color: #aaa; border: 1px solid #1e2749; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-size: 13px;">Cancel</button>
+              <button phx-click="submit_learning" style="background: #00ff88; color: #000; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: bold;">Save Learning</button>
+            </div>
+          </div>
+        </div>
+      <% end %>
     </div>
     """
   end
@@ -350,6 +402,81 @@ defmodule BotArmyDashboardLiveview.DashboardLive do
          blocked: 0
        }
      )}
+  end
+
+  def handle_event("open_learning_form", %{"task_id" => task_id}, socket) do
+    task = Enum.find(socket.assigns.completed_tasks, fn t -> t["id"] == task_id end)
+
+    {:noreply,
+     assign(socket,
+       learning_focused_task: task,
+       learning_form: %{
+         "what_learned" => "",
+         "key_insights" => "",
+         "mistakes_made" => "",
+         "difficulty_level" => "medium",
+         "tags" => ""
+       }
+     )}
+  end
+
+  def handle_event("close_learning_form", _params, socket) do
+    {:noreply, assign(socket, learning_focused_task: nil)}
+  end
+
+  def handle_event("update_learning_field", %{"field" => field, "value" => value}, socket) do
+    form = Map.put(socket.assigns.learning_form, field, value)
+    {:noreply, assign(socket, learning_form: form)}
+  end
+
+  def handle_event("submit_learning", _params, socket) do
+    if socket.assigns.learning_focused_task do
+      task = socket.assigns.learning_focused_task
+      form = socket.assigns.learning_form
+
+      # Send learning to NATS for storage + LLM processing
+      learning_event = %{
+        task_id: task["id"],
+        task_title: task["title"],
+        what_learned: form["what_learned"],
+        key_insights: form["key_insights"],
+        mistakes_made: form["mistakes_made"],
+        difficulty_level: form["difficulty_level"],
+        tags:
+          String.split(form["tags"], ",") |> Enum.map(&String.trim/1) |> Enum.filter(&(&1 != "")),
+        timestamp: DateTime.utc_now() |> DateTime.to_iso8601()
+      }
+
+      # Publish to NATS for learning bot to process
+      try do
+        :nats_connection
+        |> GenServer.whereis()
+        |> then(fn pid ->
+          if pid do
+            Gnat.pub(
+              pid,
+              "events.learning.captured",
+              Jason.encode!(learning_event)
+            )
+          end
+        end)
+      rescue
+        _ -> :ok
+      end
+
+      Logger.info("[DashboardLive] Learning captured: #{task["title"]}")
+
+      {:noreply,
+       assign(socket,
+         learning_focused_task: nil,
+         completed_tasks:
+           Enum.filter(socket.assigns.completed_tasks, fn t ->
+             t["id"] != task["id"]
+           end)
+       )}
+    else
+      {:noreply, socket}
+    end
   end
 
   def handle_info(msg, socket) do

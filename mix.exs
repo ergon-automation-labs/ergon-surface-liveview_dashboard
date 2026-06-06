@@ -4,7 +4,7 @@ defmodule BotArmyDashboardLiveview.MixProject do
   def project do
     [
       app: :bot_army_dashboard_liveview,
-      version: "0.1.17",
+      version: "0.2.0",
       elixir: "~> 1.14",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
