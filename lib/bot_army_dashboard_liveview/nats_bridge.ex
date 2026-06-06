@@ -53,6 +53,14 @@ defmodule BotArmyDashboardLiveview.NATSBridge do
     end
   end
 
+  def get_completed_tasks do
+    try do
+      GenServer.call(__MODULE__, :get_completed_tasks, 5000)
+    catch
+      :exit, _ -> []
+    end
+  end
+
   @impl true
   def handle_call(:get_status, _from, state) do
     {:reply, state.status, state}
@@ -62,6 +70,31 @@ defmodule BotArmyDashboardLiveview.NATSBridge do
     tasks =
       try do
         case Gnat.request(:nats_connection, "bridge.task.list", Jason.encode!(%{"limit" => 100}),
+               timeout: 5000
+             ) do
+          {:ok, response} ->
+            case Jason.decode(response.body) do
+              {:ok, decoded} -> Map.get(decoded, "data", %{}) |> Map.get("tasks", [])
+              {:error, _} -> []
+            end
+
+          {:error, _} ->
+            []
+        end
+      rescue
+        _ -> []
+      end
+
+    {:reply, tasks, state}
+  end
+
+  def handle_call(:get_completed_tasks, _from, state) do
+    tasks =
+      try do
+        case Gnat.request(
+               :nats_connection,
+               "bridge.task.search",
+               Jason.encode!(%{"filters" => %{"status" => "completed"}, "limit" => 50}),
                timeout: 5000
              ) do
           {:ok, response} ->

@@ -32,7 +32,7 @@ defmodule BotArmyDashboardLiveview.DashboardLive do
       Process.send_after(self(), :refresh_tasks, 5000)
 
       # Query completed tasks for learning capture
-      completed_tasks = Enum.filter(tasks, fn t -> t["status"] == "completed" end)
+      completed_tasks = BotArmyDashboardLiveview.NATSBridge.get_completed_tasks()
 
       # Initial state
       {:ok,
@@ -333,8 +333,8 @@ defmodule BotArmyDashboardLiveview.DashboardLive do
     Logger.debug("[DashboardLive] Refreshing tasks from bridge")
 
     tasks = BotArmyDashboardLiveview.NATSBridge.get_tasks()
-    completed = Enum.filter(tasks, fn t -> t["status"] == "completed" end)
-    active = Enum.filter(tasks, fn t -> t["status"] != "completed" end)
+    completed = BotArmyDashboardLiveview.NATSBridge.get_completed_tasks()
+    active = tasks
 
     # Schedule next refresh
     Process.send_after(self(), :refresh_tasks, 5000)
