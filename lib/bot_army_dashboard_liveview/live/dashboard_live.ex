@@ -24,17 +24,24 @@ defmodule BotArmyDashboardLiveview.DashboardLive do
       Logger.debug("[DashboardLive] Querying NATS status")
       nats_status = BotArmyDashboardLiveview.NATSBridge.get_status()
 
+      # Query current tasks from bridge
+      Logger.debug("[DashboardLive] Querying tasks from bridge")
+      tasks = BotArmyDashboardLiveview.NATSBridge.get_tasks()
+
+      # Schedule periodic task refresh (every 5 seconds)
+      Process.send_after(self(), :refresh_tasks, 5000)
+
       # Initial state
       {:ok,
        assign(socket,
          nats_connected: nats_status,
-         task_feed: [],
+         task_feed: tasks,
          decompositions: [],
          bot_health: %{},
          stats: %{
-           tasks_today: 0,
+           tasks_today: Enum.count(tasks),
            completed_today: 0,
-           in_progress: 0,
+           in_progress: Enum.count(tasks),
            blocked: 0
          }
        )}
@@ -209,10 +216,18 @@ defmodule BotArmyDashboardLiveview.DashboardLive do
             <p>No tasks yet. Tasks will appear here as they are created.</p>
           </div>
         <% else %>
-          <%= for item <- @task_feed do %>
+          <%= for task <- @task_feed do %>
             <div class="feed-item">
-              <span><strong><%= item["title"] || "Unnamed task" %></strong></span>
-              <div class="feed-item-time"><%= format_time(item["timestamp"]) %> ago</div>
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span><strong><%= task["title"] || "Unnamed task" %></strong></span>
+                <span style="font-size: 12px; color: #888;">
+                  <%= if task["priority"] == "high", do: "🔴", else: (if task["priority"] == "low", do: "🟢", else: "🟡") %>
+                </span>
+              </div>
+              <% if task["description"] do %>
+                <div style="font-size: 13px; color: #aaa; margin-top: 4px;"><%= String.slice(task["description"], 0..80) %></div>
+              <% end %>
+              <div class="feed-item-time"><%= format_time(task["created_at"]) %> ago</div>
             </div>
           <% end %>
         <% end %>
@@ -281,6 +296,26 @@ defmodule BotArmyDashboardLiveview.DashboardLive do
 
   def handle_info({:presence_event, _subject, _event}, socket) do
     {:noreply, socket}
+  end
+
+  def handle_info(:refresh_tasks, socket) do
+    Logger.debug("[DashboardLive] Refreshing tasks from bridge")
+
+    tasks = BotArmyDashboardLiveview.NATSBridge.get_tasks()
+
+    # Schedule next refresh
+    Process.send_after(self(), :refresh_tasks, 5000)
+
+    {:noreply,
+     assign(socket,
+       task_feed: tasks,
+       stats: %{
+         tasks_today: Enum.count(tasks),
+         completed_today: 0,
+         in_progress: Enum.count(tasks),
+         blocked: 0
+       }
+     )}
   end
 
   def handle_info(msg, socket) do
