@@ -179,34 +179,50 @@ defmodule BotArmyDashboardLiveview.NATSBridge do
   end
 
   defp broadcast_task_event(subject, event) do
-    PubSub.broadcast(
-      BotArmyDashboardLiveview.PubSub,
-      "dashboard:tasks",
-      {:task_event, subject, event}
-    )
+    result =
+      PubSub.broadcast(
+        BotArmyDashboardLiveview.PubSub,
+        "dashboard:tasks",
+        {:task_event, subject, event}
+      )
+
+    Logger.debug("[NATSBridge] Broadcast to dashboard:tasks result: #{inspect(result)}")
+    result
   end
 
   defp broadcast_decomposition_event(subject, event) do
-    PubSub.broadcast(
-      BotArmyDashboardLiveview.PubSub,
-      "dashboard:decompositions",
-      {:decomposition_event, subject, event}
-    )
+    result =
+      PubSub.broadcast(
+        BotArmyDashboardLiveview.PubSub,
+        "dashboard:decompositions",
+        {:decomposition_event, subject, event}
+      )
+
+    Logger.debug("[NATSBridge] Broadcast to dashboard:decompositions result: #{inspect(result)}")
+    result
   end
 
   defp broadcast_health_event(subject, event) do
-    PubSub.broadcast(
-      BotArmyDashboardLiveview.PubSub,
-      "dashboard:health",
-      {:health_event, subject, event}
-    )
+    result =
+      PubSub.broadcast(
+        BotArmyDashboardLiveview.PubSub,
+        "dashboard:health",
+        {:health_event, subject, event}
+      )
+
+    Logger.debug("[NATSBridge] Broadcast to dashboard:health result: #{inspect(result)}")
+    result
   end
 
   defp broadcast_presence_event(subject, event) do
-    PubSub.broadcast(
-      BotArmyDashboardLiveview.PubSub,
-      "dashboard:presence",
-      {:presence_event, subject, event}
-    )
+    result =
+      PubSub.broadcast(
+        BotArmyDashboardLiveview.PubSub,
+        "dashboard:presence",
+        {:presence_event, subject, event}
+      )
+
+    Logger.debug("[NATSBridge] Broadcast to dashboard:presence result: #{inspect(result)}")
+    result
   end
 end
