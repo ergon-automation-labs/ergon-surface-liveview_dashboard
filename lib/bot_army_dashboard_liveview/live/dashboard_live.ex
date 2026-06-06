@@ -31,17 +31,22 @@ defmodule BotArmyDashboardLiveview.DashboardLive do
       # Schedule periodic task refresh (every 5 seconds)
       Process.send_after(self(), :refresh_tasks, 5000)
 
+      # Query completed tasks for learning capture
+      completed_tasks = Enum.filter(tasks, fn t -> t["status"] == "completed" end)
+
       # Initial state
       {:ok,
        assign(socket,
          nats_connected: nats_status,
-         task_feed: tasks,
+         task_feed: Enum.filter(tasks, fn t -> t["status"] != "completed" end),
+         completed_tasks: completed_tasks,
          decompositions: [],
          bot_health: %{},
+         learning_focused_task: nil,
          stats: %{
            tasks_today: Enum.count(tasks),
-           completed_today: 0,
-           in_progress: Enum.count(tasks),
+           completed_today: Enum.count(completed_tasks),
+           in_progress: Enum.count(Enum.filter(tasks, fn t -> t["status"] != "completed" end)),
            blocked: 0
          }
        )}
@@ -251,6 +256,32 @@ defmodule BotArmyDashboardLiveview.DashboardLive do
       </div>
 
       <div class="section">
+        <div class="section-title">📚 Learning Capture</div>
+        <%= if Enum.empty?(@completed_tasks) do %>
+          <div class="empty-state">
+            <div class="emoji">🎓</div>
+            <p>No completed tasks to review. Complete a task to capture learnings!</p>
+          </div>
+        <% else %>
+          <%= for task <- Enum.take(@completed_tasks, 10) do %>
+            <div class="feed-item" style="cursor: pointer; border-left: 3px solid #4CAF50;">
+              <div style="display: flex; justify-content: space-between; align-items: start;">
+                <div style="flex: 1;">
+                  <span><strong><%= task["title"] %></strong></span>
+                  <div style="font-size: 12px; color: #888; margin-top: 4px;">
+                    Completed <%= format_time(task["completed_at"]) %> ago
+                  </div>
+                </div>
+                <span style="font-size: 12px; background: #2d5a2d; padding: 4px 8px; border-radius: 3px; margin-left: 10px;">
+                  Capture learning
+                </span>
+              </div>
+            </div>
+          <% end %>
+        <% end %>
+      </div>
+
+      <div class="section">
         <div class="section-title">💚 Bot Health</div>
         <%= if Enum.empty?(@bot_health) do %>
           <div class="empty-state">
@@ -302,17 +333,20 @@ defmodule BotArmyDashboardLiveview.DashboardLive do
     Logger.debug("[DashboardLive] Refreshing tasks from bridge")
 
     tasks = BotArmyDashboardLiveview.NATSBridge.get_tasks()
+    completed = Enum.filter(tasks, fn t -> t["status"] == "completed" end)
+    active = Enum.filter(tasks, fn t -> t["status"] != "completed" end)
 
     # Schedule next refresh
     Process.send_after(self(), :refresh_tasks, 5000)
 
     {:noreply,
      assign(socket,
-       task_feed: tasks,
+       task_feed: active,
+       completed_tasks: completed,
        stats: %{
          tasks_today: Enum.count(tasks),
-         completed_today: 0,
-         in_progress: Enum.count(tasks),
+         completed_today: Enum.count(completed),
+         in_progress: Enum.count(active),
          blocked: 0
        }
      )}
