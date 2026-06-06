@@ -5,14 +5,23 @@ defmodule BotArmyDashboardLiveview.DashboardLive do
   @impl true
   def mount(_params, _session, socket) do
     try do
+      Logger.info("[DashboardLive] Mounting...")
+
       # Subscribe to NATS bridge status and events
+      Logger.debug("[DashboardLive] Subscribing to dashboard channels")
       Phoenix.PubSub.subscribe(BotArmyDashboardLiveview.PubSub, "dashboard:status")
+      Logger.debug("[DashboardLive] Subscribed to dashboard:status")
       Phoenix.PubSub.subscribe(BotArmyDashboardLiveview.PubSub, "dashboard:tasks")
+      Logger.debug("[DashboardLive] Subscribed to dashboard:tasks")
       Phoenix.PubSub.subscribe(BotArmyDashboardLiveview.PubSub, "dashboard:decompositions")
+      Logger.debug("[DashboardLive] Subscribed to dashboard:decompositions")
       Phoenix.PubSub.subscribe(BotArmyDashboardLiveview.PubSub, "dashboard:health")
+      Logger.debug("[DashboardLive] Subscribed to dashboard:health")
       Phoenix.PubSub.subscribe(BotArmyDashboardLiveview.PubSub, "dashboard:presence")
+      Logger.debug("[DashboardLive] Subscribed to dashboard:presence")
 
       # Query current NATS connection status
+      Logger.debug("[DashboardLive] Querying NATS status")
       nats_status = BotArmyDashboardLiveview.NATSBridge.get_status()
 
       # Initial state
