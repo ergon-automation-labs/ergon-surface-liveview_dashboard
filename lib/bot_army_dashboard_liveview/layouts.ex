@@ -9,11 +9,14 @@ defmodule BotArmyDashboardLiveview.Layouts do
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <title>Bot Army Dashboard</title>
+        <script defer type="text/javascript" src="https://cdn.jsdelivr.net/npm/phoenix@1.7.0/priv/static/phoenix.min.js"></script>
+        <script defer type="text/javascript" src="https://cdn.jsdelivr.net/npm/phoenix_live_view@0.20.0/priv/static/phoenix_live_view.min.js"></script>
         <script defer type="text/javascript">
-          // LiveView client
-          document.addEventListener('DOMContentLoaded', function() {
-            console.log('Dashboard loaded');
+          let liveSocket = new LiveSocket("/live", Phoenix.Socket, {
+            params: {_csrf_token: document.querySelector("meta[name='csrf-token']")?.content}
           });
+          liveSocket.connect();
+          window.liveSocket = liveSocket;
         </script>
         <style>
           * { margin: 0; padding: 0; box-sizing: border-box; }
