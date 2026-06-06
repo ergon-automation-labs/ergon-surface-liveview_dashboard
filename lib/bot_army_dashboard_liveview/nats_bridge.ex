@@ -109,12 +109,15 @@ defmodule BotArmyDashboardLiveview.NATSBridge do
       body = msg.body
       subject = msg.topic
 
+      Logger.debug("[NATSBridge] Received message on #{subject}: #{String.slice(body, 0..50)}")
+
       case Jason.decode(body) do
         {:ok, event} ->
+          Logger.debug("[NATSBridge] Broadcasting to channel from subject: #{subject}")
           broadcast_event(subject, event)
 
-        {:error, _} ->
-          # Try to parse as raw string
+        {:error, reason} ->
+          Logger.warning("[NATSBridge] Failed to decode JSON: #{inspect(reason)}")
           broadcast_event(subject, %{"raw" => body})
       end
     rescue
@@ -125,7 +128,8 @@ defmodule BotArmyDashboardLiveview.NATSBridge do
     {:noreply, state}
   end
 
-  def handle_info(_msg, state) do
+  def handle_info(msg, state) do
+    Logger.debug("[NATSBridge] Received unknown message: #{inspect(msg, limit: 50)}")
     {:noreply, state}
   end
 
