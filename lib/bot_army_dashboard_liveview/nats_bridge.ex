@@ -10,8 +10,13 @@ defmodule BotArmyDashboardLiveview.NATSBridge do
 
   alias Phoenix.PubSub
 
-  @nats_host System.get_env("NATS_HOST", "localhost")
-  @nats_port String.to_integer(System.get_env("NATS_PORT", "4222"))
+  defp nats_host do
+    System.get_env("NATS_HOST", "localhost")
+  end
+
+  defp nats_port do
+    String.to_integer(System.get_env("NATS_PORT", "4222"))
+  end
 
   def start_link(opts) do
     GenServer.start_link(__MODULE__, opts, name: __MODULE__)
@@ -19,7 +24,9 @@ defmodule BotArmyDashboardLiveview.NATSBridge do
 
   @impl true
   def init(_opts) do
-    Logger.info("[NATSBridge] Starting, connecting to #{@nats_host}:#{@nats_port}")
+    host = nats_host()
+    port = nats_port()
+    Logger.info("[NATSBridge] Starting, connecting to #{host}:#{port}")
     send(self(), :connect)
 
     {:ok,
@@ -58,11 +65,11 @@ defmodule BotArmyDashboardLiveview.NATSBridge do
     Process.sleep(100)
 
     try do
-      connection_settings = %{host: @nats_host, port: @nats_port}
+      connection_settings = %{host: nats_host(), port: nats_port()}
 
       case Gnat.start_link(connection_settings, name: :nats_connection) do
         {:ok, _pid} ->
-          Logger.info("[NATSBridge] Connected to NATS at #{@nats_host}:#{@nats_port}")
+          Logger.info("[NATSBridge] Connected to NATS at #{nats_host()}:#{nats_port()}")
           # Broadcast connection status to dashboard
           PubSub.broadcast(
             BotArmyDashboardLiveview.PubSub,
