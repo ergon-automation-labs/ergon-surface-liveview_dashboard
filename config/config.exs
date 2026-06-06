@@ -13,6 +13,7 @@ config :bot_army_dashboard_liveview, :port, port
 config :bot_army_dashboard_liveview, BotArmyDashboardLiveview.Endpoint,
   url: [host: "localhost", port: port],
   http: [ip: {0, 0, 0, 0}, port: port],
+  server: true,
   check_origin: false,
   pubsub_server: BotArmyDashboardLiveview.PubSub,
   live_view: [signing_salt: "abcdefghijklmnopqrst"]
