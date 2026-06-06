@@ -94,7 +94,11 @@ defmodule BotArmyDashboardLiveview.NATSBridge do
         case Gnat.request(
                :nats_connection,
                "bridge.task.search",
-               Jason.encode!(%{"filters" => %{"status" => "completed"}, "limit" => 50}),
+               Jason.encode!(%{
+                 "query" => "*",
+                 "filters" => %{"status" => "completed"},
+                 "limit" => 50
+               }),
                timeout: 5000
              ) do
           {:ok, response} ->
