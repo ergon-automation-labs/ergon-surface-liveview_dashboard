@@ -152,17 +152,25 @@ defmodule BotArmyDashboardLiveview.NATSBridge do
       "bot_army.registry.presence"
     ]
 
-    Enum.map(subjects, fn subject ->
-      case Gnat.sub(conn, self(), subject) do
-        {:ok, sub} ->
-          Logger.info("[NATSBridge] Subscribed to #{subject}")
-          {subject, sub}
+    Logger.debug("[NATSBridge] Starting subscriptions to #{Enum.count(subjects)} subjects")
 
-        {:error, reason} ->
-          Logger.warning("[NATSBridge] Failed to subscribe to #{subject}: #{inspect(reason)}")
-          {subject, nil}
-      end
-    end)
+    results =
+      Enum.map(subjects, fn subject ->
+        Logger.debug("[NATSBridge] Attempting to subscribe to #{subject}")
+
+        case Gnat.sub(conn, self(), subject) do
+          {:ok, sub} ->
+            Logger.info("[NATSBridge] ✓ Subscribed to #{subject}")
+            {subject, sub}
+
+          {:error, reason} ->
+            Logger.error("[NATSBridge] ✗ Failed to subscribe to #{subject}: #{inspect(reason)}")
+            {subject, nil}
+        end
+      end)
+
+    Logger.debug("[NATSBridge] Subscriptions complete")
+    results
   end
 
   defp broadcast_event(subject, event) do
