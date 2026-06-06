@@ -12,10 +12,10 @@ pipeline {
   }
 
   environment {
-    SURFACE_NAME = '__SURFACE_NAME__'
-    SURFACE_PORT = '__SURFACE_PORT__'
+    SURFACE_NAME = 'bot_army_dashboard_liveview'
+    SURFACE_PORT = '30011'
     RELEASE_DIR = "/opt/ergon/releases/${SURFACE_NAME}"
-    GITHUB_REPO = "ergon-automation-labs/__GITHUB_REPO_SUFFIX__"
+    GITHUB_REPO = "ergon-automation-labs/bot-army-dashboard-liveview"
   }
 
   stages {

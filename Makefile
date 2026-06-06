@@ -47,7 +47,7 @@ release:
 
 publish-release: release
 	@echo "Publishing to GitHub..."
-	@RELEASE_NAME="surface_liveview_template"; \
+	@RELEASE_NAME="bot_army_dashboard_liveview"; \
 	VERSION=$$(cat _build/prod/rel/$$RELEASE_NAME/releases/start_erl.data | awk '{print $$2}'); \
 	tar -czf $$RELEASE_NAME-$$VERSION.tar.gz -C _build/prod/rel $$RELEASE_NAME/; \
 	gh release create v$$VERSION $$RELEASE_NAME-$$VERSION.tar.gz --draft=false; \

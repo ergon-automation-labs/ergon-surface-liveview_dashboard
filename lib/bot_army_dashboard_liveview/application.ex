@@ -1,22 +1,30 @@
-defmodule SurfaceLiveviewTemplate.Application do
+defmodule BotArmyDashboardLiveview.Application do
   use Application
+  require Logger
 
   @impl true
   def start(_type, _args) do
-    port = Application.fetch_env!(:surface_liveview_template, :port)
+    Logger.info("[Application] Starting Bot Army Dashboard...")
+    port = Application.fetch_env!(:bot_army_dashboard_liveview, :port)
+    Logger.info("[Application] Listening on port #{port}...")
 
     children = [
-      {Phoenix.PubSub, name: SurfaceLiveviewTemplate.PubSub},
-      # Optional: NATS bridge for subscribing to topics from other bots (e.g. chore, gtd, notifications)
-      # Uncomment to enable: SurfaceLiveviewTemplate.NATS.Bridge
-      {Plug.Cowboy,
-       scheme: :http,
-       plug: SurfaceLiveviewTemplate.Router,
-       options: [port: port]}
+      {Phoenix.PubSub, name: BotArmyDashboardLiveview.PubSub},
+      {BotArmyDashboardLiveview.NATSBridge, []},
+      {Plug.Cowboy, scheme: :http, plug: BotArmyDashboardLiveview.Router, options: [port: port]}
     ]
 
-    opts = [strategy: :one_for_one, name: SurfaceLiveviewTemplate.Supervisor]
-    Supervisor.start_link(children, opts)
+    opts = [strategy: :one_for_one, name: BotArmyDashboardLiveview.Supervisor]
+
+    case Supervisor.start_link(children, opts) do
+      {:ok, pid} ->
+        Logger.info("[Application] Supervisor started successfully")
+        {:ok, pid}
+
+      {:error, reason} ->
+        Logger.error("[Application] Supervisor failed: #{inspect(reason)}")
+        {:error, reason}
+    end
   end
 end
 
@@ -32,7 +40,7 @@ end
 #   3. In this Application module, supervise multiple routers on different ports:
 #
 #       children = [
-#         {Phoenix.PubSub, name: SurfaceLiveviewTemplate.PubSub},
+#         {Phoenix.PubSub, name: BotArmyDashboardLiveview.PubSub},
 #         {Plug.Cowboy, [scheme: :http, plug: FitnessLiveview.Router, options: [port: 4001]]},
 #         {Plug.Cowboy, [scheme: :http, plug: ChoreLiveview.Router, options: [port: 4002]]},
 #         {Plug.Cowboy, [scheme: :http, plug: NotificationsLiveview.Router, options: [port: 4003]]},

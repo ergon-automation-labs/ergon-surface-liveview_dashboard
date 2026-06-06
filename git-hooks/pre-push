@@ -1,5 +1,5 @@
 #!/bin/bash
-# Git pre-push hook for __SURFACE_NAME__ (Phoenix LiveView surface)
+# Git pre-push hook for bot_army_dashboard_liveview (Phoenix LiveView surface)
 # Validates compilation and builds release before pushing to main. Jenkins deploys from GitHub releases.
 
 set -e
@@ -39,7 +39,7 @@ if [[ $remote_ref == "refs/heads/main" ]]; then
 
   echo ""
   echo "🚀 Publishing release to GitHub..."
-  RELEASE_NAME="__SURFACE_NAME__"
+  RELEASE_NAME="bot_army_dashboard_liveview"
   VERSION=$(cat _build/prod/rel/"$RELEASE_NAME"/releases/start_erl.data 2>/dev/null | awk '{print $2}')
   if [ -z "$VERSION" ]; then
     echo "❌ Could not read release version"
@@ -54,9 +54,9 @@ if [[ $remote_ref == "refs/heads/main" ]]; then
   echo "✓ Tarball created: $RELEASE_NAME-$VERSION.tar.gz"
 
   gh release create "v$VERSION" "$RELEASE_NAME-$VERSION.tar.gz" \
-    --repo "ergon-automation-labs/__GITHUB_REPO_SUFFIX__" \
+    --repo "ergon-automation-labs/bot-army-dashboard-liveview" \
     --title "Release v$VERSION" \
-    --notes "Phoenix LiveView surface __SURFACE_NAME__ v$VERSION. Deployed by Jenkins." \
+    --notes "Phoenix LiveView surface bot_army_dashboard_liveview v$VERSION. Deployed by Jenkins." \
     --draft=false || {
     echo "⚠️  Release already exists or GitHub publish failed"
     echo "Continuing with push anyway..."

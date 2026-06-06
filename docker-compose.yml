@@ -7,7 +7,7 @@ services:
   # For external access, use a reverse proxy (nginx) that listens on a single host port (e.g., 8080).
   web:
     build: .
-    container_name: surface_liveview_template
+    container_name: bot_army_dashboard_liveview
     # Uncomment to expose individual surface port on host (not recommended for multi-app):
     # ports:
     #   - "4000:4000"

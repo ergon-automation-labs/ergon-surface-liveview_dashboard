@@ -38,10 +38,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 
 # Copy release from builder
-COPY --from=build /app/_build/prod/rel/surface_liveview_template ./
+COPY --from=build /app/_build/prod/rel/bot_army_dashboard_liveview ./
 
 # Expose default port (override in docker-compose or runtime)
 EXPOSE 4000
 
 # Start the release
-CMD ["bin/surface_liveview_template", "start"]
+CMD ["bin/bot_army_dashboard_liveview", "start"]
