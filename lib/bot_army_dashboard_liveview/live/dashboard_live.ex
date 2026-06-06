@@ -4,27 +4,33 @@ defmodule BotArmyDashboardLiveview.DashboardLive do
 
   @impl true
   def mount(_params, _session, socket) do
-    # Subscribe to NATS bridge status and events
-    Phoenix.PubSub.subscribe(BotArmyDashboardLiveview.PubSub, "dashboard:status")
-    Phoenix.PubSub.subscribe(BotArmyDashboardLiveview.PubSub, "dashboard:tasks")
-    Phoenix.PubSub.subscribe(BotArmyDashboardLiveview.PubSub, "dashboard:decompositions")
-    Phoenix.PubSub.subscribe(BotArmyDashboardLiveview.PubSub, "dashboard:health")
-    Phoenix.PubSub.subscribe(BotArmyDashboardLiveview.PubSub, "dashboard:presence")
+    try do
+      # Subscribe to NATS bridge status and events
+      Phoenix.PubSub.subscribe(BotArmyDashboardLiveview.PubSub, "dashboard:status")
+      Phoenix.PubSub.subscribe(BotArmyDashboardLiveview.PubSub, "dashboard:tasks")
+      Phoenix.PubSub.subscribe(BotArmyDashboardLiveview.PubSub, "dashboard:decompositions")
+      Phoenix.PubSub.subscribe(BotArmyDashboardLiveview.PubSub, "dashboard:health")
+      Phoenix.PubSub.subscribe(BotArmyDashboardLiveview.PubSub, "dashboard:presence")
 
-    # Initial state - NATS not connected yet
-    {:ok,
-     assign(socket,
-       nats_connected: false,
-       task_feed: [],
-       decompositions: [],
-       bot_health: %{},
-       stats: %{
-         tasks_today: 0,
-         completed_today: 0,
-         in_progress: 0,
-         blocked: 0
-       }
-     )}
+      # Initial state - NATS not connected yet
+      {:ok,
+       assign(socket,
+         nats_connected: false,
+         task_feed: [],
+         decompositions: [],
+         bot_health: %{},
+         stats: %{
+           tasks_today: 0,
+           completed_today: 0,
+           in_progress: 0,
+           blocked: 0
+         }
+       )}
+    rescue
+      error ->
+        Logger.error("[DashboardLive] Mount error: #{inspect(error)}")
+        {:ok, assign(socket, error: "Failed to initialize dashboard")}
+    end
   end
 
   @impl true
