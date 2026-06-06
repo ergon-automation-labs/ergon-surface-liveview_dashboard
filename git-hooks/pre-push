@@ -54,7 +54,7 @@ if [[ $remote_ref == "refs/heads/main" ]]; then
   echo "✓ Tarball created: $RELEASE_NAME-$VERSION.tar.gz"
 
   gh release create "v$VERSION" "$RELEASE_NAME-$VERSION.tar.gz" \
-    --repo "ergon-automation-labs/bot-army-dashboard-liveview" \
+    --repo "ergon-automation-labs/ergon-surface-liveview_dashboard" \
     --title "Release v$VERSION" \
     --notes "Phoenix LiveView surface bot_army_dashboard_liveview v$VERSION. Deployed by Jenkins." \
     --draft=false || {
