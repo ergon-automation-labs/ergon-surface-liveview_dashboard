@@ -15,6 +15,7 @@ config :bot_army_dashboard_liveview, BotArmyDashboardLiveview.Endpoint,
   http: [ip: {0, 0, 0, 0}, port: port],
   server: true,
   check_origin: false,
+  secret_key_base: "DASHBOARD_SECRET_KEY_BASE_MIN_64_CHARS_REQUIRED_FOR_LIVE_VIEW_ENCRYPTION_",
   pubsub_server: BotArmyDashboardLiveview.PubSub,
   live_view: [signing_salt: "abcdefghijklmnopqrst"]
 
