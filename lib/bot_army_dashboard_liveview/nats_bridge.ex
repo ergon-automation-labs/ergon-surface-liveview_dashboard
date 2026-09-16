@@ -215,8 +215,7 @@ defmodule BotArmyDashboardLiveview.NATSBridge do
     subjects = [
       "events.gtd.task.>",
       "events.gtd.decomposition.>",
-      "system.health.>",
-      "bot_army.registry.presence"
+      "system.health.>"
     ]
 
     Logger.debug("[NATSBridge] Starting subscriptions to #{Enum.count(subjects)} subjects")
