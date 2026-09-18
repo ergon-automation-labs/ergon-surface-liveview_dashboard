@@ -2,6 +2,7 @@ defmodule BotArmyDashboardLiveview.TimerPhoneLive do
   use Phoenix.LiveView
   alias Phoenix.PubSub
   import BotArmyDashboardLiveview.PhoneNav
+  import BotArmyDashboardLiveview.PhoneNavModal
 
   @impl true
   def mount(_params, _session, socket) do
@@ -25,7 +26,9 @@ defmodule BotArmyDashboardLiveview.TimerPhoneLive do
         tasks: [],
         selected_task_index: 0,
         show_task_browser: false,
-        session_note: ""
+        session_note: "",
+        show_nav_menu: false,
+        search_query: ""
       )
       |> fetch_tasks()
       |> schedule_tick()
@@ -297,8 +300,23 @@ defmodule BotArmyDashboardLiveview.TimerPhoneLive do
 
   @impl true
   def handle_event("long-press", _params, socket) do
-    # Long-press could open a menu or show task details
+    # Open nav menu on long-press
+    {:noreply, assign(socket, show_nav_menu: true, search_query: "")}
+  end
+
+  @impl true
+  def handle_event("close-nav-menu", _params, socket) do
+    {:noreply, assign(socket, show_nav_menu: false, search_query: "")}
+  end
+
+  @impl true
+  def handle_event("stop-propagation", _params, socket) do
     {:noreply, socket}
+  end
+
+  @impl true
+  def handle_event("filter-nav", %{"query" => query}, socket) do
+    {:noreply, assign(socket, search_query: query)}
   end
 
   defp publish_work_session(socket, task) do
@@ -373,7 +391,18 @@ defmodule BotArmyDashboardLiveview.TimerPhoneLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <div id="timer-phone-container" class="handheld-container timer-phone" phx-hook="TouchCarousel">
+    <div
+      id="timer-phone-container"
+      class="handheld-container timer-phone"
+      phx-hook="TouchCarousel"
+      phx-window-keydown="window-key"
+    >
+      <PhoneNavModal.modal
+        show_menu={@show_nav_menu}
+        current_route="/timer-phone"
+        filtered_handhelds={PhoneNavModal.filter_handhelds(@search_query)}
+        search_query={@search_query}
+      />
       <div class="phone-card timer-card">
         <div class="view-title">⏱️ Focus Timer</div>
 
