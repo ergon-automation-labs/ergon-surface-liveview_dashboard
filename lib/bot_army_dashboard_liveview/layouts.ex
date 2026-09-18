@@ -1,6 +1,8 @@
 defmodule BotArmyDashboardLiveview.Layouts do
   use Phoenix.Component
 
+  alias BotArmyDashboardLiveview.PhoneNav
+
   def root(assigns) do
     ~H"""
     <!DOCTYPE html>

@@ -1,6 +1,7 @@
 defmodule BotArmyDashboardLiveview.TimerPhoneLive do
   use Phoenix.LiveView
   alias Phoenix.PubSub
+  import BotArmyDashboardLiveview.PhoneNav
 
   @impl true
   def mount(_params, _session, socket) do
@@ -489,6 +490,8 @@ defmodule BotArmyDashboardLiveview.TimerPhoneLive do
         <div class="message"><%= @message %></div>
       <% end %>
     </div>
+
+    <PhoneNav.nav current_route="/timer-phone" />
 
     <style>
       .timer-phone {
