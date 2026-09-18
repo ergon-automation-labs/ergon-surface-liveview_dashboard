@@ -17,5 +17,6 @@ defmodule BotArmyDashboardLiveview.Router do
     live("/gtd-handheld", GTDHandheldLive)
     live("/system-health-handheld", SystemHealthHandheldLive)
     live("/energy-mood-handheld", EnergyMoodHandheldLive)
+    live("/timer-handheld", TimerHandheldLive)
   end
 end
