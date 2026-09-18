@@ -2,6 +2,7 @@ defmodule BotArmyDashboardLiveview.GtdPhoneLive do
   use Phoenix.LiveView
   alias Phoenix.PubSub
   import BotArmyDashboardLiveview.PhoneNav
+  import BotArmyDashboardLiveview.PhoneNavModal
 
   @impl true
   def mount(_params, _session, socket) do
@@ -18,7 +19,9 @@ defmodule BotArmyDashboardLiveview.GtdPhoneLive do
         selected_project: nil,
         selected_task: nil,
         message: nil,
-        loading: true
+        loading: true,
+        show_nav_menu: false,
+        search_query: ""
       )
       |> fetch_projects()
       |> schedule_tick()
@@ -255,7 +258,43 @@ defmodule BotArmyDashboardLiveview.GtdPhoneLive do
 
   @impl true
   def handle_event("long-press", _params, socket) do
+    # Open nav menu on long-press
+    {:noreply, assign(socket, show_nav_menu: true, search_query: "")}
+  end
+
+  @impl true
+  def handle_event(
+        "quick-action",
+        %{"action" => action, "itemId" => item_id, "itemType" => "task"},
+        socket
+      ) do
+    # Handle swipe-to-complete on tasks
+    if socket.assigns.state == :tasks do
+      task = Enum.find(socket.assigns.tasks, &(&1["id"] == item_id))
+
+      if task do
+        publish_task_action(socket, task, action)
+      else
+        {:noreply, socket}
+      end
+    else
+      {:noreply, socket}
+    end
+  end
+
+  @impl true
+  def handle_event("close-nav-menu", _params, socket) do
+    {:noreply, assign(socket, show_nav_menu: false, search_query: "")}
+  end
+
+  @impl true
+  def handle_event("stop-propagation", _params, socket) do
     {:noreply, socket}
+  end
+
+  @impl true
+  def handle_event("filter-nav", %{"query" => query}, socket) do
+    {:noreply, assign(socket, search_query: query)}
   end
 
   defp publish_task_action(socket, task, action) do
@@ -324,6 +363,13 @@ defmodule BotArmyDashboardLiveview.GtdPhoneLive do
   def render(assigns) do
     ~H"""
     <div id="gtd-phone-container" class="handheld-container gtd-phone" phx-hook="TouchCarousel">
+      <PhoneNavModal.modal
+        show_menu={@show_nav_menu}
+        current_route="/gtd-phone"
+        filtered_handhelds={PhoneNavModal.filter_handhelds(@search_query)}
+        search_query={@search_query}
+      />
+
       <div class="phone-card gtd-card-phone">
         <div class="view-title">📋 GTD</div>
 
@@ -385,11 +431,18 @@ defmodule BotArmyDashboardLiveview.GtdPhoneLive do
                     <span>↓</span>
                   </div>
 
-                  <div class="task-display">
+                  <div
+                    class="task-display"
+                    data-swipeable="true"
+                    data-item-id={current_task["id"]}
+                    data-item-type="task"
+                    data-swipe-action="complete"
+                  >
                     <div class="task-name"><%= current_task["title"] %></div>
                     <%= if current_task["description"] do %>
                       <div class="task-description"><%= current_task["description"] %></div>
                     <% end %>
+                    <div class="swipe-hint">← Swipe to complete</div>
                   </div>
 
                   <div class="progress-indicator">
@@ -522,6 +575,13 @@ defmodule BotArmyDashboardLiveview.GtdPhoneLive do
         font-size: 12px;
         color: #b0b0b0;
         line-height: 1.5;
+      }
+
+      .swipe-hint {
+        font-size: 11px;
+        color: #707070;
+        margin-top: 12px;
+        font-style: italic;
       }
 
       .progress-indicator {
