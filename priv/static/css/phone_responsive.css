@@ -1,0 +1,331 @@
+/* Phone-responsive layout for Nova handhelds */
+
+/* Touch-friendly button and input sizing */
+@media (max-width: 768px) {
+  /* Base container for phone */
+  .handheld-container {
+    padding: 15px;
+    justify-content: flex-start;
+    padding-top: 20px;
+  }
+
+  /* Card sizing */
+  .phone-card {
+    width: 100%;
+    max-width: 100%;
+    padding: 20px;
+    border-radius: 12px;
+  }
+
+  /* Touch targets: minimum 48x48px */
+  button,
+  .control-hint,
+  .carousel-item,
+  .spinner-wheel,
+  .carousel-dot {
+    min-height: 48px;
+    min-width: 48px;
+    padding: 12px;
+  }
+
+  /* Larger text for readability on small screens */
+  .view-title {
+    font-size: 20px;
+    margin-bottom: 15px;
+  }
+
+  .prompt,
+  .quest-title,
+  .habit-name {
+    font-size: 24px;
+  }
+
+  .control-hint .key {
+    min-width: 50px;
+    padding: 6px 10px;
+    font-size: 14px;
+  }
+
+  .control-hint .action {
+    font-size: 14px;
+  }
+
+  /* Textarea sizing for phone */
+  .reflection-input {
+    min-height: 120px;
+    font-size: 16px; /* Prevents zoom on iOS */
+    padding: 12px;
+  }
+
+  /* Progress bar taller on phone */
+  .progress-bar-container {
+    height: 30px;
+  }
+
+  /* Carousel container responsive */
+  .carousel-container {
+    height: auto;
+    min-height: 150px;
+  }
+
+  .spinner-wheel {
+    width: 150px;
+    height: 150px;
+  }
+
+  /* Controls layout: stack vertically on small screens */
+  .controls {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .control-hint {
+    justify-content: space-between;
+    margin: 8px 0;
+  }
+
+  /* Hide desktop-only elements */
+  .desktop-only {
+    display: none;
+  }
+
+  /* Message positioning */
+  .message {
+    bottom: 15px;
+    left: 10px;
+    right: 10px;
+    transform: none;
+    max-width: none;
+    font-size: 13px;
+  }
+
+  /* Card spacing */
+  .habit-card,
+  .quest-card,
+  .reflection-card,
+  .timer-card {
+    margin-bottom: 20px;
+  }
+
+  /* Habit/quest display sizing */
+  .habit-name,
+  .quest-title {
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+  }
+
+  /* Long text handling */
+  .prompt,
+  .quest-description,
+  .character-intro p {
+    word-break: break-word;
+    hyphens: auto;
+  }
+
+  /* Input labels and hints */
+  .char-count,
+  .progress-hint,
+  .spinner-label,
+  .empty-hint {
+    font-size: 12px;
+  }
+
+  /* Carousel hint text */
+  .carousel-hint {
+    font-size: 20px;
+    gap: 15px;
+  }
+
+  /* List carousel height */
+  .list-carousel {
+    max-height: 300px;
+  }
+}
+
+/* Tablet/landscape adjustments */
+@media (max-width: 1024px) and (min-width: 769px) {
+  .handheld-container {
+    padding: 20px;
+  }
+
+  .phone-card {
+    max-width: 100%;
+  }
+
+  .spinner-wheel {
+    width: 180px;
+    height: 180px;
+  }
+
+  button,
+  .control-hint {
+    min-height: 44px;
+  }
+}
+
+/* Portrait orientation optimizations */
+@media (max-width: 768px) and (orientation: portrait) {
+  .handheld-container {
+    height: auto;
+    min-height: 100vh;
+  }
+
+  .phone-card {
+    margin-bottom: 30px;
+  }
+
+  /* Stack elements tightly in portrait */
+  .controls {
+    padding: 15px 0;
+  }
+
+  /* Carousel reduced height in portrait */
+  .card-carousel {
+    height: 250px;
+  }
+
+  /* Progress bar wider in portrait */
+  .progress-section {
+    margin: 20px 0;
+  }
+
+  /* Textarea more visible in portrait */
+  .reflection-input {
+    min-height: 150px;
+  }
+}
+
+/* Landscape orientation optimizations */
+@media (max-width: 1024px) and (orientation: landscape) {
+  .handheld-container {
+    height: 100vh;
+    padding: 10px;
+    justify-content: center;
+  }
+
+  .phone-card {
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+
+  /* Reduce padding/margin in landscape */
+  .view-title {
+    margin-bottom: 10px;
+  }
+
+  .controls {
+    padding: 10px 0;
+  }
+
+  /* Smaller text in landscape to fit */
+  .prompt,
+  .quest-title {
+    font-size: 20px;
+  }
+
+  .control-hint .action {
+    font-size: 12px;
+  }
+
+  .spinner-wheel {
+    width: 120px;
+    height: 120px;
+  }
+
+  /* Minimal padding on card */
+  .phone-card {
+    padding: 15px;
+  }
+}
+
+/* Large tablet / small desktop (don't use phone layout) */
+@media (min-width: 1025px) {
+  .phone-only {
+    display: none;
+  }
+
+  .phone-card {
+    max-width: 500px;
+  }
+
+  button,
+  .control-hint {
+    min-height: 40px;
+  }
+}
+
+/* Very small phones (< 360px width) */
+@media (max-width: 359px) {
+  .view-title {
+    font-size: 18px;
+  }
+
+  .prompt,
+  .quest-title {
+    font-size: 20px;
+  }
+
+  .phone-card {
+    padding: 15px;
+  }
+
+  .spinner-wheel {
+    width: 120px;
+    height: 120px;
+  }
+
+  .control-hint {
+    gap: 5px;
+    font-size: 12px;
+  }
+
+  .control-hint .key {
+    min-width: 40px;
+    padding: 4px 6px;
+    font-size: 12px;
+  }
+}
+
+/* Prevent zoom on input focus (iOS) */
+@media (max-width: 768px) {
+  input,
+  textarea,
+  select {
+    font-size: 16px;
+  }
+}
+
+/* Safe area support for notched phones */
+@supports (padding: max(0px)) {
+  .handheld-container {
+    padding-left: max(15px, env(safe-area-inset-left));
+    padding-right: max(15px, env(safe-area-inset-right));
+    padding-top: max(15px, env(safe-area-inset-top));
+    padding-bottom: max(15px, env(safe-area-inset-bottom));
+  }
+}
+
+/* Reduce flashing/layout shift */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Smooth scrolling */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Touch action optimizations */
+.carousel-container {
+  touch-action: pan-y pinch-zoom;
+}
+
+.reflection-input {
+  touch-action: manipulation;
+}
+
+button,
+.control-hint {
+  touch-action: manipulation;
+}

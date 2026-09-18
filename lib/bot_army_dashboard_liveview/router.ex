@@ -21,5 +21,6 @@ defmodule BotArmyDashboardLiveview.Router do
     live("/habit-anchors", HabitAnchorsLive)
     live("/quest-status", QuestStatusLive)
     live("/reflection", ReflectionLive)
+    live("/timer-phone", TimerPhoneLive)
   end
 end
