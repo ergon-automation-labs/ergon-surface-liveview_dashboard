@@ -16,14 +16,50 @@ defmodule BotArmyDashboardLiveview.TimerHandheldLive do
        selected_duration: 25,
        durations: [15, 25, 45, 60, 90],
        message: nil,
-       session_count: 0
+       session_count: 0,
+       tasks: [],
+       selected_task_index: 0,
+       session_note: "",
+       show_task_browser: false
      )
      |> schedule_tick()}
+  end
+
+  defp fetch_tasks(socket) do
+    Task.start_link(fn ->
+      try do
+        case Gnat.request(:nats_connection, "bridge.task.list", Jason.encode!(%{}), timeout: 5000) do
+          {:ok, %{body: body}} ->
+            case Jason.decode(body) do
+              {:ok, %{"tasks" => tasks}} ->
+                send(self(), {:tasks_loaded, tasks})
+
+              {:ok, tasks} when is_list(tasks) ->
+                send(self(), {:tasks_loaded, tasks})
+
+              {:error, _} ->
+                send(self(), {:tasks_loaded, []})
+            end
+
+          {:error, _} ->
+            send(self(), {:tasks_loaded, []})
+        end
+      rescue
+        _ -> send(self(), {:tasks_loaded, []})
+      end
+    end)
+
+    socket
   end
 
   defp schedule_tick(socket) do
     Process.send_after(self(), :tick, 1000)
     socket
+  end
+
+  @impl true
+  def handle_info({:tasks_loaded, tasks}, socket) do
+    {:noreply, assign(socket, tasks: tasks, selected_task_index: 0)}
   end
 
   @impl true
@@ -60,6 +96,16 @@ defmodule BotArmyDashboardLiveview.TimerHandheldLive do
         new_duration = Enum.at(durations, new_idx)
         {:noreply, assign(socket, selected_duration: new_duration, message: nil)}
 
+      :task_browser ->
+        count = length(socket.assigns.tasks)
+
+        if count > 0 do
+          index = max(socket.assigns.selected_task_index - 1, 0)
+          {:noreply, assign(socket, selected_task_index: index)}
+        else
+          {:noreply, socket}
+        end
+
       _ ->
         {:noreply, socket}
     end
@@ -74,6 +120,16 @@ defmodule BotArmyDashboardLiveview.TimerHandheldLive do
         new_idx = min(idx + 1, length(durations) - 1)
         new_duration = Enum.at(durations, new_idx)
         {:noreply, assign(socket, selected_duration: new_duration, message: nil)}
+
+      :task_browser ->
+        count = length(socket.assigns.tasks)
+
+        if count > 0 do
+          index = min(socket.assigns.selected_task_index + 1, max(count - 1, 0))
+          {:noreply, assign(socket, selected_task_index: index)}
+        else
+          {:noreply, socket}
+        end
 
       _ ->
         {:noreply, socket}
@@ -128,6 +184,9 @@ defmodule BotArmyDashboardLiveview.TimerHandheldLive do
       :idle ->
         {:noreply, socket}
 
+      :task_browser ->
+        {:noreply, assign(socket, show_task_browser: false)}
+
       _ ->
         {:noreply,
          socket
@@ -139,6 +198,92 @@ defmodule BotArmyDashboardLiveview.TimerHandheldLive do
          )
          |> schedule_message_clear(2000)}
     end
+  end
+
+  @impl true
+  def handle_event("gamepad-x", _params, socket) do
+    case socket.assigns.timer_state do
+      :breaking ->
+        {:noreply,
+         socket
+         |> assign(timer_state: :task_browser, show_task_browser: true, session_note: "")
+         |> fetch_tasks()}
+
+      :task_browser ->
+        {:noreply, socket}
+
+      _ ->
+        {:noreply, socket}
+    end
+  end
+
+  @impl true
+  def handle_event("gamepad-y", _params, socket) do
+    case socket.assigns.timer_state do
+      :task_browser ->
+        task = Enum.at(socket.assigns.tasks, socket.assigns.selected_task_index)
+
+        if task do
+          publish_work_session(socket, task)
+        else
+          {:noreply, socket}
+        end
+
+      _ ->
+        {:noreply, socket}
+    end
+  end
+
+  defp publish_work_session(socket, task) do
+    Task.start_link(fn ->
+      try do
+        payload = %{
+          "task_id" => task["id"],
+          "work_duration_seconds" => socket.assigns.work_elapsed,
+          "break_duration_seconds" => socket.assigns.break_elapsed,
+          "session_note" => socket.assigns.session_note,
+          "timestamp" => DateTime.utc_now() |> DateTime.to_iso8601()
+        }
+
+        case Gnat.pub(:nats_connection, "events.timer.session_completed", Jason.encode!(payload)) do
+          :ok ->
+            send(self(), {:session_published, task["title"]})
+
+          _ ->
+            send(self(), {:publish_failed})
+        end
+      rescue
+        _ -> send(self(), {:publish_failed})
+      end
+    end)
+
+    {:noreply,
+     socket
+     |> assign(message: "Publishing session...")
+     |> schedule_message_clear(2000)}
+  end
+
+  @impl true
+  def handle_info({:session_published, title}, socket) do
+    {:noreply,
+     socket
+     |> assign(
+       timer_state: :idle,
+       work_elapsed: 0,
+       break_elapsed: 0,
+       show_task_browser: false,
+       session_note: "",
+       message: "✓ Session linked to: #{title}"
+     )
+     |> schedule_message_clear(3000)}
+  end
+
+  @impl true
+  def handle_info({:publish_failed}, socket) do
+    {:noreply,
+     socket
+     |> assign(message: "✗ Failed to publish session")
+     |> schedule_message_clear(2000)}
   end
 
   defp schedule_message_clear(socket, delay_ms) do
@@ -249,35 +394,80 @@ defmodule BotArmyDashboardLiveview.TimerHandheldLive do
               </div>
 
             <% :breaking -> %>
-              <div class="breaking-state">
-                <div class="view-title">☕ Break Time</div>
+              <%= if @show_task_browser do %>
+                <div class="task-browser-state">
+                  <div class="view-title">📋 Link to Task</div>
 
-                <div class="break-info">
-                  <div class="work-summary">
-                    <span class="label">You worked</span>
-                    <span class="time"><%= format_time(@work_elapsed) %></span>
-                  </div>
-                  <div class="break-duration">
-                    <span class="label">Break time</span>
-                    <span class="time"><%= format_time(@break_elapsed) %></span>
+                  <div class="task-list">
+                    <%= if Enum.empty?(@tasks) do %>
+                      <div class="empty-state">
+                        <p>No tasks found</p>
+                      </div>
+                    <% else %>
+                      <%= for {task, idx} <- Enum.with_index(@tasks) do %>
+                        <%= if idx == @selected_task_index do %>
+                          <div class="task-item selected">
+                            <span class="task-title"><%= task["title"] %></span>
+                          </div>
+                        <% else %>
+                          <div class="task-item">
+                            <span class="task-title"><%= task["title"] %></span>
+                          </div>
+                        <% end %>
+                      <% end %>
+                    <% end %>
+                    </div>
+
+                  <div class="controls">
+                    <div class="control-hint">
+                      <span class="key">↑ ↓</span>
+                      <span class="action">Navigate</span>
+                    </div>
+                    <div class="control-hint">
+                      <span class="key">Y</span>
+                      <span class="action">Save</span>
+                    </div>
+                    <div class="control-hint">
+                      <span class="key">B</span>
+                      <span class="action">Close</span>
+                    </div>
                   </div>
                 </div>
+              <% else %>
+                <div class="breaking-state">
+                  <div class="view-title">☕ Break Time</div>
 
-                <div class="break-message">
-                  <p>Rest your mind. You earned this.</p>
-                </div>
+                  <div class="break-info">
+                    <div class="work-summary">
+                      <span class="label">You worked</span>
+                      <span class="time"><%= format_time(@work_elapsed) %></span>
+                    </div>
+                    <div class="break-duration">
+                      <span class="label">Break time</span>
+                      <span class="time"><%= format_time(@break_elapsed) %></span>
+                    </div>
+                  </div>
 
-                <div class="controls">
-                  <div class="control-hint">
-                    <span class="key">A</span>
-                    <span class="action">Next Session</span>
+                  <div class="break-message">
+                    <p>Rest your mind. You earned this.</p>
                   </div>
-                  <div class="control-hint">
-                    <span class="key">B</span>
-                    <span class="action">Stop</span>
+
+                  <div class="controls">
+                    <div class="control-hint">
+                      <span class="key">A</span>
+                      <span class="action">Next Session</span>
+                    </div>
+                    <div class="control-hint">
+                      <span class="key">X</span>
+                      <span class="action">Link Task</span>
+                    </div>
+                    <div class="control-hint">
+                      <span class="key">B</span>
+                      <span class="action">Stop</span>
+                    </div>
                   </div>
                 </div>
-              </div>
+              <% end %>
           <% end %>
 
           <%= if @message do %>
@@ -528,6 +718,50 @@ defmodule BotArmyDashboardLiveview.TimerHandheldLive do
           font-size: 13px;
           font-weight: 600;
           margin-top: 15px;
+        }
+
+        .task-browser-state {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+        }
+
+        .task-list {
+          flex: 1;
+          overflow-y: auto;
+          margin-bottom: 15px;
+        }
+
+        .task-item {
+          padding: 12px;
+          margin-bottom: 8px;
+          background: #1a2540;
+          border-left: 3px solid transparent;
+          border-radius: 4px;
+          transition: all 0.2s;
+        }
+
+        .task-item.selected {
+          background: #1e3540;
+          border-left-color: #00ff88;
+          box-shadow: 0 0 8px rgba(0, 255, 136, 0.2);
+        }
+
+        .task-title {
+          font-size: 13px;
+          color: #e0e0e0;
+          display: block;
+        }
+
+        .task-item.selected .task-title {
+          color: #00ff88;
+          font-weight: 600;
+        }
+
+        .empty-state {
+          text-align: center;
+          padding: 40px 20px;
+          color: #666;
         }
       </style>
     </div>
