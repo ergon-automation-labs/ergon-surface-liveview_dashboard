@@ -1,6 +1,7 @@
 defmodule BotArmyDashboardLiveview.GtdPhoneLive do
   use Phoenix.LiveView
   alias Phoenix.PubSub
+  import BotArmyDashboardLiveview.PhoneNav
 
   @impl true
   def mount(_params, _session, socket) do
@@ -448,6 +449,8 @@ defmodule BotArmyDashboardLiveview.GtdPhoneLive do
         <div class="message"><%= @message %></div>
       <% end %>
     </div>
+
+    <PhoneNav.nav current_route="/gtd-phone" />
 
     <style>
       .gtd-phone {

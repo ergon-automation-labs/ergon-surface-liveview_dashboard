@@ -1,6 +1,7 @@
 defmodule BotArmyDashboardLiveview.EnergyMoodPhoneLive do
   use Phoenix.LiveView
   alias Phoenix.PubSub
+  import BotArmyDashboardLiveview.PhoneNav
 
   @energy_levels [:low, :medium, :high]
   @moods [:focused, :creative, :energized, :calm, :recovering, :scattered]
@@ -294,6 +295,8 @@ defmodule BotArmyDashboardLiveview.EnergyMoodPhoneLive do
         <div class="message"><%= @message %></div>
       <% end %>
     </div>
+
+    <PhoneNav.nav current_route="/energy-mood-phone" />
 
     <style>
       .energy-mood-phone {

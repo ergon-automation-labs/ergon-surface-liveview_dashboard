@@ -1,6 +1,7 @@
 defmodule BotArmyDashboardLiveview.ReflectPhoneLive do
   use Phoenix.LiveView
   alias Phoenix.PubSub
+  import BotArmyDashboardLiveview.PhoneNav
 
   @prompts [
     "What just happened?",
@@ -218,6 +219,8 @@ defmodule BotArmyDashboardLiveview.ReflectPhoneLive do
         <div class="message"><%= @message %></div>
       <% end %>
     </div>
+
+    <PhoneNav.nav current_route="/reflect-phone" />
 
     <style>
       .reflect-phone {

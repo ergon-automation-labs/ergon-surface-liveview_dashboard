@@ -1,6 +1,7 @@
 defmodule BotArmyDashboardLiveview.SystemHealthPhoneLive do
   use Phoenix.LiveView
   alias Phoenix.PubSub
+  import BotArmyDashboardLiveview.PhoneNav
 
   @impl true
   def mount(_params, _session, socket) do
@@ -227,6 +228,8 @@ defmodule BotArmyDashboardLiveview.SystemHealthPhoneLive do
         <div class="message"><%= @message %></div>
       <% end %>
     </div>
+
+    <PhoneNav.nav current_route="/system-health-phone" />
 
     <style>
       .system-health-phone {

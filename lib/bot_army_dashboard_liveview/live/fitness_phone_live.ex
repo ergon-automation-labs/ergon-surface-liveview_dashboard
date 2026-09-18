@@ -1,6 +1,7 @@
 defmodule BotArmyDashboardLiveview.FitnessPhoneLive do
   use Phoenix.LiveView
   alias Phoenix.PubSub
+  import BotArmyDashboardLiveview.PhoneNav
 
   @workout_types [:run, :walk, :strength, :yoga, :swim, :bike, :sports, :stretch]
   @intensity_levels [:light, :moderate, :intense]
@@ -347,6 +348,8 @@ defmodule BotArmyDashboardLiveview.FitnessPhoneLive do
         <div class="message"><%= @message %></div>
       <% end %>
     </div>
+
+    <PhoneNav.nav current_route="/fitness-phone" />
 
     <style>
       .fitness-phone {
