@@ -10,12 +10,12 @@ defmodule BotArmyDashboardLiveview.SyncStatus do
   Render sync status indicator for phone handhelds.
 
   Usage in render:
-    <.sync_status
+    <SyncStatus.sync_status
       status={@sync_status}
       is_online={@is_online}
     />
   """
-  def render(assigns) do
+  def sync_status(assigns) do
     ~H"""
     <div class="sync-status-bar">
       <%= if !@is_online do %>

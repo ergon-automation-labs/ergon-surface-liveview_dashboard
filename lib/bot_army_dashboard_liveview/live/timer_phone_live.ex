@@ -3,14 +3,19 @@ defmodule BotArmyDashboardLiveview.TimerPhoneLive do
   alias Phoenix.PubSub
   import BotArmyDashboardLiveview.PhoneNav
   import BotArmyDashboardLiveview.PhoneNavModal
+  import BotArmyDashboardLiveview.SyncStatus
 
   @impl true
   def mount(_params, _session, socket) do
     {:ok, _} = PubSub.subscribe(BotArmyDashboardLiveview.PubSub, "gamepad")
 
+    socket_id = socket.id
+    {:ok, _} = BotArmyDashboardLiveview.OfflineQueue.start_link(socket_id: socket_id)
+
     socket =
       socket
       |> assign(
+        socket_id: socket_id,
         timer_state: :idle,
         durations: [15, 25, 45, 60, 90],
         selected_duration: 25,
@@ -28,7 +33,9 @@ defmodule BotArmyDashboardLiveview.TimerPhoneLive do
         show_task_browser: false,
         session_note: "",
         show_nav_menu: false,
-        search_query: ""
+        search_query: "",
+        sync_status: %{},
+        is_online: true
       )
       |> fetch_tasks()
       |> schedule_tick()
@@ -330,15 +337,38 @@ defmodule BotArmyDashboardLiveview.TimerPhoneLive do
           "timestamp" => DateTime.utc_now() |> DateTime.to_iso8601()
         }
 
-        case Gnat.pub(:nats_connection, "events.timer.session_completed", Jason.encode!(payload)) do
+        encoded_payload = Jason.encode!(payload)
+
+        case Gnat.pub(:nats_connection, "events.timer.session_completed", encoded_payload) do
           :ok ->
             send(self(), {:session_published, task["title"]})
 
           _ ->
-            send(self(), {:publish_failed})
+            BotArmyDashboardLiveview.OfflineQueue.enqueue_publish(
+              socket.assigns.socket_id,
+              "events.timer.session_completed",
+              encoded_payload,
+              %{"task_title" => task["title"]}
+            )
+
+            send(self(), {:publish_queued, task["title"]})
         end
       rescue
-        _ -> send(self(), {:publish_failed})
+        _ ->
+          BotArmyDashboardLiveview.OfflineQueue.enqueue_publish(
+            socket.assigns.socket_id,
+            "events.timer.session_completed",
+            Jason.encode!(%{
+              "task_id" => task["id"],
+              "work_duration_seconds" => socket.assigns.work_elapsed,
+              "break_duration_seconds" => socket.assigns.break_elapsed,
+              "session_note" => socket.assigns.session_note,
+              "timestamp" => DateTime.utc_now() |> DateTime.to_iso8601()
+            }),
+            %{"task_title" => task["title"]}
+          )
+
+          send(self(), {:publish_queued, task["title"]})
       end
     end)
 
@@ -371,6 +401,41 @@ defmodule BotArmyDashboardLiveview.TimerPhoneLive do
      |> schedule_message_clear(2000)}
   end
 
+  @impl true
+  def handle_info({:publish_queued, title}, socket) do
+    {:noreply,
+     socket
+     |> assign(message: "⚠️ Session queued (offline)")
+     |> schedule_message_clear(3000)}
+  end
+
+  @impl true
+  def handle_event("sync-queue-online", _params, socket) do
+    {:noreply, assign(socket, is_online: true)}
+  end
+
+  @impl true
+  def handle_event("sync-queue-offline", _params, socket) do
+    {:noreply, assign(socket, is_online: false)}
+  end
+
+  @impl true
+  def handle_event("sync-status-update", %{"status" => status}, socket) do
+    {:noreply, assign(socket, sync_status: status)}
+  end
+
+  @impl true
+  def handle_event("sync-queue-retry", _params, socket) do
+    BotArmyDashboardLiveview.OfflineQueue.flush_queue(
+      socket.assigns.socket_id,
+      fn subject, payload ->
+        Gnat.pub(:nats_connection, subject, payload)
+      end
+    )
+
+    {:noreply, socket}
+  end
+
   defp schedule_message_clear(socket, delay_ms) do
     Process.send_after(self(), :clear_message, delay_ms)
     socket
@@ -397,6 +462,9 @@ defmodule BotArmyDashboardLiveview.TimerPhoneLive do
       phx-hook="TouchCarousel"
       phx-window-keydown="window-key"
     >
+      <div id="offline-hook" phx-hook="OfflineDetectionHook" style="display: none;"></div>
+      <div id="sync-manager-hook" phx-hook="SyncManagerHook" style="display: none;"></div>
+      <SyncStatus.sync_status status={@sync_status} is_online={@is_online} />
       <PhoneNavModal.modal
         show_menu={@show_nav_menu}
         current_route="/timer-phone"

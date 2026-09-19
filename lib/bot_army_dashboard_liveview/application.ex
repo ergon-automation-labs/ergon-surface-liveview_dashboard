@@ -7,6 +7,7 @@ defmodule BotArmyDashboardLiveview.Application do
     Logger.info("[Application] Starting Bot Army Dashboard...")
 
     children = [
+      {Registry, keys: :unique, name: BotArmyDashboardLiveview.Registry},
       {Phoenix.PubSub, name: BotArmyDashboardLiveview.PubSub},
       BotArmyDashboardLiveview.NATSBridge,
       BotArmyDashboardLiveview.Endpoint
