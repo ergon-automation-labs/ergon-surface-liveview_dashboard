@@ -2,6 +2,7 @@ defmodule BotArmyDashboardLiveview.EnergyMoodPhoneLive do
   use Phoenix.LiveView
   alias Phoenix.PubSub
   import BotArmyDashboardLiveview.PhoneNav
+  import BotArmyDashboardLiveview.SyncStatus
 
   @energy_levels [:low, :medium, :high]
   @moods [:focused, :creative, :energized, :calm, :recovering, :scattered]
@@ -216,9 +217,39 @@ defmodule BotArmyDashboardLiveview.EnergyMoodPhoneLive do
   defp label_for_mood(:scattered), do: "Scattered"
 
   @impl true
+  def handle_event("sync-queue-online", _params, socket) do
+    {:noreply, assign(socket, is_online: true)}
+  end
+
+  @impl true
+  def handle_event("sync-queue-offline", _params, socket) do
+    {:noreply, assign(socket, is_online: false)}
+  end
+
+  @impl true
+  def handle_event("sync-status-update", %{"status" => status}, socket) do
+    {:noreply, assign(socket, sync_status: status)}
+  end
+
+  @impl true
+  def handle_event("sync-queue-retry", _params, socket) do
+    BotArmyDashboardLiveview.OfflineQueue.flush_queue(
+      socket.assigns.socket_id,
+      fn subject, payload ->
+        Gnat.pub(:nats_connection, subject, payload)
+      end
+    )
+
+    {:noreply, socket}
+  end
+
+    @impl true
   def render(assigns) do
     ~H"""
     <div id="energy-mood-phone-container" class="handheld-container energy-mood-phone" phx-hook="TouchCarousel">
+      <div id="offline-hook" phx-hook="OfflineDetectionHook" style="display: none;"></div>
+      <div id="sync-manager-hook" phx-hook="SyncManagerHook" style="display: none;"></div>
+      <SyncStatus.sync_status status={@sync_status} is_online={@is_online} />
       <div class="phone-card energy-mood-card-phone">
         <div class="view-title">🌡️ How Are You?</div>
 

@@ -2,18 +2,25 @@ defmodule BotArmyDashboardLiveview.HabitsPhoneLive do
   use Phoenix.LiveView
   alias Phoenix.PubSub
   import BotArmyDashboardLiveview.PhoneNav
+  import BotArmyDashboardLiveview.SyncStatus
 
   @impl true
   def mount(_params, _session, socket) do
     {:ok, _} = PubSub.subscribe(BotArmyDashboardLiveview.PubSub, "gamepad")
 
+    socket_id = socket.id
+    {:ok, _} = BotArmyDashboardLiveview.OfflineQueue.start_link(socket_id: socket_id)
+
     socket =
       socket
       |> assign(
+        socket_id: socket_id,
         habits: [],
         selected_habit_index: 0,
         message: nil,
-        loading: true
+        loading: true,
+        sync_status: %{},
+        is_online: true
       )
       |> fetch_habits()
       |> schedule_tick()
@@ -149,15 +156,36 @@ defmodule BotArmyDashboardLiveview.HabitsPhoneLive do
           "timestamp" => DateTime.utc_now() |> DateTime.to_iso8601()
         }
 
-        case Gnat.pub(:nats_connection, "events.habit.check_in", Jason.encode!(payload)) do
+        encoded_payload = Jason.encode!(payload)
+
+        case Gnat.pub(:nats_connection, "events.habit.check_in", encoded_payload) do
           :ok ->
             send(self(), {:habit_checked_in, habit["name"]})
 
           _ ->
-            send(self(), {:check_in_failed})
+            BotArmyDashboardLiveview.OfflineQueue.enqueue_publish(
+              socket.assigns.socket_id,
+              "events.habit.check_in",
+              encoded_payload,
+              %{"habit_name" => habit["name"]}
+            )
+
+            send(self(), {:check_in_queued, habit["name"]})
         end
       rescue
-        _ -> send(self(), {:check_in_failed})
+        _ ->
+          BotArmyDashboardLiveview.OfflineQueue.enqueue_publish(
+            socket.assigns.socket_id,
+            "events.habit.check_in",
+            Jason.encode!(%{
+              "habit_id" => habit["id"],
+              "name" => habit["name"],
+              "timestamp" => DateTime.utc_now() |> DateTime.to_iso8601()
+            }),
+            %{"habit_name" => habit["name"]}
+          )
+
+          send(self(), {:check_in_queued, habit["name"]})
       end
     end)
 
