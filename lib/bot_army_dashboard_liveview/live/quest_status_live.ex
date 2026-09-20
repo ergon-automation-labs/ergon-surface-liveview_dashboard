@@ -259,6 +259,108 @@ defmodule BotArmyDashboardLiveview.QuestStatusLive do
     Enum.find(tasks, fn task -> task["completed"] != true end)
   end
 
+  defp render_quest_type_narrative(quest_type, narrative, metadata) do
+    case quest_type do
+      :combat -> render_combat_narrative(narrative, metadata)
+      :reflection -> render_reflection_narrative(narrative, metadata)
+      :maintenance -> render_maintenance_narrative(narrative, metadata)
+      :exploration -> render_exploration_narrative(narrative, metadata)
+      :collaboration -> render_collaboration_narrative(narrative, metadata)
+      :creation -> render_creation_narrative(narrative, metadata)
+      _ -> render_default_narrative(narrative)
+    end
+  end
+
+  defp render_combat_narrative(narrative, metadata) do
+    assigns = %{narrative: narrative, metadata: metadata}
+
+    ~H"""
+    <div class="narrative-section combat">
+      <div class="quest-type-indicator">⚔️ <%= @metadata["emoji"] %></div>
+      <div class="quest-title-narrative"><%= @narrative["quest_title"] %></div>
+      <div class="scene-flavor"><%= @narrative["scene_flavor"] %></div>
+      <div class="beat-next"><span class="beat-label">Attack:</span> <%= @narrative["beat_next"] %></div>
+    </div>
+    """
+  end
+
+  defp render_reflection_narrative(narrative, metadata) do
+    assigns = %{narrative: narrative, metadata: metadata}
+
+    ~H"""
+    <div class="narrative-section reflection">
+      <div class="quest-type-indicator">🪞 <%= @metadata["emoji"] %></div>
+      <div class="quest-title-narrative"><%= @narrative["quest_title"] %></div>
+      <div class="scene-flavor"><em><%= @narrative["scene_flavor"] %></em></div>
+      <div class="beat-next"><span class="beat-label">Consider:</span> <%= @narrative["beat_next"] %></div>
+    </div>
+    """
+  end
+
+  defp render_maintenance_narrative(narrative, metadata) do
+    assigns = %{narrative: narrative, metadata: metadata}
+
+    ~H"""
+    <div class="narrative-section maintenance">
+      <div class="quest-type-indicator">🔥 <%= @metadata["emoji"] %></div>
+      <div class="quest-title-narrative"><%= @narrative["quest_title"] %></div>
+      <div class="scene-flavor"><%= @narrative["scene_flavor"] %></div>
+      <div class="beat-next"><span class="beat-label">Ritual:</span> <%= @narrative["beat_next"] %></div>
+    </div>
+    """
+  end
+
+  defp render_exploration_narrative(narrative, metadata) do
+    assigns = %{narrative: narrative, metadata: metadata}
+
+    ~H"""
+    <div class="narrative-section exploration">
+      <div class="quest-type-indicator">🗺️ <%= @metadata["emoji"] %></div>
+      <div class="quest-title-narrative"><%= @narrative["quest_title"] %></div>
+      <div class="scene-flavor"><%= @narrative["scene_flavor"] %></div>
+      <div class="beat-next"><span class="beat-label">Discover:</span> <%= @narrative["beat_next"] %></div>
+    </div>
+    """
+  end
+
+  defp render_collaboration_narrative(narrative, metadata) do
+    assigns = %{narrative: narrative, metadata: metadata}
+
+    ~H"""
+    <div class="narrative-section collaboration">
+      <div class="quest-type-indicator">🤝 <%= @metadata["emoji"] %></div>
+      <div class="quest-title-narrative"><%= @narrative["quest_title"] %></div>
+      <div class="scene-flavor"><%= @narrative["scene_flavor"] %></div>
+      <div class="beat-next"><span class="beat-label">Connect:</span> <%= @narrative["beat_next"] %></div>
+    </div>
+    """
+  end
+
+  defp render_creation_narrative(narrative, metadata) do
+    assigns = %{narrative: narrative, metadata: metadata}
+
+    ~H"""
+    <div class="narrative-section creation">
+      <div class="quest-type-indicator">🔨 <%= @metadata["emoji"] %></div>
+      <div class="quest-title-narrative"><%= @narrative["quest_title"] %></div>
+      <div class="scene-flavor"><%= @narrative["scene_flavor"] %></div>
+      <div class="beat-next"><span class="beat-label">Craft:</span> <%= @narrative["beat_next"] %></div>
+    </div>
+    """
+  end
+
+  defp render_default_narrative(narrative) do
+    assigns = %{narrative: narrative}
+
+    ~H"""
+    <div class="narrative-section">
+      <div class="quest-title-narrative"><%= @narrative["quest_title"] %></div>
+      <div class="scene-flavor"><%= @narrative["scene_flavor"] %></div>
+      <div class="beat-next"><span class="beat-label">Next:</span> <%= @narrative["beat_next"] %></div>
+    </div>
+    """
+  end
+
   @impl true
   def render(assigns) do
     ~H"""
@@ -299,18 +401,7 @@ defmodule BotArmyDashboardLiveview.QuestStatusLive do
               </div>
             <% else %>
               <%= if @narrative do %>
-                <div class="narrative-section">
-                  <div class="quest-title-narrative">
-                    <%= @narrative["quest_title"] %>
-                  </div>
-                  <div class="scene-flavor">
-                    <%= @narrative["scene_flavor"] %>
-                  </div>
-                  <div class="beat-next">
-                    <span class="beat-label">Your next move:</span>
-                    <%= @narrative["beat_next"] %>
-                  </div>
-                </div>
+                <%= render_quest_type_narrative(@quest_type, @narrative, @quest_metadata) %>
               <% end %>
             <% end %>
 
@@ -469,6 +560,46 @@ defmodule BotArmyDashboardLiveview.QuestStatusLive do
         margin: 20px 0;
         border-radius: 4px;
         animation: narrativeSlideIn 0.5s ease;
+      }
+
+      .narrative-section.combat {
+        background: rgba(239, 68, 68, 0.08);
+        border-left-color: #ef4444;
+        border-left-width: 4px;
+      }
+
+      .narrative-section.reflection {
+        background: rgba(139, 92, 246, 0.08);
+        border-left-color: #8b5cf6;
+      }
+
+      .narrative-section.maintenance {
+        background: rgba(245, 158, 11, 0.08);
+        border-left-color: #f59e0b;
+      }
+
+      .narrative-section.exploration {
+        background: rgba(6, 182, 212, 0.08);
+        border-left-color: #06b6d4;
+      }
+
+      .narrative-section.collaboration {
+        background: rgba(16, 185, 129, 0.08);
+        border-left-color: #10b981;
+      }
+
+      .narrative-section.creation {
+        background: rgba(249, 115, 22, 0.08);
+        border-left-color: #f97316;
+      }
+
+      .quest-type-indicator {
+        font-size: 14px;
+        font-weight: bold;
+        margin-bottom: 8px;
+        opacity: 0.8;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
       }
 
       @keyframes narrativeSlideIn {
