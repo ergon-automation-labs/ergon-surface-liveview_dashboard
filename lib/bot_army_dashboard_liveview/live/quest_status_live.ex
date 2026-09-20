@@ -15,6 +15,7 @@ defmodule BotArmyDashboardLiveview.QuestStatusLive do
         images: nil,
         quest_type: nil,
         quest_metadata: nil,
+        mechanics: nil,
         current_image_index: 0,
         next_quest_preview: nil,
         message: nil,
@@ -106,12 +107,18 @@ defmodule BotArmyDashboardLiveview.QuestStatusLive do
   def handle_info({:narrative_loaded, response}, socket) when is_map(response) do
     narrative = response["narrative"]
     images = response["images"]
+    quest_type = response["quest_type"] || :combat
+    quest_metadata = response["quest_metadata"] || %{}
+    mechanics = response["mechanics"] || %{}
 
     socket =
       socket
       |> assign(
         narrative: narrative,
         images: images,
+        quest_type: quest_type,
+        quest_metadata: quest_metadata,
+        mechanics: mechanics,
         current_image_index: 0,
         narrative_loading: false
       )
@@ -259,9 +266,9 @@ defmodule BotArmyDashboardLiveview.QuestStatusLive do
     Enum.find(tasks, fn task -> task["completed"] != true end)
   end
 
-  defp render_quest_type_narrative(quest_type, narrative, metadata) do
+  defp render_quest_type_narrative(quest_type, narrative, metadata, mechanics, quest) do
     case quest_type do
-      :combat -> render_combat_narrative(narrative, metadata)
+      :combat -> render_combat_narrative(narrative, metadata, mechanics, quest)
       :reflection -> render_reflection_narrative(narrative, metadata)
       :maintenance -> render_maintenance_narrative(narrative, metadata)
       :exploration -> render_exploration_narrative(narrative, metadata)
@@ -271,15 +278,32 @@ defmodule BotArmyDashboardLiveview.QuestStatusLive do
     end
   end
 
-  defp render_combat_narrative(narrative, metadata) do
-    assigns = %{narrative: narrative, metadata: metadata}
+  defp render_combat_narrative(narrative, metadata, mechanics, quest) do
+    assigns = %{narrative: narrative, metadata: metadata, mechanics: mechanics, quest: quest}
+    {completed, total} = calculate_progress(quest)
+    progress_percent = if total > 0, do: div(completed * 100, total), else: 0
+    difficulty = mechanics["difficulty"] || 1
+    max_hp = mechanics["max_hp"] || 10
+
+    remaining_hp =
+      if max_hp > 0, do: max(1, max_hp - div(max_hp * progress_percent, 100)), else: 1
+
+    hp_percent = div(remaining_hp * 100, max_hp)
 
     ~H"""
     <div class="narrative-section combat">
-      <div class="quest-type-indicator">⚔️ <%= @metadata["emoji"] %></div>
+      <div class="quest-type-indicator">⚔️ <%= @metadata["emoji"] %> BOSS FIGHT</div>
       <div class="quest-title-narrative"><%= @narrative["quest_title"] %></div>
       <div class="scene-flavor"><%= @narrative["scene_flavor"] %></div>
       <div class="beat-next"><span class="beat-label">Attack:</span> <%= @narrative["beat_next"] %></div>
+      
+      <div class="boss-hp-section">
+        <div class="hp-label">Enemy Health</div>
+        <div class="hp-bar-container">
+          <div class="hp-bar-fill" style={"width: #{hp_percent}%"}></div>
+        </div>
+        <div class="hp-text"><%= remaining_hp %> / <%= max_hp %> HP</div>
+      </div>
     </div>
     """
   end
@@ -401,7 +425,7 @@ defmodule BotArmyDashboardLiveview.QuestStatusLive do
               </div>
             <% else %>
               <%= if @narrative do %>
-                <%= render_quest_type_narrative(@quest_type, @narrative, @quest_metadata) %>
+                <%= render_quest_type_narrative(@quest_type, @narrative, @quest_metadata, @mechanics, @quest) %>
               <% end %>
             <% end %>
 
@@ -835,6 +859,45 @@ defmodule BotArmyDashboardLiveview.QuestStatusLive do
         border-radius: 50%;
         animation: spin 1s linear infinite;
         margin: 0 auto 20px;
+      }
+
+      .boss-hp-section {
+        background: rgba(239, 68, 68, 0.15);
+        border: 1px solid #ef4444;
+        border-radius: 4px;
+        padding: 12px;
+        margin-top: 15px;
+      }
+
+      .hp-label {
+        font-size: 11px;
+        text-transform: uppercase;
+        color: #ef4444;
+        letter-spacing: 0.5px;
+        margin-bottom: 8px;
+        font-weight: bold;
+      }
+
+      .hp-bar-container {
+        background: rgba(0, 0, 0, 0.3);
+        border: 1px solid #ef4444;
+        border-radius: 3px;
+        height: 16px;
+        overflow: hidden;
+        margin-bottom: 8px;
+      }
+
+      .hp-bar-fill {
+        background: linear-gradient(90deg, #ef4444, #dc2626);
+        height: 100%;
+        transition: width 0.3s ease;
+      }
+
+      .hp-text {
+        font-size: 12px;
+        color: #ef4444;
+        text-align: center;
+        font-weight: bold;
       }
 
       @keyframes spin {
