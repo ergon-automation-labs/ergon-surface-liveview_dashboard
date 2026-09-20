@@ -13,6 +13,8 @@ defmodule BotArmyDashboardLiveview.QuestStatusLive do
         quest: nil,
         narrative: nil,
         images: nil,
+        quest_type: nil,
+        quest_metadata: nil,
         current_image_index: 0,
         next_quest_preview: nil,
         message: nil,
