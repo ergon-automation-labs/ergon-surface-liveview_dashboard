@@ -275,7 +275,7 @@ defmodule BotArmyDashboardLiveview.QuestStatusLive do
       :reflection -> render_reflection_narrative(narrative, metadata, mechanics)
       :maintenance -> render_maintenance_narrative(narrative, metadata, mechanics)
       :exploration -> render_exploration_narrative(narrative, metadata)
-      :collaboration -> render_collaboration_narrative(narrative, metadata)
+      :collaboration -> render_collaboration_narrative(narrative, metadata, mechanics)
       :creation -> render_creation_narrative(narrative, metadata)
       _ -> render_default_narrative(narrative)
     end
@@ -376,15 +376,26 @@ defmodule BotArmyDashboardLiveview.QuestStatusLive do
     """
   end
 
-  defp render_collaboration_narrative(narrative, metadata) do
-    assigns = %{narrative: narrative, metadata: metadata}
+  defp render_collaboration_narrative(narrative, metadata, mechanics) do
+    assigns = %{narrative: narrative, metadata: metadata, mechanics: mechanics || %{}}
+    alliance = Map.get(mechanics, "alliance", %{})
+    allies = Map.get(alliance, "allies_formatted", "")
+    morale_phrase = Map.get(alliance, "morale_phrase", "Together, you are stronger.")
 
     ~H"""
     <div class="narrative-section collaboration">
-      <div class="quest-type-indicator">🤝 <%= @metadata["emoji"] %></div>
+      <div class="quest-type-indicator">🤝 <%= @metadata["emoji"] %> ALLIANCE</div>
       <div class="quest-title-narrative"><%= @narrative["quest_title"] %></div>
-      <div class="scene-flavor"><%= @narrative["scene_flavor"] %></div>
+      <div class="scene-flavor"><em><%= @narrative["scene_flavor"] %></em></div>
       <div class="beat-next"><span class="beat-label">Connect:</span> <%= @narrative["beat_next"] %></div>
+
+      <%= if alliance != %{} do %>
+        <div class="alliance-section">
+          <div class="allies-label">Who You're With</div>
+          <div class="allies-names"><%= @allies %></div>
+          <div class="morale-phrase"><%= @morale_phrase %></div>
+        </div>
+      <% end %>
     </div>
     """
   end
@@ -1039,6 +1050,39 @@ defmodule BotArmyDashboardLiveview.QuestStatusLive do
           opacity: 1;
           transform: translateX(0);
         }
+      }
+
+      .alliance-section {
+        background: rgba(16, 185, 129, 0.15);
+        border: 1px solid #10b981;
+        border-radius: 4px;
+        padding: 12px;
+        margin-top: 15px;
+      }
+
+      .allies-label {
+        font-size: 11px;
+        text-transform: uppercase;
+        color: #10b981;
+        letter-spacing: 0.5px;
+        margin-bottom: 8px;
+        font-weight: bold;
+      }
+
+      .allies-names {
+        font-size: 14px;
+        color: #ecf0f1;
+        margin-bottom: 8px;
+        font-weight: bold;
+      }
+
+      .morale-phrase {
+        font-size: 12px;
+        color: #d4d4d4;
+        font-style: italic;
+        padding: 8px;
+        background: rgba(0, 0, 0, 0.2);
+        border-radius: 3px;
       }
 
       @keyframes spin {
