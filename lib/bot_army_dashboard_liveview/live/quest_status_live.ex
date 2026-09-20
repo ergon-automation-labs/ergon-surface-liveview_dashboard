@@ -269,7 +269,7 @@ defmodule BotArmyDashboardLiveview.QuestStatusLive do
   defp render_quest_type_narrative(quest_type, narrative, metadata, mechanics, quest) do
     case quest_type do
       :combat -> render_combat_narrative(narrative, metadata, mechanics, quest)
-      :reflection -> render_reflection_narrative(narrative, metadata)
+      :reflection -> render_reflection_narrative(narrative, metadata, mechanics)
       :maintenance -> render_maintenance_narrative(narrative, metadata)
       :exploration -> render_exploration_narrative(narrative, metadata)
       :collaboration -> render_collaboration_narrative(narrative, metadata)
@@ -308,15 +308,26 @@ defmodule BotArmyDashboardLiveview.QuestStatusLive do
     """
   end
 
-  defp render_reflection_narrative(narrative, metadata) do
-    assigns = %{narrative: narrative, metadata: metadata}
+  defp render_reflection_narrative(narrative, metadata, mechanics) do
+    assigns = %{narrative: narrative, metadata: metadata, mechanics: mechanics || %{}}
 
     ~H"""
     <div class="narrative-section reflection">
-      <div class="quest-type-indicator">🪞 <%= @metadata["emoji"] %></div>
+      <div class="quest-type-indicator">🪞 <%= @metadata["emoji"] %> REFLECTION</div>
       <div class="quest-title-narrative"><%= @narrative["quest_title"] %></div>
       <div class="scene-flavor"><em><%= @narrative["scene_flavor"] %></em></div>
       <div class="beat-next"><span class="beat-label">Consider:</span> <%= @narrative["beat_next"] %></div>
+
+      <%= if @mechanics["reflection_prompts"] && length(@mechanics["reflection_prompts"]) > 0 do %>
+        <div class="reflection-prompts-section">
+          <div class="prompts-label">Companion asks:</div>
+          <div class="prompts-list">
+            <%= for prompt <- Enum.take(@mechanics["reflection_prompts"], 3) do %>
+              <div class="prompt-item">• <%= prompt %></div>
+            <% end %>
+          </div>
+        </div>
+      <% end %>
     </div>
     """
   end
@@ -898,6 +909,36 @@ defmodule BotArmyDashboardLiveview.QuestStatusLive do
         color: #ef4444;
         text-align: center;
         font-weight: bold;
+      }
+
+      .reflection-prompts-section {
+        background: rgba(139, 92, 246, 0.15);
+        border: 1px solid #8b5cf6;
+        border-radius: 4px;
+        padding: 12px;
+        margin-top: 15px;
+      }
+
+      .prompts-label {
+        font-size: 11px;
+        text-transform: uppercase;
+        color: #8b5cf6;
+        letter-spacing: 0.5px;
+        margin-bottom: 10px;
+        font-weight: bold;
+      }
+
+      .prompts-list {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .prompt-item {
+        font-size: 13px;
+        color: #d4d4d4;
+        line-height: 1.4;
+        padding: 4px 0;
       }
 
       @keyframes spin {
