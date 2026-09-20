@@ -3,6 +3,7 @@ defmodule BotArmyDashboardLiveview.QuestPhoneLive do
   alias Phoenix.PubSub
   import BotArmyDashboardLiveview.PhoneNav
   import BotArmyDashboardLiveview.SyncStatus
+  alias BotArmyDashboardLiveview.QuestPayload
 
   @impl true
   def mount(_params, _session, socket) do
@@ -23,26 +24,25 @@ defmodule BotArmyDashboardLiveview.QuestPhoneLive do
   end
 
   defp fetch_quest(socket) do
+    # The task runs in its own process, so `self()` inside it is the task, not
+    # this LiveView — addressing the result back here has to be explicit, or
+    # the view sits on its spinner forever.
+    parent = self()
+
     Task.start_link(fn ->
-      try do
-        case Gnat.request(:nats_connection, "bridge.quest.current", Jason.encode!(%{}),
-               timeout: 5000
-             ) do
-          {:ok, %{body: body}} ->
-            case Jason.decode(body) do
-              {:ok, quest} when is_map(quest) ->
-                send(self(), {:quest_loaded, quest})
-
-              {:error, _} ->
-                send(self(), {:quest_loaded, nil})
-            end
-
-          {:error, _} ->
-            send(self(), {:quest_loaded, nil})
+      result =
+        try do
+          case Gnat.request(:nats_connection, "bridge.quest.current", Jason.encode!(%{}),
+                 timeout: 5000
+               ) do
+            {:ok, %{body: body}} -> QuestPayload.parse(body)
+            {:error, _} -> nil
+          end
+        rescue
+          _ -> nil
         end
-      rescue
-        _ -> send(self(), {:quest_loaded, nil})
-      end
+
+      send(parent, {:quest_loaded, result})
     end)
 
     socket
@@ -200,7 +200,7 @@ defmodule BotArmyDashboardLiveview.QuestPhoneLive do
     {:noreply, socket}
   end
 
-    @impl true
+  @impl true
   def render(assigns) do
     ~H"""
     <div id="quest-phone-container" class="handheld-container quest-phone" phx-hook="TouchCarousel">
