@@ -276,7 +276,7 @@ defmodule BotArmyDashboardLiveview.QuestStatusLive do
       :maintenance -> render_maintenance_narrative(narrative, metadata, mechanics)
       :exploration -> render_exploration_narrative(narrative, metadata)
       :collaboration -> render_collaboration_narrative(narrative, metadata, mechanics)
-      :creation -> render_creation_narrative(narrative, metadata)
+      :creation -> render_creation_narrative(narrative, metadata, mechanics)
       _ -> render_default_narrative(narrative)
     end
   end
@@ -400,15 +400,28 @@ defmodule BotArmyDashboardLiveview.QuestStatusLive do
     """
   end
 
-  defp render_creation_narrative(narrative, metadata) do
-    assigns = %{narrative: narrative, metadata: metadata}
+  defp render_creation_narrative(narrative, metadata, mechanics) do
+    assigns = %{narrative: narrative, metadata: metadata, mechanics: mechanics || %{}}
+    creation = Map.get(mechanics, "creation", %{})
+    stage_phrase = Map.get(creation, "stage_phrase", "You are making something real.")
+    maker_presence = Map.get(creation, "maker_presence", "The maker is here, tending their work.")
+    progress = Map.get(creation, "progress", "")
 
     ~H"""
     <div class="narrative-section creation">
-      <div class="quest-type-indicator">🔨 <%= @metadata["emoji"] %></div>
+      <div class="quest-type-indicator">🔨 <%= @metadata["emoji"] %> CREATION</div>
       <div class="quest-title-narrative"><%= @narrative["quest_title"] %></div>
-      <div class="scene-flavor"><%= @narrative["scene_flavor"] %></div>
+      <div class="scene-flavor"><em><%= @stage_phrase %></em></div>
       <div class="beat-next"><span class="beat-label">Craft:</span> <%= @narrative["beat_next"] %></div>
+
+      <%= if creation != %{} do %>
+        <div class="creation-section">
+          <div class="creation-presence"><%= @maker_presence %></div>
+          <%= if @progress && String.length(@progress) > 0 do %>
+            <div class="creation-progress"><%= @progress %></div>
+          <% end %>
+        </div>
+      <% end %>
     </div>
     """
   end
@@ -1083,6 +1096,34 @@ defmodule BotArmyDashboardLiveview.QuestStatusLive do
         padding: 8px;
         background: rgba(0, 0, 0, 0.2);
         border-radius: 3px;
+      }
+
+      .creation-section {
+        background: rgba(249, 115, 22, 0.15);
+        border: 1px solid #f97316;
+        border-radius: 4px;
+        padding: 12px;
+        margin-top: 15px;
+      }
+
+      .creation-presence {
+        font-size: 13px;
+        color: #fed7aa;
+        line-height: 1.5;
+        font-style: italic;
+        margin-bottom: 10px;
+      }
+
+      .creation-progress {
+        font-size: 11px;
+        text-transform: uppercase;
+        color: #f97316;
+        letter-spacing: 0.5px;
+        font-weight: bold;
+        padding: 6px;
+        background: rgba(0, 0, 0, 0.2);
+        border-radius: 3px;
+        text-align: center;
       }
 
       @keyframes spin {
