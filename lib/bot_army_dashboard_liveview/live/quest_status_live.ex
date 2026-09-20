@@ -12,6 +12,8 @@ defmodule BotArmyDashboardLiveview.QuestStatusLive do
       |> assign(
         quest: nil,
         narrative: nil,
+        images: nil,
+        current_image_index: 0,
         next_quest_preview: nil,
         message: nil,
         loading: true,
@@ -94,6 +96,23 @@ defmodule BotArmyDashboardLiveview.QuestStatusLive do
       |> then(fn s ->
         if quest, do: fetch_narrative(s, quest), else: s
       end)
+
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_info({:narrative_loaded, response}, socket) when is_map(response) do
+    narrative = response["narrative"]
+    images = response["images"]
+
+    socket =
+      socket
+      |> assign(
+        narrative: narrative,
+        images: images,
+        current_image_index: 0,
+        narrative_loading: false
+      )
 
     {:noreply, socket}
   end
@@ -256,6 +275,21 @@ defmodule BotArmyDashboardLiveview.QuestStatusLive do
           <div class="quest-card" data-emotion={emotional_frame}>
             <div class="view-title">⚔️ Your Quest</div>
 
+            <%= if @images and @images["urls"] and length(@images["urls"]) > 0 do %>
+              <% current_image_url = Enum.at(@images["urls"], @current_image_index) %>
+              <% image_count = length(@images["urls"]) %>
+              <div class="quest-image-section">
+                <div class="quest-image">
+                  <img src={current_image_url} alt={"Scene: #{@images["emotional_frame"]}"} />
+                </div>
+                <%= if image_count > 1 do %>
+                  <div class="image-indicator">
+                    <%= @current_image_index + 1 %> / <%= image_count %>
+                  </div>
+                <% end %>
+              </div>
+            <% end %>
+
             <%= if @narrative_loading do %>
               <div class="narrative-loading">
                 <div class="spinner-small"></div>
@@ -388,6 +422,42 @@ defmodule BotArmyDashboardLiveview.QuestStatusLive do
       .quest-card[data-emotion="weary_but_moving"] {
         border-color: #60a5fa;
         box-shadow: 0 8px 32px rgba(96, 165, 250, 0.2);
+      }
+
+      .quest-image-section {
+        position: relative;
+        margin: 20px 0;
+        border-radius: 6px;
+        overflow: hidden;
+        box-shadow: 0 4px 12px rgba(255, 215, 0, 0.15);
+      }
+
+      .quest-image {
+        width: 100%;
+        aspect-ratio: 16 / 9;
+        background: rgba(0, 0, 0, 0.3);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+      }
+
+      .quest-image img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+
+      .image-indicator {
+        position: absolute;
+        bottom: 10px;
+        right: 12px;
+        background: rgba(0, 0, 0, 0.7);
+        color: #ffd700;
+        padding: 4px 10px;
+        border-radius: 3px;
+        font-size: 12px;
+        font-weight: bold;
       }
 
       .narrative-section {
