@@ -16,6 +16,7 @@ defmodule BotArmyDashboardLiveview.QuestStatusLive do
         quest_type: nil,
         quest_metadata: nil,
         mechanics: nil,
+        antagonist: nil,
         current_image_index: 0,
         next_quest_preview: nil,
         message: nil,
@@ -110,6 +111,7 @@ defmodule BotArmyDashboardLiveview.QuestStatusLive do
     quest_type = response["quest_type"] || :combat
     quest_metadata = response["quest_metadata"] || %{}
     mechanics = response["mechanics"] || %{}
+    antagonist = response["antagonist"] || %{}
 
     socket =
       socket
@@ -119,6 +121,7 @@ defmodule BotArmyDashboardLiveview.QuestStatusLive do
         quest_type: quest_type,
         quest_metadata: quest_metadata,
         mechanics: mechanics,
+        antagonist: antagonist,
         current_image_index: 0,
         narrative_loading: false
       )
@@ -441,6 +444,13 @@ defmodule BotArmyDashboardLiveview.QuestStatusLive do
                     <%= @current_image_index + 1 %> / <%= image_count %>
                   </div>
                 <% end %>
+              </div>
+            <% end %>
+
+            <%= if @antagonist && @antagonist["taunt"] do %>
+              <div class="antagonist-meanwhile">
+                <div class="meanwhile-label">💀 Meanwhile...</div>
+                <div class="meanwhile-taunt"><%= @antagonist["taunt"] %></div>
               </div>
             <% end %>
 
@@ -993,6 +1003,42 @@ defmodule BotArmyDashboardLiveview.QuestStatusLive do
         padding: 8px;
         background: rgba(0, 0, 0, 0.2);
         border-radius: 3px;
+      }
+
+      .antagonist-meanwhile {
+        background: linear-gradient(135deg, rgba(127, 29, 29, 0.2), rgba(0, 0, 0, 0.3));
+        border: 1px solid #7f1d1d;
+        border-radius: 4px;
+        padding: 12px;
+        margin: 15px 0 20px 0;
+        animation: slideInAntagonist 0.4s ease;
+      }
+
+      .meanwhile-label {
+        font-size: 10px;
+        text-transform: uppercase;
+        color: #dc2626;
+        letter-spacing: 1px;
+        margin-bottom: 8px;
+        font-weight: bold;
+      }
+
+      .meanwhile-taunt {
+        font-size: 13px;
+        color: #f87171;
+        line-height: 1.5;
+        font-style: italic;
+      }
+
+      @keyframes slideInAntagonist {
+        from {
+          opacity: 0;
+          transform: translateX(10px);
+        }
+        to {
+          opacity: 1;
+          transform: translateX(0);
+        }
       }
 
       @keyframes spin {
