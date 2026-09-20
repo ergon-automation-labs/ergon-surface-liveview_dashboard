@@ -11,9 +11,11 @@ defmodule BotArmyDashboardLiveview.QuestStatusLive do
       socket
       |> assign(
         quest: nil,
+        narrative: nil,
         next_quest_preview: nil,
         message: nil,
-        loading: true
+        loading: true,
+        narrative_loading: false
       )
       |> fetch_quest()
       |> schedule_tick()
@@ -46,6 +48,39 @@ defmodule BotArmyDashboardLiveview.QuestStatusLive do
     socket
   end
 
+  defp fetch_narrative(socket, quest) do
+    task_id = quest["id"]
+    parent = self()
+
+    Task.start_link(fn ->
+      result =
+        try do
+          payload = %{
+            "task_id" => task_id,
+            "force" => false,
+            "user_id" => "abby"
+          }
+
+          case Gnat.request(:nats_connection, "bridge.narrative.refresh", Jason.encode!(payload),
+                 receive_timeout: 5000
+               ) do
+            {:ok, %{body: body}} ->
+              response = Jason.decode!(body)
+              response["narrative"] || nil
+
+            {:error, _} ->
+              nil
+          end
+        rescue
+          _ -> nil
+        end
+
+      send(parent, {:narrative_loaded, result})
+    end)
+
+    assign(socket, narrative_loading: true)
+  end
+
   defp schedule_tick(socket) do
     Process.send_after(self(), :tick, 500)
     socket
@@ -53,7 +88,19 @@ defmodule BotArmyDashboardLiveview.QuestStatusLive do
 
   @impl true
   def handle_info({:quest_loaded, quest}, socket) do
-    {:noreply, assign(socket, quest: quest, loading: false)}
+    socket =
+      socket
+      |> assign(quest: quest, loading: false)
+      |> then(fn s ->
+        if quest, do: fetch_narrative(s, quest), else: s
+      end)
+
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_info({:narrative_loaded, narrative}, socket) do
+    {:noreply, assign(socket, narrative: narrative, narrative_loading: false)}
   end
 
   @impl true
@@ -73,6 +120,47 @@ defmodule BotArmyDashboardLiveview.QuestStatusLive do
   @impl true
   def handle_event("gamepad-b", _params, socket) do
     {:noreply, assign(socket, message: nil)}
+  end
+
+  @impl true
+  def handle_event("gamepad-x", _params, socket) do
+    if socket.assigns.quest do
+      task_id = socket.assigns.quest["id"]
+      parent = self()
+
+      Task.start_link(fn ->
+        payload = %{
+          "task_id" => task_id,
+          "force" => true,
+          "user_id" => "abby"
+        }
+
+        result =
+          try do
+            case Gnat.request(
+                   :nats_connection,
+                   "bridge.narrative.refresh",
+                   Jason.encode!(payload),
+                   receive_timeout: 5000
+                 ) do
+              {:ok, %{body: body}} ->
+                response = Jason.decode!(body)
+                response["narrative"] || nil
+
+              {:error, _} ->
+                nil
+            end
+          rescue
+            _ -> nil
+          end
+
+        send(parent, {:narrative_loaded, result})
+      end)
+
+      {:noreply, assign(socket, narrative_loading: true)}
+    else
+      {:noreply, socket}
+    end
   end
 
   defp publish_quest_completed(socket, quest) do
@@ -164,8 +252,31 @@ defmodule BotArmyDashboardLiveview.QuestStatusLive do
           <% {completed, total} = calculate_progress(@quest) %>
           <% next_task = get_next_task(@quest) %>
           <% progress_percent = if total > 0, do: div(completed * 100, total), else: 0 %>
-          <div class="quest-card">
+          <% emotional_frame = @narrative && @narrative["emotional_frame"] || "neutral" %>
+          <div class="quest-card" data-emotion={emotional_frame}>
             <div class="view-title">⚔️ Your Quest</div>
+
+            <%= if @narrative_loading do %>
+              <div class="narrative-loading">
+                <div class="spinner-small"></div>
+                <p>Weaving narrative...</p>
+              </div>
+            <% else %>
+              <%= if @narrative do %>
+                <div class="narrative-section">
+                  <div class="quest-title-narrative">
+                    <%= @narrative["quest_title"] %>
+                  </div>
+                  <div class="scene-flavor">
+                    <%= @narrative["scene_flavor"] %>
+                  </div>
+                  <div class="beat-next">
+                    <span class="beat-label">Your next move:</span>
+                    <%= @narrative["beat_next"] %>
+                  </div>
+                </div>
+              <% end %>
+            <% end %>
 
             <div class="quest-header">
               <h1 class="quest-title"><%= @quest["title"] %></h1>
@@ -200,6 +311,10 @@ defmodule BotArmyDashboardLiveview.QuestStatusLive do
                   <span class="action">Work on quest</span>
                 </div>
               <% end %>
+              <div class="control-hint">
+                <span class="key">X</span>
+                <span class="action">Rewrite Scene</span>
+              </div>
               <div class="control-hint">
                 <span class="key">B</span>
                 <span class="action">Back</span>
@@ -243,6 +358,107 @@ defmodule BotArmyDashboardLiveview.QuestStatusLive do
         width: 100%;
         max-width: 450px;
         box-shadow: 0 8px 32px rgba(255, 215, 0, 0.1);
+      }
+
+      .quest-card[data-emotion="hopeful"] {
+        border-color: #4ade80;
+        box-shadow: 0 8px 32px rgba(74, 222, 128, 0.2);
+      }
+
+      .quest-card[data-emotion="playful"] {
+        border-color: #fbbf24;
+        box-shadow: 0 8px 32px rgba(251, 191, 36, 0.2);
+      }
+
+      .quest-card[data-emotion="defiant"] {
+        border-color: #ef4444;
+        box-shadow: 0 8px 32px rgba(239, 68, 68, 0.2);
+      }
+
+      .quest-card[data-emotion="tender"] {
+        border-color: #ec4899;
+        box-shadow: 0 8px 32px rgba(236, 72, 153, 0.2);
+      }
+
+      .quest-card[data-emotion="melancholic_resolve"] {
+        border-color: #8b5cf6;
+        box-shadow: 0 8px 32px rgba(139, 92, 246, 0.2);
+      }
+
+      .quest-card[data-emotion="weary_but_moving"] {
+        border-color: #60a5fa;
+        box-shadow: 0 8px 32px rgba(96, 165, 250, 0.2);
+      }
+
+      .narrative-section {
+        background: rgba(255, 215, 0, 0.05);
+        border-left: 3px solid #ffd700;
+        padding: 15px;
+        margin: 20px 0;
+        border-radius: 4px;
+        animation: narrativeSlideIn 0.5s ease;
+      }
+
+      @keyframes narrativeSlideIn {
+        from {
+          opacity: 0;
+          transform: translateX(-10px);
+        }
+        to {
+          opacity: 1;
+          transform: translateX(0);
+        }
+      }
+
+      .quest-title-narrative {
+        font-size: 18px;
+        font-weight: bold;
+        color: #ffd700;
+        margin-bottom: 10px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+      }
+
+      .scene-flavor {
+        font-size: 13px;
+        color: #d4d4d4;
+        margin-bottom: 12px;
+        line-height: 1.5;
+        font-style: italic;
+      }
+
+      .beat-next {
+        font-size: 12px;
+        color: #b0b0b0;
+        background: rgba(0, 0, 0, 0.3);
+        padding: 8px;
+        border-radius: 3px;
+        margin-top: 10px;
+      }
+
+      .beat-label {
+        display: block;
+        font-size: 10px;
+        text-transform: uppercase;
+        color: #ffd700;
+        letter-spacing: 0.5px;
+        margin-bottom: 4px;
+      }
+
+      .narrative-loading {
+        text-align: center;
+        padding: 15px;
+        color: #ffd700;
+      }
+
+      .spinner-small {
+        width: 20px;
+        height: 20px;
+        border: 2px solid #ffd700;
+        border-top-color: transparent;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin: 0 auto 10px;
       }
 
       .view-title {
