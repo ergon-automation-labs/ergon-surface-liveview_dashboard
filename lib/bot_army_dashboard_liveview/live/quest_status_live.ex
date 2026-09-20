@@ -270,7 +270,7 @@ defmodule BotArmyDashboardLiveview.QuestStatusLive do
     case quest_type do
       :combat -> render_combat_narrative(narrative, metadata, mechanics, quest)
       :reflection -> render_reflection_narrative(narrative, metadata, mechanics)
-      :maintenance -> render_maintenance_narrative(narrative, metadata)
+      :maintenance -> render_maintenance_narrative(narrative, metadata, mechanics)
       :exploration -> render_exploration_narrative(narrative, metadata)
       :collaboration -> render_collaboration_narrative(narrative, metadata)
       :creation -> render_creation_narrative(narrative, metadata)
@@ -332,15 +332,30 @@ defmodule BotArmyDashboardLiveview.QuestStatusLive do
     """
   end
 
-  defp render_maintenance_narrative(narrative, metadata) do
-    assigns = %{narrative: narrative, metadata: metadata}
+  defp render_maintenance_narrative(narrative, metadata, mechanics) do
+    assigns = %{narrative: narrative, metadata: metadata, mechanics: mechanics || %{}}
+    ritual = Map.get(mechanics, "ritual", %{})
+    estimated_minutes = Map.get(ritual, "estimated_minutes", 15)
+    ritual_phrase = Map.get(ritual, "ritual_phrase", "The ritual. Simple. Necessary. Eternal.")
 
     ~H"""
     <div class="narrative-section maintenance">
-      <div class="quest-type-indicator">🔥 <%= @metadata["emoji"] %></div>
+      <div class="quest-type-indicator">🔥 <%= @metadata["emoji"] %> RITUAL</div>
       <div class="quest-title-narrative"><%= @narrative["quest_title"] %></div>
-      <div class="scene-flavor"><%= @narrative["scene_flavor"] %></div>
+      <div class="scene-flavor"><em><%= @ritual_phrase %></em></div>
       <div class="beat-next"><span class="beat-label">Ritual:</span> <%= @narrative["beat_next"] %></div>
+
+      <%= if ritual != %{} do %>
+        <div class="ritual-timer-section">
+          <div class="ritual-time">
+            <div class="ritual-label">Ritual Time</div>
+            <div class="ritual-duration"><%= @estimated_minutes %> minutes</div>
+          </div>
+          <div class="ritual-note">
+            Show up. Do the thing. That's enough.
+          </div>
+        </div>
+      <% end %>
     </div>
     """
   end
@@ -939,6 +954,45 @@ defmodule BotArmyDashboardLiveview.QuestStatusLive do
         color: #d4d4d4;
         line-height: 1.4;
         padding: 4px 0;
+      }
+
+      .ritual-timer-section {
+        background: rgba(245, 158, 11, 0.15);
+        border: 1px solid #f59e0b;
+        border-radius: 4px;
+        padding: 12px;
+        margin-top: 15px;
+      }
+
+      .ritual-time {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 10px;
+      }
+
+      .ritual-label {
+        font-size: 11px;
+        text-transform: uppercase;
+        color: #f59e0b;
+        letter-spacing: 0.5px;
+        font-weight: bold;
+      }
+
+      .ritual-duration {
+        font-size: 18px;
+        font-weight: bold;
+        color: #f59e0b;
+      }
+
+      .ritual-note {
+        font-size: 12px;
+        color: #d4d4d4;
+        text-align: center;
+        font-style: italic;
+        padding: 8px;
+        background: rgba(0, 0, 0, 0.2);
+        border-radius: 3px;
       }
 
       @keyframes spin {
