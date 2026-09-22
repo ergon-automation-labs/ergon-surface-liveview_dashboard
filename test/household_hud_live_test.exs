@@ -66,8 +66,29 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDLiveTest do
 
     assert html =~ "Not derived yet"
     assert html =~ "Reward Pulse State"
-    assert html =~ "Restoration State"
     assert html =~ "diaper"
+
+    # Restoration is derivable now that the energy feed exists, so it is no
+    # longer announced as unreachable — it appears only when a reading climbs.
+    refute html =~ "Restoration State —"
+  end
+
+  test "the energy line reports the band and how many readings there are" do
+    {:ok, view, _html} = live(build_conn(), "/household-hud")
+    html = render_async(view)
+
+    assert html =~ "no reading yet"
+    assert html =~ "Energy: not set"
+    refute html =~ "reading from"
+  end
+
+  test "a recovery is announced in words, not only in colour" do
+    {:ok, view, _html} = live(build_conn(), "/household-hud")
+    html = render_async(view)
+
+    # With a silent panel there is nothing to recover from, and the screen says
+    # nothing about recovery rather than showing a hopeful default.
+    refute html =~ "Recovery is underway"
   end
 
   test "the background class follows the state and the pet layer" do

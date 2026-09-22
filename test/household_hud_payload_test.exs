@@ -611,6 +611,117 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDPayloadTest do
       assert on.transition_ms == 500
     end
 
+    test "a check-in word is strain, and the reason quotes her word rather than a number" do
+      visual =
+        visual_for(%{
+          "pet" => %{
+            "energy" => nil,
+            "energy_detail" => %{
+              "level" => nil,
+              "label" => "low",
+              "display" => "Low (checkin)",
+              "band" => "strained",
+              "source" => "checkin",
+              "readings" => 1
+            }
+          }
+        })
+
+      assert visual.key == :strain
+      assert visual.reason =~ "Low (checkin)"
+      assert visual.energy.display == "Low (checkin)"
+      assert visual.energy.band == "strained"
+      assert visual.energy.producer == "checkin"
+      # No meter: a bar for a word would be a percentage nobody measured.
+      assert visual.energy.source == :unreported
+      assert visual.energy.value == nil
+    end
+
+    test "a reported band decides strain, so no threshold is re-derived here" do
+      grounded = energy_detail(%{"band" => "grounded", "level" => 20, "display" => "20% (sre)"})
+      strained = energy_detail(%{"band" => "strained", "level" => 90, "display" => "90% (sre)"})
+
+      assert visual_for(%{"pet" => grounded}).key == :neutral
+      assert visual_for(%{"pet" => strained}).key == :strain
+    end
+
+    test "a recovery out of strain is the doc's Restoration State" do
+      visual =
+        visual_for(%{
+          "pet" =>
+            energy_detail(%{
+              "band" => "grounded",
+              "label" => "medium",
+              "display" => "Medium (checkin)",
+              "previous_band" => "strained",
+              "restoring" => true
+            })
+        })
+
+      assert visual.key == :restoration
+      assert visual.reason =~ "climbing out"
+      assert visual.energy.restoring
+    end
+
+    test "strain outranks a recovery, as the doc's chain does" do
+      visual =
+        visual_for(%{
+          "pet" =>
+            energy_detail(%{
+              "band" => "strained",
+              "label" => "low",
+              "display" => "Low (checkin)",
+              "restoring" => true
+            })
+        })
+
+      assert visual.key == :strain
+    end
+
+    test "a capable day brightens whatever state is already in play" do
+      visual =
+        visual_for(%{
+          "pet" => energy_detail(%{"band" => "capable", "level" => 95, "display" => "95%"}),
+          "wishes" => %{"toggles" => []}
+        })
+
+      assert Enum.map(visual.modulations, & &1.key) == ["bright"]
+    end
+
+    test "strain stays visible underneath a stronger state" do
+      visual =
+        visual_for(%{
+          "pet" =>
+            energy_detail(%{"band" => "strained", "label" => "low", "display" => "Low (checkin)"}),
+          "outfit" => %{"active" => true, "components" => %{"plug" => "hollow"}}
+        })
+
+      assert visual.key == :punishment
+      assert "grain" in Enum.map(visual.modulations, & &1.key)
+    end
+
+    test "a grounded day adds no visual weight, and an unmeasured day adds none either" do
+      grounded =
+        visual_for(%{
+          "pet" => energy_detail(%{"band" => "grounded", "level" => 70, "display" => "70%"}),
+          "wishes" => %{"toggles" => []}
+        })
+
+      assert grounded.modulations == []
+
+      assert visual_for(%{"pet" => %{"energy" => nil}, "wishes" => %{"toggles" => []}}).modulations ==
+               []
+    end
+
+    test "a bot that predates the feed still reads on the raw percentage" do
+      visual = visual_for(%{"pet" => %{"energy" => 30}})
+
+      assert visual.key == :strain
+      assert visual.energy.display == "30%"
+      assert visual.energy.band == nil
+      assert visual.energy.readings == 0
+    end
+
     test "each documented wish modulates the background, and only those" do
       keys =
         visual_for(%{
@@ -642,8 +753,11 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDPayloadTest do
       keys = Enum.map(underivable, & &1.key)
 
       assert :reward_pulse in keys
-      assert :restoration in keys
       assert :bodily in keys
+
+      # Restoration is no longer on this list: the energy feed made it derivable
+      # from two readings, so it is a state the panel can actually reach.
+      refute :restoration in keys
 
       assert Enum.all?(underivable, fn s -> is_binary(s.missing) and s.missing != "" end)
     end
@@ -660,6 +774,10 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDPayloadTest do
         assert HUD.build(body, nil).visual.key == :neutral
       end
     end
+  end
+
+  defp energy_detail(detail) do
+    Map.put(%{"energy" => nil}, "energy_detail", detail)
   end
 
   defp visual_for(overrides) do

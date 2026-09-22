@@ -155,7 +155,6 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDPayload do
   @underivable %{
     reward_pulse:
       "needs today's satisfaction rating and completion, which the panel read does not carry",
-    restoration: "needs a recovery-mode signal, which the panel read does not carry",
     bodily: "needs a diaper-confinement signal; the bot has no diaper tracking yet"
   }
 
@@ -372,8 +371,8 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDPayload do
       source: if(reason, do: :reported, else: :unreported),
       pet_on?: Map.get(pet, "abby") == "on",
       transition_ms: if(Map.get(pet, "abby") == "on", do: 500, else: 0),
-      energy: gauge(Map.get(pet, "energy")),
-      modulations: modulations(panel),
+      energy: energy_view(pet),
+      modulations: modulations(panel, key),
       underivable: underivable()
     }
   end
@@ -399,13 +398,7 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDPayload do
 
     # "Full penalty day" is *multiple* punishment triggers. Counting them beats
     # guessing a single threshold, and each one carries its own reason.
-    load =
-      [
-        wearing?(components["plug"]) && "the plug is on",
-        high_humiliation?(outfit) && "humiliation is set high (#{outfit["humiliation_level"]})",
-        critical_hygiene?(panel) && "a hygiene item is critically overdue"
-      ]
-      |> Enum.filter(&is_binary/1)
+    load = punishment_load(panel, outfit, components)
 
     cond do
       cage? ->
@@ -420,8 +413,11 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDPayload do
       recognition?(pet) ->
         {:recognition, "the pet layer is on and the week's warmth is high"}
 
-      strain?(pet) ->
-        {:strain, "energy is #{pet["energy"]}%"}
+      strained?(pet) ->
+        {:strain, "energy reads #{energy_view(pet).display}"}
+
+      restoring?(pet) ->
+        {:restoration, "energy is climbing out of strain (#{energy_view(pet).display})"}
 
       tender?(panel) ->
         {:tender, "gentleness is set for today"}
@@ -432,6 +428,16 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDPayload do
   end
 
   @high_humiliation 7
+
+  # The reasons a punishment is in play today, each one phrased for the screen.
+  defp punishment_load(panel, outfit, components) do
+    [
+      wearing?(components["plug"]) && "the plug is on",
+      high_humiliation?(outfit) && "humiliation is set high (#{outfit["humiliation_level"]})",
+      critical_hygiene?(panel) && "a hygiene item is critically overdue"
+    ]
+    |> Enum.filter(&is_binary/1)
+  end
 
   defp high_humiliation?(outfit) do
     level = Map.get(outfit, "humiliation_level")
@@ -451,10 +457,24 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDPayload do
     Map.get(pet, "abby") == "on" and is_number(score) and score >= 90
   end
 
-  defp strain?(pet) do
-    energy = pet["energy"]
-    is_number(energy) and energy < 60
+  # Strain is read from the band the bot derived, and only falls back to the raw
+  # percentage for a bot that predates the feed. The band knows about her
+  # check-in words, which have no number to compare.
+  defp strained?(pet) do
+    energy = energy_view(pet)
+
+    cond do
+      energy.band == "strained" -> true
+      is_binary(energy.band) -> false
+      is_number(energy.value) -> energy.value < 60
+      true -> false
+    end
   end
+
+  # The doc's "Energy Recovery Active", which the bot derives from two readings
+  # (or from her own `Recovering` mood). Derived, so it is present only when the
+  # reading really moved — never a mood someone has to remember to set.
+  defp restoring?(pet), do: energy_view(pet).restoring == true
 
   # The doc's "Louiza toggles Gentleness": on this wire that is the grounded
   # mood colour or a day set to stillness.
@@ -463,12 +483,80 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDPayload do
     mood == "brown" or wish_value(panel, "stillness") == "high_stillness"
   end
 
-  defp modulations(panel) do
+  # The reading as the bot reported it, with the meter only when there is a
+  # number to fill it: a check-in word reads "Low (checkin)" and draws no bar,
+  # because a bar for the word would be a percentage nobody measured.
+  defp energy_view(pet) do
+    detail = Map.get(pet, "energy_detail")
+    detail = if is_map(detail), do: detail, else: %{}
+
+    level = Map.get(detail, "level") || Map.get(pet, "energy")
+    gauge = gauge(level)
+
+    gauge
+    |> Map.merge(%{
+      display: Map.get(detail, "display") || gauge.display,
+      band: Map.get(detail, "band"),
+      band_text: Map.get(detail, "band_text") || band_text(nil),
+      producer: Map.get(detail, "source"),
+      mood: Map.get(detail, "mood"),
+      restoring: Map.get(detail, "restoring") == true,
+      readings: Map.get(detail, "readings") || 0,
+      recorded_at: Map.get(detail, "recorded_at")
+    })
+  end
+
+  @doc "The doc's description of an energy band, for a caller that has only the name."
+  @spec band_text(String.t() | nil) :: String.t()
+  def band_text("capable"), do: "clean, bright, airy textures — capability, visible"
+  def band_text("grounded"), do: "neutral grounded state — no visual weight added"
+
+  def band_text("strained"),
+    do: "edges darken and grain is added — the system noticing strain"
+
+  def band_text(_band), do: "no reading yet, so no visual weight is added"
+
+  defp modulations(panel, key) do
+    wish_effects(panel) ++ energy_modulations(panel, key)
+  end
+
+  defp wish_effects(panel) do
     for toggle <- panel |> Map.get("wishes", %{}) |> Map.get("toggles", []),
         is_map(toggle),
         effect = Map.get(@wish_effects, toggle["value"]),
         effect do
       effect
+    end
+  end
+
+  # The doc's band responses that are not whole states: a capable day brightens
+  # whatever state is already in play, and strain stays visible underneath a
+  # stronger state (the plug can be on during a strained day, and she should
+  # still see the system noticing both).
+  defp energy_modulations(panel, key) do
+    band = energy_view(Map.get(panel, "pet") || %{}).band
+
+    cond do
+      band == "capable" ->
+        [
+          %{
+            key: "bright",
+            label: "Energy above 80%",
+            effect: "clean, bright, airy textures — capability is visible"
+          }
+        ]
+
+      band == "strained" and key != :strain ->
+        [
+          %{
+            key: "grain",
+            label: "Energy below 60%",
+            effect: "edges darken and grain is added under it — strain still showing"
+          }
+        ]
+
+      true ->
+        []
     end
   end
 

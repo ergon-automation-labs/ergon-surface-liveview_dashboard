@@ -143,6 +143,7 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDLive do
       .hud.state-punishment::before { background: radial-gradient(130% 90% at 50% 0%, #4a1020 0%, #241018 60%, #0b0709 100%); }
       .hud.state-recognition::before { background: radial-gradient(120% 90% at 50% 0%, #2b3a5c 0%, #3a2b3f 55%, #0a0e27 100%); }
       .hud.state-strain::before { background: radial-gradient(90% 70% at 50% 50%, #0f1430 30%, #05060f 100%); }
+      .hud.state-restoration::before { background: radial-gradient(120% 90% at 50% 0%, #16302a 0%, #0f2138 60%, #070c17 100%); }
       .hud.state-tender::before { background: radial-gradient(120% 90% at 50% 0%, #2a2634 0%, #1a1622 60%, #0a0e27 100%); }
       .hud.bloom::before { box-shadow: inset 0 0 120px rgba(255, 179, 209, 0.18); }
       .hud.mode-glow .hud-title { text-shadow: 0 0 12px rgba(255, 179, 209, 0.55); }
@@ -150,6 +151,13 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDLive do
       @keyframes hud-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.72; } }
       .hud.mode-hush { opacity: 0.88; }
       .hud.mode-deep::before { filter: contrast(1.15) saturate(1.2); }
+      /* The doc's energy bands that are not whole states: a capable day lifts the
+         light on whatever state is in play, and strain keeps a grain under a
+         stronger state so both facts stay visible at once. */
+      .hud.mode-bright::before { filter: brightness(1.12) saturate(1.05); }
+      .hud.mode-bright .hud-title { text-shadow: 0 0 14px rgba(214, 232, 255, 0.45); }
+      .hud.mode-grain::before { filter: contrast(1.06) grayscale(0.08); }
+      .hud.mode-grain .card { box-shadow: inset 0 0 24px rgba(0, 0, 0, 0.5); }
     </style>
 
     <div class={"hud state-#{@hud.visual.key}#{if @hud.visual.pet_on?, do: " bloom", else: " crisp"}#{mode_classes(@hud.visual.modulations)}"}>
@@ -198,6 +206,17 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDLive do
       </div>
       <div class="row"><span class="dim"><%= @hud.visual.style %></span></div>
       <p class="dim" style="font-size:12px;"><%= @hud.visual.texture %></p>
+      <p class="dim" style="margin-top:6px; font-size:12px;">
+        <%= @hud.visual.energy.band_text %>
+        <%= if @hud.visual.energy.readings > 0 do %>
+          (<%= @hud.visual.energy.readings %> reading<%= if @hud.visual.energy.readings == 1, do: "", else: "s" %><%= if @hud.visual.energy.producer, do: " from #{@hud.visual.energy.producer}", else: "" %>)
+        <% end %>
+      </p>
+      <%= if @hud.visual.energy.restoring do %>
+        <p style="margin-top:6px; font-size:12px;">
+          Recovery is underway — the reading is climbing, so the space softens with it.
+        </p>
+      <% end %>
       <p style="margin-top:6px; font-size:12px;">
         <%= if @hud.visual.reason do %>
           Because <%= @hud.visual.reason %>.
