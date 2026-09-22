@@ -22,3 +22,10 @@ config :bot_army_dashboard_liveview, BotArmyDashboardLiveview.Endpoint,
 # NATS connection (optional, for subscribing to other bots' topics)
 # When running in Docker, NATS_HOST and NATS_PORT point to the external Bot Army NATS
 # On the same network: NATS_HOST=nats (Docker Compose service name) or host.docker.internal:4222
+
+# Tests must be hermetic: they bind no listener and open no broker connection, so a
+# run cannot collide with the deployed surface's port or read the live system. See
+# config/test.exs.
+if config_env() == :test do
+  import_config "test.exs"
+end

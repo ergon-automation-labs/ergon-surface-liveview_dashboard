@@ -4,7 +4,7 @@ defmodule BotArmyDashboardLiveview.MixProject do
   def project do
     [
       app: :bot_army_dashboard_liveview,
-      version: "0.2.9",
+      version: "0.2.10",
       elixir: "~> 1.14",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
@@ -33,7 +33,8 @@ defmodule BotArmyDashboardLiveview.MixProject do
       {:plug, "~> 1.14"},
       {:jason, "~> 1.4"},
       {:gnat, "~> 1.3"},
-      {:credo, "~> 1.7", only: [:dev, :test]}
+      {:credo, "~> 1.7", only: [:dev, :test]},
+      {:floki, ">= 0.30.0", only: :test}
     ]
   end
 end

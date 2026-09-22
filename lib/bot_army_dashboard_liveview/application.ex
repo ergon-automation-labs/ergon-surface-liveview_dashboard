@@ -6,12 +6,14 @@ defmodule BotArmyDashboardLiveview.Application do
   def start(_type, _args) do
     Logger.info("[Application] Starting Bot Army Dashboard...")
 
-    children = [
-      {Registry, keys: :unique, name: BotArmyDashboardLiveview.Registry},
-      {Phoenix.PubSub, name: BotArmyDashboardLiveview.PubSub},
-      BotArmyDashboardLiveview.NATSBridge,
-      BotArmyDashboardLiveview.Endpoint
-    ]
+    children =
+      [
+        {Registry, keys: :unique, name: BotArmyDashboardLiveview.Registry},
+        {Phoenix.PubSub, name: BotArmyDashboardLiveview.PubSub},
+        BotArmyDashboardLiveview.NATSBridge,
+        BotArmyDashboardLiveview.Endpoint
+      ]
+      |> maybe_start_nats_bridge()
 
     opts = [strategy: :one_for_one, name: BotArmyDashboardLiveview.Supervisor]
 
@@ -23,6 +25,17 @@ defmodule BotArmyDashboardLiveview.Application do
       {:error, reason} ->
         Logger.error("[Application] Supervisor failed: #{inspect(reason)}")
         {:error, reason}
+    end
+  end
+
+  # Tests run without a broker connection, so a panel read is deterministic (it
+  # exercises the "nothing answered" path instead of whatever the live broker on
+  # this machine happens to be publishing). Production keeps the bridge on.
+  defp maybe_start_nats_bridge(children) do
+    if Application.get_env(:bot_army_dashboard_liveview, :start_nats_bridge, true) do
+      children
+    else
+      Enum.reject(children, &(&1 == BotArmyDashboardLiveview.NATSBridge))
     end
   end
 end

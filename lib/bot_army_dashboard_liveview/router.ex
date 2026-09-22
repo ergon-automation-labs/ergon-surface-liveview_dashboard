@@ -13,6 +13,7 @@ defmodule BotArmyDashboardLiveview.Router do
     pipe_through(:browser)
 
     live("/", DashboardLive)
+    live("/household-hud", HouseholdHUDLive)
     live("/fitness-handheld", FitnessHandheldLive)
     live("/gtd-handheld", GTDHandheldLive)
     live("/system-health-handheld", SystemHealthHandheldLive)

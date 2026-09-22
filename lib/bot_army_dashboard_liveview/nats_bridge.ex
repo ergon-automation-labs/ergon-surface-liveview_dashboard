@@ -14,9 +14,18 @@ defmodule BotArmyDashboardLiveview.NATSBridge do
     System.get_env("NATS_HOST", "localhost")
   end
 
-  defp nats_port do
-    String.to_integer(System.get_env("NATS_PORT", "4222"))
+  # The app-env pin comes first so a test run is hermetic even when the ambient
+  # shell exports `NATS_PORT=4222`; production sets no app-env value, so there the
+  # environment still wins (salt injects `NATS_PORT`) and the last resort is 4222.
+  @doc "The broker port this surface would use, before it is parsed."
+  @spec configured_port() :: String.t()
+  def configured_port do
+    Application.get_env(:bot_army_dashboard_liveview, :nats_port) ||
+      System.get_env("NATS_PORT") ||
+      "4222"
   end
+
+  defp nats_port, do: String.to_integer(configured_port())
 
   def start_link(opts) do
     GenServer.start_link(__MODULE__, opts, name: __MODULE__)
