@@ -745,10 +745,21 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDPayload do
 
   defp fetch(_body, _key), do: nil
 
-  # The panel's own read answers `{"ok": true, "state": {...}}`; a direct read of
+  # The panel's own read answers `{"ok": true, "data": {...}}`; a direct read of
   # the store may answer with the state itself. Both are accepted, and neither a
   # failed reply nor a bare success notice is mistaken for a state with data.
   defp unwrap(%{"ok" => false}, _key), do: nil
+
+  # The fleet envelope carries the state inside `data`. Reading `body["state"]`
+  # finds nothing here, and that failure is quiet: every section renders as "not
+  # set" against a bot that answered perfectly. This is the shape the live bot
+  # sends, so it is the shape the tests use.
+  defp unwrap(%{"data" => data}, key) when is_map(data) do
+    case Map.get(data, key) do
+      value when is_map(value) -> value
+      _ -> data
+    end
+  end
 
   defp unwrap(body, key) when is_map(body) do
     case Map.get(body, key) do

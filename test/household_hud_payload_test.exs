@@ -4,7 +4,9 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDPayloadTest do
   alias BotArmyDashboardLiveview.HouseholdHUDPayload, as: HUD
 
   # The two replies exactly as the wife care bot sends them (JSON strings), so the
-  # test cannot pass against a shape the bot does not produce.
+  # test cannot pass against a shape the bot does not produce. Both are wrapped in
+  # the fleet envelope `{"ok": true, "data": {...}}` — the shape the live bot sends.
+  # The un-enveloped shapes are accepted too, and pinned by a test below.
   defp panel_reply(overrides \\ %{}) do
     state =
       Map.merge(
@@ -82,33 +84,70 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDPayloadTest do
         overrides
       )
 
-    Jason.encode!(%{"ok" => true, "state" => state})
+    Jason.encode!(%{"ok" => true, "data" => state})
   end
 
   defp chorus_reply do
     Jason.encode!(%{
       "ok" => true,
-      "chorus" => %{
-        "categories" => [
-          %{
-            "key" => "focus",
-            "glyph" => "🔵",
-            "label" => "What should I focus on next?",
-            "answering" => ["GTD", "Wife Care"],
-            "mode" => "targeted"
-          },
-          %{
-            "key" => "clarification",
-            "glyph" => "💬",
-            "label" => "Something else",
-            "answering" => ["Wife Care"],
-            "mode" => "targeted"
-          }
-        ],
-        "tone" => %{"register" => "warm", "ownership?" => true, "state" => "pet"},
-        "max_rating" => 5
+      "data" => %{
+        "chorus" => %{
+          "categories" => [
+            %{
+              "key" => "focus",
+              "glyph" => "🔵",
+              "label" => "What should I focus on next?",
+              "answering" => ["GTD", "Wife Care"],
+              "mode" => "targeted"
+            },
+            %{
+              "key" => "clarification",
+              "glyph" => "💬",
+              "label" => "Something else",
+              "answering" => ["Wife Care"],
+              "mode" => "targeted"
+            }
+          ],
+          "tone" => %{"register" => "warm", "ownership?" => true, "state" => "pet"},
+          "max_rating" => 5
+        }
       }
     })
+  end
+
+  # The bot's envelope is the shape that matters: `{"ok": true, "data": {...}}`.
+  # These two tests exist because the HUD was reading `body["state"]` and so found
+  # nothing in a perfectly good answer — every section rendered as "not set" while
+  # the wire was full of data. Fixtures that skip the envelope hide that.
+  describe "the wire shapes the bot actually sends" do
+    test "the envelope's data is the state" do
+      state = %{"pet" => %{"state" => "pet", "energy_detail" => %{"band" => "strained"}}}
+      hud = HUD.build(Jason.encode!(%{"ok" => true, "data" => state}), nil)
+
+      assert hud.answering?
+      assert hud.pet.state == "pet"
+      assert hud.visual.key == :strain
+    end
+
+    test "an un-enveloped state is still accepted" do
+      hud = HUD.build(Jason.encode!(%{"ok" => true, "state" => %{"pet" => %{}}}), nil)
+      assert hud.answering?
+    end
+
+    test "the chorus arrives inside the same envelope" do
+      reply =
+        Jason.encode!(%{
+          "ok" => true,
+          "data" => %{
+            "chorus" => %{"categories" => [%{"key" => "focus", "label" => "Focus"}]}
+          }
+        })
+
+      hud = HUD.build(nil, reply)
+
+      assert hud.answering?
+      assert [%{label: "Focus"}] = hud.chorus.categories
+    end
   end
 
   describe "the ladder" do
