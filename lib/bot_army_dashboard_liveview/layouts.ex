@@ -10,6 +10,7 @@ defmodule BotArmyDashboardLiveview.Layouts do
       <head>
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="csrf-token" content={Plug.CSRFProtection.get_csrf_token()} />
         <title>Bot Army Dashboard</title>
         <script defer type="text/javascript" src="https://cdn.jsdelivr.net/npm/phoenix@1.7.0/priv/static/phoenix.min.js"></script>
         <script defer type="text/javascript" src="https://cdn.jsdelivr.net/npm/phoenix_live_view@0.20.0/priv/static/phoenix_live_view.min.js"></script>

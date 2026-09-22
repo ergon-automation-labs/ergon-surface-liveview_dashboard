@@ -6,6 +6,15 @@ defmodule BotArmyDashboardLiveview.Router do
     plug(:accepts, ["html"])
     plug(:fetch_session)
     plug(:fetch_live_flash)
+    # Seeds the CSRF token into the session and loads its state into the request
+    # process. Two things depend on it and neither fails loudly without it:
+    # the session cookie (Plug.Session writes one only when the session changed,
+    # so without this no cookie is ever set) and the meta tag the layout exposes.
+    # Phoenix's socket transport reads both back on the websocket upgrade —
+    # `connect_session/3` requires a `_csrf_token` param AND the matching state in
+    # the cookie's session, and returns `nil` ("session was misconfigured") when
+    # either is missing, which LiveView answers by reloading the page forever.
+    plug(:protect_from_forgery)
     plug(:put_root_layout, {BotArmyDashboardLiveview.Layouts, :root})
   end
 
