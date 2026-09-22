@@ -13,7 +13,11 @@ defmodule BotArmyDashboardLiveview.Layouts do
         <title>Bot Army Dashboard</title>
         <script defer type="text/javascript" src="https://cdn.jsdelivr.net/npm/phoenix@1.7.0/priv/static/phoenix.min.js"></script>
         <script defer type="text/javascript" src="https://cdn.jsdelivr.net/npm/phoenix_live_view@0.20.0/priv/static/phoenix_live_view.min.js"></script>
-        <script defer type="text/javascript">
+        <%!-- No `defer` here: it is ignored on an inline script, so this block used
+        to run during parsing, before the deferred CDN scripts above had loaded,
+        and threw "Phoenix is not defined". Booting on DOMContentLoaded is the
+        guarantee that both libraries are present. --%>
+        <script type="text/javascript">
           // Touch gesture detection hook for phone interfaces
           const TouchCarouselHook = {
             mounted() {
@@ -82,16 +86,24 @@ defmodule BotArmyDashboardLiveview.Layouts do
           // connects, and every LiveView on the surface freezes as a dead static
           // render — a page that says "asking…" forever while the bot answers.
           // The plain global is still accepted for a bundled build that sets it.
-          const LiveSocketCtor = (window.LiveView && window.LiveView.LiveSocket) || window.LiveSocket;
+          const bootLiveView = () => {
+            const LiveSocketCtor = (window.LiveView && window.LiveView.LiveSocket) || window.LiveSocket;
 
-          let liveSocket = new LiveSocketCtor("/live", Phoenix.Socket, {
-            params: {_csrf_token: document.querySelector("meta[name='csrf-token']")?.content},
-            hooks: {
-              TouchCarousel: TouchCarouselHook
-            }
-          });
-          liveSocket.connect();
-          window.liveSocket = liveSocket;
+            let liveSocket = new LiveSocketCtor("/live", window.Phoenix.Socket, {
+              params: {_csrf_token: document.querySelector("meta[name='csrf-token']")?.content},
+              hooks: {
+                TouchCarousel: TouchCarouselHook
+              }
+            });
+            liveSocket.connect();
+            window.liveSocket = liveSocket;
+          };
+
+          if (document.readyState === "loading") {
+            document.addEventListener("DOMContentLoaded", bootLiveView);
+          } else {
+            bootLiveView();
+          }
         </script>
         <link rel="stylesheet" href="/css/carousel.css" />
         <link rel="stylesheet" href="/css/phone_responsive.css" />

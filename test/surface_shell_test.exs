@@ -23,6 +23,18 @@ defmodule BotArmyDashboardLiveview.SurfaceShellTest do
     refute html =~ "new LiveSocket("
   end
 
+  # The bootstrap reads `Phoenix` and `LiveView`, which arrive in the two deferred
+  # CDN scripts above it. `defer` is ignored on an inline script, so this block ran
+  # during parsing, before either library existed, and threw "Phoenix is not
+  # defined" — the same frozen page by a different route. Booting on
+  # DOMContentLoaded is what makes the ordering a guarantee instead of a race.
+  test "the shell waits for the libraries it depends on" do
+    {:ok, _view, html} = live(build_conn(), "/household-hud")
+
+    assert html =~ "DOMContentLoaded"
+    refute html =~ ~s(<script defer type="text/javascript">)
+  end
+
   # The layout links two stylesheets out of `priv/static/css`, and `Plug.Static`'s
   # `only` list decides whether they can be served. It left `css` out, so both
   # links 404'd on every page: dead styling, plus console errors that masked a real
