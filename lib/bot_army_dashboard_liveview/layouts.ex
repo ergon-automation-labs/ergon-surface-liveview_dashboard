@@ -76,7 +76,15 @@ defmodule BotArmyDashboardLiveview.Layouts do
             }
           };
 
-          let liveSocket = new LiveSocket("/live", Phoenix.Socket, {
+          // The CDN build of Phoenix LiveView defines the `LiveView` namespace
+          // (`var LiveView = ...`), not a bare `LiveSocket` global. Naming the
+          // wrong one throws "LiveSocket is not defined", the socket never
+          // connects, and every LiveView on the surface freezes as a dead static
+          // render — a page that says "asking…" forever while the bot answers.
+          // The plain global is still accepted for a bundled build that sets it.
+          const LiveSocketCtor = (window.LiveView && window.LiveView.LiveSocket) || window.LiveSocket;
+
+          let liveSocket = new LiveSocketCtor("/live", Phoenix.Socket, {
             params: {_csrf_token: document.querySelector("meta[name='csrf-token']")?.content},
             hooks: {
               TouchCarousel: TouchCarouselHook

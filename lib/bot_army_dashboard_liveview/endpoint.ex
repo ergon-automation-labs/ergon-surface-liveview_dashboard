@@ -13,7 +13,11 @@ defmodule BotArmyDashboardLiveview.Endpoint do
     at: "/",
     from: :bot_army_dashboard_liveview,
     gzip: false,
-    only: ~w(assets fonts images favicon.ico robots.txt)
+    # `css` belongs here: the layout links `/css/carousel.css` and
+    # `/css/phone_responsive.css`, and the files are in `priv/static/css`. While
+    # the plug's `only` list left them out, both links 404'd — dead styling, and
+    # console noise that hid a real error during debugging.
+    only: ~w(assets css fonts images favicon.ico robots.txt)
   )
 
   plug(Plug.RequestId)
