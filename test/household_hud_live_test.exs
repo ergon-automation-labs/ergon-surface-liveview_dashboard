@@ -26,6 +26,21 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDLiveTest do
     refute html =~ "asking the house…"
   end
 
+  # The screen says "no answer" whether the broker is dead, the bot stayed quiet,
+  # or the reply was not an ok tuple. Only the log can tell those apart, so every
+  # one of them has to write a line. (Measured in production: a live broker
+  # answering {:error, :no_responders} was swallowed with no log at all.)
+  test "a read that answers nothing leaves a trace for the operator" do
+    log =
+      ExUnit.CaptureLog.capture_log(fn ->
+        {:ok, view, _html} = live(build_conn(), "/household-hud")
+        render_async(view)
+      end)
+
+    assert log =~ "[HouseholdHUD]"
+    assert log =~ "answered nothing"
+  end
+
   test "shows what the keys do, on every screen" do
     {:ok, view, _html} = live(build_conn(), "/household-hud")
     html = render_async(view)

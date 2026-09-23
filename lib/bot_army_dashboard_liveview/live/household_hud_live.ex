@@ -85,16 +85,24 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDLive do
   defp request(subject) do
     case Gnat.request(:nats_connection, subject, "", timeout: @request_timeout) do
       {:ok, %{body: body}} -> body
-      _other -> nil
+      other -> unreachable(subject, other)
     end
   rescue
     error ->
-      Logger.debug("[HouseholdHUD] #{subject} raised: #{inspect(error)}")
-      nil
+      unreachable(subject, {:raised, error})
   catch
     kind, reason ->
-      Logger.debug("[HouseholdHUD] #{subject} failed (#{kind}): #{inspect(reason)}")
-      nil
+      unreachable(subject, {kind, reason})
+  end
+
+  # Every way of getting nothing back leaves a trace. The screen says "no answer
+  # from the wife care bot" whichever one it was, so without this line an
+  # operator cannot tell a dead broker from a bot that stayed quiet — and a live
+  # broker answering `{:error, :no_responders}` used to be swallowed with no log
+  # at all. Debug level, like the rest of this surface's read path.
+  defp unreachable(subject, reason) do
+    Logger.debug("[HouseholdHUD] #{subject} answered nothing: #{inspect(reason)}")
+    nil
   end
 
   defp control_panel_url do
