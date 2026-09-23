@@ -8,7 +8,17 @@ echo "🔍 Running pre-push checks..."
 echo ""
 
 # Check if we're pushing to main
-read local_ref local_oid remote_ref remote_oid
+#
+# Git runs this hook with empty stdin when the branch is already up to date (or
+# when the ref update is a no-op), so a bare `read` under `set -e` killed the
+# hook with no output at all — the operator saw only "error: failed to push some
+# refs" and no reason. Fail closed, but say why.
+if ! read -r local_ref local_oid remote_ref remote_oid; then
+  echo "❌ pre-push: no refs on stdin — this branch has nothing to push."
+  echo "   If you expected a push, the commit is probably missing: this hook (and"
+  echo "   'make push') validates and pushes; neither one commits for you."
+  exit 1
+fi
 if [[ $remote_ref == "refs/heads/main" ]]; then
   echo "⚠️  Pushing to main branch - validating and building release..."
   echo ""
