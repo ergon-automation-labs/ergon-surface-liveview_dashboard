@@ -142,6 +142,10 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDLive do
       .hud.state-intensity_peak::before { background: radial-gradient(130% 90% at 50% 0%, #6b3a10 0%, #2a1608 60%, #0d0a06 100%); }
       .hud.state-punishment::before { background: radial-gradient(130% 90% at 50% 0%, #4a1020 0%, #241018 60%, #0b0709 100%); }
       .hud.state-recognition::before { background: radial-gradient(120% 90% at 50% 0%, #2b3a5c 0%, #3a2b3f 55%, #0a0e27 100%); }
+      /* §19: the doc's Devotion texture — soft golden light in place of the
+         punishment wash, when she logged a yearning reading today. */
+      .hud.state-goddess_mode::before { background: radial-gradient(120% 90% at 50% 0%, #6a5320 0%, #3a2c12 55%, #100c06 100%); }
+      .hud.state-goddess_mode .hud-title { text-shadow: 0 0 16px rgba(255, 209, 102, 0.5); }
       .hud.state-strain::before { background: radial-gradient(90% 70% at 50% 50%, #0f1430 30%, #05060f 100%); }
       .hud.state-restoration::before { background: radial-gradient(120% 90% at 50% 0%, #16302a 0%, #0f2138 60%, #070c17 100%); }
       .hud.state-tender::before { background: radial-gradient(120% 90% at 50% 0%, #2a2634 0%, #1a1622 60%, #0a0e27 100%); }
@@ -342,6 +346,48 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDLive do
       </div>
       <%= if @hud.wishes.suggestion do %>
         <p class="dim" style="margin-top:8px; font-size:12px;">Suggestion (hers always outranks it): <%= @hud.wishes.suggestion %></p>
+      <% end %>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Yearning — the goddess-focus indicator</div>
+      <%= if @hud.yearning.active? do %>
+        <div class="row">
+          <span class="chip on">Yearning Active</span>
+          <span class="dim"><%= @hud.yearning.display %></span>
+        </div>
+      <% else %>
+        <div class="row">
+          <span class="chip">Yearning</span>
+          <span class="dim">no reading today</span>
+        </div>
+      <% end %>
+      <p class="dim" style="margin-top:6px; font-size:12px;"><%= @hud.yearning.line %></p>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Calls she has sent — seen and done stay separate</div>
+      <%= cond do %>
+        <% @hud.demands.source == :unreported -> %>
+          <p class="unreported">The bot didn't report this just now — no count and no list, rather than a zero.</p>
+        <% is_nil(@hud.demands.pending) -> %>
+          <p class="unreported">Today's calls were reported, but not which are still open — so nothing here is shown as answered.</p>
+        <% true -> %>
+          <div class="row">
+            <span><%= if is_integer(@hud.demands.today_count), do: "#{@hud.demands.today_count} today", else: "today's count not reported" %></span>
+            <span class="dim"><%= if @hud.demands.pending == [], do: "nothing waiting", else: "#{length(@hud.demands.pending)} waiting" %></span>
+          </div>
+          <%= for demand <- @hud.demands.pending do %>
+            <div class="row">
+              <span><%= demand.label %></span>
+              <span class="dim"><%= demand.state %></span>
+            </div>
+          <% end %>
+          <%= if is_list(@hud.demands.recent_fulfilled) and @hud.demands.recent_fulfilled != [] do %>
+            <p class="dim" style="margin-top:8px; font-size:12px;">
+              Recently done: <%= Enum.map_join(@hud.demands.recent_fulfilled, " · ", &"#{&1.label} (#{&1.state})") %>
+            </p>
+          <% end %>
       <% end %>
     </div>
 

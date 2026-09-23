@@ -815,6 +815,226 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDPayloadTest do
     end
   end
 
+  describe "the yearning indicator (§19)" do
+    test "a reading made today at level 1 or above is active" do
+      yearning =
+        HUD.build(
+          panel_reply(%{
+            "louiza" => %{
+              "yearning" => %{
+                "level" => 4,
+                "reported_today" => true,
+                "occurred_on" => "2026-09-22"
+              }
+            }
+          }),
+          nil
+        ).yearning
+
+      assert yearning.active?
+      assert yearning.level == 4
+      assert yearning.display == "4 of 5"
+      assert yearning.today?
+      assert yearning.line =~ "Yearning Active today"
+      assert yearning.line =~ "level 4 of 5"
+    end
+
+    test "the reading carries whether closeness is welcomed, as her own fact" do
+      welcomed =
+        yearning_for(%{
+          "level" => 3,
+          "reported_today" => true,
+          "physical_closeness_welcomed" => true
+        })
+
+      declined =
+        yearning_for(%{
+          "level" => 3,
+          "reported_today" => true,
+          "physical_closeness_welcomed" => false
+        })
+
+      unstated = yearning_for(%{"level" => 3, "reported_today" => true})
+
+      assert welcomed.welcomed == true
+      assert welcomed.line =~ "closeness welcomed"
+      assert declined.welcomed == false
+      assert declined.line =~ "closeness not welcomed"
+      assert unstated.welcomed == nil
+      refute unstated.line =~ "closeness"
+    end
+
+    test "a stale reading says its day instead of passing as today's" do
+      yearning =
+        yearning_for(%{"level" => 5, "reported_today" => false, "occurred_on" => "2026-09-14"})
+
+      refute yearning.active?
+      assert yearning.today? == false
+      assert yearning.line =~ "Last reading on 2026-09-14"
+      assert yearning.line =~ "level 5 of 5"
+    end
+
+    test "level 0 is a stated absence, not a missing reading" do
+      yearning = yearning_for(%{"level" => 0, "reported_today" => true})
+
+      refute yearning.active?
+      assert yearning.level == 0
+      assert yearning.display == "0 of 5"
+      assert yearning.source == :reported
+      assert yearning.line =~ "level 0 of 5"
+    end
+
+    test "no louiza block is unreported, never a zero" do
+      yearning = HUD.build(panel_reply(), nil).yearning
+
+      refute yearning.active?
+      assert yearning.level == nil
+      assert yearning.display == "not reported"
+      assert yearning.source == :unreported
+      assert yearning.line == "No reading has been logged yet."
+    end
+
+    test "a dead panel leaves the indicator unreported rather than off" do
+      yearning = HUD.build(nil, nil).yearning
+
+      refute yearning.active?
+      assert yearning.source == :unreported
+    end
+  end
+
+  describe "the goddess-mode background (§19)" do
+    test "a yearning reading today replaces the punishment texture, as the doc says" do
+      visual =
+        visual_for(%{
+          "louiza" => %{"yearning" => %{"level" => 3, "reported_today" => true}},
+          "outfit" => %{"active" => true, "components" => %{"plug" => "hollow"}}
+        })
+
+      assert visual.key == :goddess_mode
+      assert visual.name == "Goddess Mode"
+      assert visual.reason =~ "yearning"
+      assert visual.reason =~ "3"
+    end
+
+    test "level 0 today is not goddess mode" do
+      visual =
+        visual_for(%{"louiza" => %{"yearning" => %{"level" => 0, "reported_today" => true}}})
+
+      assert visual.key == :neutral
+    end
+
+    test "a stale reading does not hold the background" do
+      visual =
+        visual_for(%{
+          "louiza" => %{"yearning" => %{"level" => 5, "reported_today" => false}}
+        })
+
+      assert visual.key == :neutral
+    end
+
+    test "the cage still outranks the golden light — a restriction is never hidden" do
+      visual =
+        visual_for(%{
+          "louiza" => %{"yearning" => %{"level" => 5, "reported_today" => true}},
+          "outfit" => %{"active" => true, "components" => %{"cage" => "dog_cage"}}
+        })
+
+      assert visual.key == :restricted
+    end
+  end
+
+  describe "the calls she has sent (§27)" do
+    test "an unanswered call reads as waiting, and says what it was" do
+      demands =
+        demands_for(%{
+          "today_count" => 2,
+          "pending" => [
+            %{
+              "id" => "d1",
+              "description" => "a glass of water",
+              "acknowledgment_required" => true
+            }
+          ]
+        })
+
+      assert demands.source == :reported
+      assert demands.today_count == 2
+      assert [%{label: "a glass of water", state: "waiting to be seen"}] = demands.pending
+    end
+
+    test "a seen call carries the minutes, and a done call its own" do
+      demands =
+        demands_for(%{
+          "pending" => [
+            %{
+              "description" => "closer for a minute",
+              "acknowledgment_required" => true,
+              "acknowledged_at" => "2026-09-22T10:05:00Z",
+              "acknowledgment_minutes" => 5
+            }
+          ],
+          "recent_fulfilled" => [
+            %{
+              "description" => "sit with me",
+              "fulfilled_at" => "2026-09-22T10:30:00Z",
+              "fulfilment_minutes" => 12
+            }
+          ]
+        })
+
+      assert [%{state: "seen 5 minutes after the call"}] = demands.pending
+      assert [%{state: "done 12 minutes after the call"}] = demands.recent_fulfilled
+    end
+
+    test "a call that needs no answer is not dressed as waiting" do
+      demands =
+        demands_for(%{
+          "pending" => [
+            %{"description" => "a note to herself", "acknowledgment_required" => false}
+          ]
+        })
+
+      assert [%{state: "no answer needed", acknowledgment_required: false}] = demands.pending
+    end
+
+    test "a call with no description keeps its category rather than vanishing" do
+      demands = demands_for(%{"pending" => [%{"category" => "proximity"}]})
+
+      assert [%{label: "proximity"}] = demands.pending
+    end
+
+    test "nothing waiting is reported-empty, not unreported" do
+      demands = demands_for(%{"today_count" => 0, "pending" => [], "recent_fulfilled" => []})
+
+      assert demands.source == :reported
+      assert demands.pending == []
+      assert demands.recent_fulfilled == []
+    end
+
+    test "no demands block is unreported, so 'the bot didn't say' is visible" do
+      demands = HUD.build(panel_reply(), nil).demands
+
+      assert demands.source == :unreported
+      assert demands.pending == nil
+      assert demands.today_count == nil
+    end
+
+    test "an unreadable pending list is unreported, not an empty answer" do
+      demands = demands_for(%{"pending" => "soon"})
+
+      assert demands.source == :reported
+      assert demands.pending == nil
+    end
+  end
+
+  defp yearning_for(yearning) do
+    HUD.build(panel_reply(%{"louiza" => %{"yearning" => yearning}}), nil).yearning
+  end
+
+  defp demands_for(demands) do
+    HUD.build(panel_reply(%{"louiza" => %{"demands" => demands}}), nil).demands
+  end
+
   defp energy_detail(detail) do
     Map.put(%{"energy" => nil}, "energy_detail", detail)
   end

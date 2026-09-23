@@ -19,6 +19,8 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDPayload do
   | `pet` | `pet_layer` read (toggles, `warmth_daily_score`, tracker) | `:unreported` per column |
   | `mood`, `wishes` | the `wishes` read | `:unreported` |
   | `chorus` | `wife_care.chorus.categories` | `:unreported` |
+  | `yearning` | §19 `louiza.yearning` (the derived proximity reading) | `:unreported` |
+  | `demands` | §27 `louiza.demands` (sent, seen, done, still open) | `:unreported` |
 
   Her own words are not here either. `wishes.wish_text` is hers and stays on the
   panel she typed it into; the HUD shows which *wishes are in play*, not what she
@@ -102,6 +104,14 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDPayload do
       style: "edges darken slightly, a little grain added",
       texture: "she can see the system noticing strain before she says it"
     },
+    # §19: when she logged a proximity reading today, the doc replaces the
+    # punishment texture with the devotion one. The reading is derived (newest
+    # logged proximity), never a flag somebody has to remember to set.
+    goddess_mode: %{
+      name: "Goddess Mode",
+      style: "soft golden light — devotion texture, not punishment",
+      texture: "closeness is the reward; the space is warm rather than watchful"
+    },
     restoration: %{
       name: "Restoration State",
       style: "soft green tint fading in",
@@ -180,6 +190,8 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDPayload do
       pet: pet_section(panel),
       mood: mood_section(panel),
       wishes: wishes_section(panel),
+      yearning: yearning_section(panel),
+      demands: demands_section(panel),
       visual: visual_section(panel),
       chorus: chorus_section(chorus),
       exit: exit_section(panel)
@@ -347,6 +359,141 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDPayload do
   end
 
   @doc """
+  §19 — the Yearning indicator: the newest logged proximity reading, with the
+  day it was taken.
+
+  A reading is today or it is not; a stale one says when it was taken rather
+  than passing as today's. No reading at all is `:unreported`, and `level: nil`
+  is never rendered as a zero — the same rule the energy band follows. The
+  indicator is *active* only for a reading made today at level 1 or above, and
+  that is what drives the Goddess Mode background.
+  """
+  @spec yearning_section(map() | nil) :: map()
+  def yearning_section(panel) when is_map(panel) do
+    louiza = Map.get(panel, "louiza")
+    louiza = if is_map(louiza), do: louiza, else: %{}
+    yearning = Map.get(louiza, "yearning")
+    yearning = if is_map(yearning), do: yearning, else: %{}
+
+    level = Map.get(yearning, "level")
+    today? = Map.get(yearning, "reported_today") == true
+    occurred_on = Map.get(yearning, "occurred_on")
+    welcomed = Map.get(yearning, "physical_closeness_welcomed")
+    active? = today? and is_integer(level) and level >= 1
+
+    %{
+      level: level,
+      display: if(is_integer(level), do: "#{level} of 5", else: "not reported"),
+      today?: today?,
+      occurred_on: occurred_on,
+      welcomed: welcomed,
+      active?: active?,
+      line: yearning_line(level, today?, occurred_on, welcomed),
+      source: if(map_size(yearning) > 0, do: :reported, else: :unreported)
+    }
+  end
+
+  def yearning_section(_panel) do
+    %{
+      level: nil,
+      display: "not reported",
+      today?: false,
+      occurred_on: nil,
+      welcomed: nil,
+      active?: false,
+      line: yearning_line(nil, false, nil, nil),
+      source: :unreported
+    }
+  end
+
+  @doc """
+  §27 — the calls she has sent, and the two facts that keep one legible: whether
+  it has been seen and whether it has been done.
+
+  `pending: nil` is "the bot did not report which are open"; `pending: []` is
+  "nothing is waiting". An unanswered call is exactly the thing that must not be
+  silently dropped, so the two cases stay distinguishable.
+  """
+  @spec demands_section(map() | nil) :: map()
+  def demands_section(panel) when is_map(panel) do
+    louiza = Map.get(panel, "louiza")
+    louiza = if is_map(louiza), do: louiza, else: %{}
+    demands = Map.get(louiza, "demands")
+    demands = if is_map(demands), do: demands, else: %{}
+
+    %{
+      today_count: Map.get(demands, "today_count"),
+      pending: demand_rows(Map.get(demands, "pending")),
+      recent_fulfilled: demand_rows(Map.get(demands, "recent_fulfilled")),
+      source: if(map_size(demands) > 0, do: :reported, else: :unreported)
+    }
+  end
+
+  def demands_section(_panel) do
+    %{today_count: nil, pending: nil, recent_fulfilled: nil, source: :unreported}
+  end
+
+  defp demand_rows(rows) when is_list(rows),
+    do: rows |> Enum.filter(&is_map/1) |> Enum.map(&demand_row/1)
+
+  defp demand_rows(_rows), do: nil
+
+  # One call, named and timed. The label is the bot's own wording first, then
+  # her own words, then the category — a call the surface cannot fully name is
+  # still shown, not dropped.
+  defp demand_row(row) do
+    %{
+      label: first_present([row["label"], row["description"], row["category"]], "a call"),
+      description: row["description"],
+      urgency: row["urgency"],
+      acknowledgment_required: row["acknowledgment_required"] == true,
+      state: demand_state(row),
+      occurred_on: row["occurred_on"],
+      sent_at: row["sent_at"],
+      acknowledged_at: row["acknowledged_at"],
+      fulfilled_at: row["fulfilled_at"]
+    }
+  end
+
+  # Seen and done are separate facts, so neither is inferred from the other. An
+  # unanswered call reads as waiting rather than as a failure; nothing here is
+  # worded as a judgement.
+  defp demand_state(row) do
+    cond do
+      is_binary(row["fulfilled_at"]) -> "done" <> minutes_suffix(row["fulfilment_minutes"])
+      is_binary(row["acknowledged_at"]) -> "seen" <> minutes_suffix(row["acknowledgment_minutes"])
+      row["acknowledgment_required"] == true -> "waiting to be seen"
+      true -> "no answer needed"
+    end
+  end
+
+  defp minutes_suffix(minutes) when is_integer(minutes),
+    do: " #{minutes} minutes after the call"
+
+  defp minutes_suffix(_minutes), do: ""
+
+  # The Yearning line: the day the reading was taken, never a status field.
+  defp yearning_line(nil, _today?, _occurred_on, _welcomed),
+    do: "No reading has been logged yet."
+
+  defp yearning_line(level, true, _occurred_on, welcomed),
+    do: "Yearning Active today — level #{level} of 5" <> welcomed_suffix(welcomed)
+
+  defp yearning_line(level, false, occurred_on, welcomed) when is_binary(occurred_on),
+    do: "Last reading on #{occurred_on} — level #{level} of 5" <> welcomed_suffix(welcomed)
+
+  defp yearning_line(level, false, _occurred_on, welcomed),
+    do: "Last reading at an unrecorded time — level #{level} of 5" <> welcomed_suffix(welcomed)
+
+  defp welcomed_suffix(true), do: " · closeness welcomed"
+  defp welcomed_suffix(false), do: " · closeness not welcomed"
+  defp welcomed_suffix(_), do: ""
+
+  defp first_present(values, default) do
+    Enum.find(values, default, fn value -> is_binary(value) and String.trim(value) != "" end)
+  end
+
+  @doc """
   The interface's texture: which state the day is in, and why it won.
 
   The doc's own transition logic is a priority chain, so this is too — containment
@@ -389,42 +536,34 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDPayload do
 
   # The priority chain, strongest and most specific first — the doc's own
   # transition logic. A reason travels with the state so the screen can say why
-  # the texture changed.
+  # the texture changed. The first row whose predicate holds wins.
   defp visual_key(panel) do
     outfit = Map.get(panel, "outfit") || %{}
     components = Map.get(outfit, "components") || %{}
     pet = Map.get(panel, "pet") || %{}
-    cage? = wearing?(components["cage"])
 
     # "Full penalty day" is *multiple* punishment triggers. Counting them beats
     # guessing a single threshold, and each one carries its own reason.
     load = punishment_load(panel, outfit, components)
 
-    cond do
-      cage? ->
-        {:restricted, "the cage is on"}
+    {_matches?, key, reason} = Enum.find(candidates(panel, pet, components, load), &elem(&1, 0))
+    {key, reason}
+  end
 
-      length(load) >= 2 ->
-        {:intensity_peak, "#{length(load)} punishment triggers at once"}
-
-      length(load) == 1 ->
-        {:punishment, hd(load)}
-
-      recognition?(pet) ->
-        {:recognition, "the pet layer is on and the week's warmth is high"}
-
-      strained?(pet) ->
-        {:strain, "energy reads #{energy_view(pet).display}"}
-
-      restoring?(pet) ->
-        {:restoration, "energy is climbing out of strain (#{energy_view(pet).display})"}
-
-      tender?(panel) ->
-        {:tender, "gentleness is set for today"}
-
-      true ->
-        {:neutral, nil}
-    end
+  defp candidates(panel, pet, components, load) do
+    [
+      {wearing?(components["cage"]), :restricted, "the cage is on"},
+      {yearning_active?(panel), :goddess_mode,
+       "she logged a yearning reading today (level #{yearning_section(panel).level})"},
+      {length(load) >= 2, :intensity_peak, "#{length(load)} punishment triggers at once"},
+      {length(load) == 1, :punishment, List.first(load)},
+      {recognition?(pet), :recognition, "the pet layer is on and the week's warmth is high"},
+      {strained?(pet), :strain, "energy reads #{energy_view(pet).display}"},
+      {restoring?(pet), :restoration,
+       "energy is climbing out of strain (#{energy_view(pet).display})"},
+      {tender?(panel), :tender, "gentleness is set for today"},
+      {true, :neutral, nil}
+    ]
   end
 
   @high_humiliation 7
@@ -482,6 +621,10 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDPayload do
     mood = panel |> Map.get("wishes", %{}) |> Map.get("mood_color")
     mood == "brown" or wish_value(panel, "stillness") == "high_stillness"
   end
+
+  # §19: a reading made today at level 1 or above is the doc's "Goddess-Focus
+  # Hypnosis active today". Level 0 is an explicit "none", not an absence.
+  defp yearning_active?(panel), do: yearning_section(panel).active?
 
   # The reading as the bot reported it, with the meter only when there is a
   # number to fill it: a check-in word reads "Low (checkin)" and draws no bar,
