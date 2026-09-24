@@ -157,14 +157,14 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDLiveTest do
 
     assert html =~ "hud-tabs"
 
-    for key <- ~w(now her house ask) do
+    for key <- ~w(now goddess house ask) do
       assert has_element?(view, "button[phx-value-tab=#{key}]")
     end
 
     assert has_element?(view, "button[phx-value-tab=now].tab.on")
-    refute has_element?(view, "button[phx-value-tab=her].tab.on")
+    refute has_element?(view, "button[phx-value-tab=goddess].tab.on")
 
-    for key <- ~w(her house ask now) do
+    for key <- ~w(goddess house ask now) do
       render_click(view, "tab", %{"tab" => key})
 
       assert has_element?(view, "button[phx-value-tab=#{key}].tab.on")

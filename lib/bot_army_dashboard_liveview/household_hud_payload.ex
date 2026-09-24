@@ -14,8 +14,7 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDPayload do
   |---|---|---|
   | `hierarchy` | the doc's ladder (fixed) | never — it is structure, not data |
   | `containment` | the window (`paused`, `paused_reason`) | `:unreported` |
-  | `maid_level` | the panel's `maid_level`, once a board sets it | `:unreported` |
-  | `hypnosis` | the panel's `hypnosis`, once a board sets it | `:unreported` |
+  | `intensity` | the intent's `intensity_level`, 0 to 10 | `:unreported` |
   | `pet` | `pet_layer` read (toggles, `warmth_daily_score`, tracker) | `:unreported` per column |
   | `mood`, `wishes` | the `wishes` read | `:unreported` |
   | `chorus` | `wife_care.chorus.categories` | `:unreported` |
@@ -27,9 +26,15 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDPayload do
   wrote. The same allowlist discipline as `Chorus.prompt_context/2`, for the same
   reason.
 
-  The doc's `MAID LEVEL 65%` and `CONTAINMENT ACTIVE` arrive as **structure**
-  with the real value beside them, never as a hardcoded 65: a fabricated meter is
-  the most expensive kind of decoration, because it looks like a measurement.
+  The doc's `CONTAINMENT ACTIVE` arrives as **structure** with the real value
+  beside it, never as a hardcoded reading: a fabricated meter is the most
+  expensive kind of decoration, because it looks like a measurement.
+
+  The doc's own mock also draws a `MAID LEVEL 65%` bar, and there is no such field
+  anywhere in the bot — it was read as one anyway, and the screen said the control
+  board had set it. That card now shows the level the board really sets
+  (`intensity`, 0 to 10). If a maid-level ladder is ever wanted it has to be built
+  in the bot first; until then this module has no slot for it, deliberately.
   """
 
   @ladder [
@@ -185,8 +190,7 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDPayload do
       hierarchy: ladder(),
       tier: "Abby — Maid / Servant",
       containment: containment(panel),
-      maid_level: gauge(Map.get(panel || %{}, "maid_level")),
-      hypnosis: gauge(Map.get(panel || %{}, "hypnosis")),
+      intensity: intensity_section(panel),
       pet: pet_section(panel),
       mood: mood_section(panel),
       wishes: wishes_section(panel),
@@ -254,6 +258,32 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDPayload do
       source: :unreported
     }
   end
+
+  @doc """
+  The level the board sets: the intent's intensity, 0 to 10.
+
+  This card used to read `maid_level`, and the gauge beside it `hypnosis`. Neither
+  has ever been a field the bot sends — both were invented when this payload was
+  written, so against a bot that had answered perfectly the screen read "not set"
+  and attributed it to "the control board", which cannot set a field that does not
+  exist. `intensity_level` is the real dial: `ControlPanel.Commands` refuses
+  anything outside 0..10, the board is the only thing that moves it, a raise is
+  refused while her stop stands, and a lowering is always allowed.
+  """
+  @spec intensity_section(map() | nil) :: map()
+  def intensity_section(panel) when is_map(panel) do
+    intent = Map.get(panel, "intent") || %{}
+    level = if is_map(intent), do: Map.get(intent, "intensity_level")
+
+    if is_number(level) do
+      %{value: level, display: "#{trim(level)} of 10", percent: level * 10, source: :reported}
+    else
+      %{value: nil, display: "not set", percent: nil, source: :unreported}
+    end
+  end
+
+  def intensity_section(_panel),
+    do: %{value: nil, display: "not set", percent: nil, source: :unreported}
 
   @doc """
   The pet layer: the two toggles, today's warmth, and the weekly per-bot tracker.

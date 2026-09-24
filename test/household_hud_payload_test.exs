@@ -241,29 +241,42 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDPayloadTest do
     end
   end
 
-  describe "maid level" do
-    test "is unreported until a board sets it — never a fabricated 65%" do
+  describe "the intensity level" do
+    # The doc's own mock draws "MAID LEVEL 65%" and no bot field backs it. What
+    # the board can actually set is the intent's intensity, 0 to 10, so that is
+    # what the card reads — and an invented field is not silently a zero.
+    test "is unreported until the board sets it — never a fabricated 65%" do
       hud = HUD.build(panel_reply(), nil)
 
-      assert hud.maid_level.value == nil
-      assert hud.maid_level.display == "not set"
-      assert hud.maid_level.source == :unreported
+      assert hud.intensity.value == nil
+      assert hud.intensity.display == "not set"
+      assert hud.intensity.percent == nil
+      assert hud.intensity.source == :unreported
     end
 
-    test "a number set on the board is reported" do
-      hud = HUD.build(panel_reply(%{"maid_level" => 65}), nil)
+    test "reads the level off the intent, against the real 0..10 scale" do
+      hud = HUD.build(panel_reply(%{"intent" => %{"intensity_level" => 7}}), nil)
 
-      assert hud.maid_level.value == 65
-      assert hud.maid_level.display == "65%"
-      assert hud.maid_level.source == :reported
+      assert hud.intensity.value == 7
+      assert hud.intensity.display == "7 of 10"
+      assert hud.intensity.percent == 70
+      assert hud.intensity.source == :reported
     end
 
     test "zero is a value, not an absence" do
-      hud = HUD.build(panel_reply(%{"maid_level" => 0}), nil)
+      hud = HUD.build(panel_reply(%{"intent" => %{"intensity_level" => 0}}), nil)
 
-      assert hud.maid_level.value == 0
-      assert hud.maid_level.display == "0%"
-      assert hud.maid_level.source == :reported
+      assert hud.intensity.value == 0
+      assert hud.intensity.display == "0 of 10"
+      assert hud.intensity.percent == 0
+      assert hud.intensity.source == :reported
+    end
+
+    test "an intent with no level in it is unreported, not zero" do
+      hud = HUD.build(panel_reply(%{"intent" => %{"devotion_type" => "worship"}}), nil)
+
+      assert hud.intensity.source == :unreported
+      assert hud.intensity.display == "not set"
     end
   end
 

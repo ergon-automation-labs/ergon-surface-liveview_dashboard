@@ -42,8 +42,8 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDLive do
 
   # The screen answers all of this in one read; the strip only decides what is
   # drawn. Keeping the keys here means a typo cannot quietly add a sixth lens.
-  @tab_keys ~w(now her house ask)
-  @tabs [{"now", "Now"}, {"her", "Her"}, {"house", "The house"}, {"ask", "Ask"}]
+  @tab_keys ~w(now goddess house ask)
+  @tabs [{"now", "Now"}, {"goddess", "Goddess"}, {"house", "The house"}, {"ask", "Ask"}]
 
   @impl true
   def mount(_params, _session, socket) do
@@ -408,15 +408,15 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDLive do
         <span><%= @hud.containment.display %></span>
         <span class="dim"><%= @hud.containment.detail %></span>
       </div>
-      <div class="card-title" style="margin-top:12px;">Maid level</div>
+      <div class="card-title" style="margin-top:12px;">Intensity</div>
       <div class="row">
-        <span class={if @hud.maid_level.source == :unreported, do: "unreported", else: ""}>
-          <%= @hud.maid_level.display %>
+        <span class={if @hud.intensity.source == :unreported, do: "unreported", else: ""}>
+          <%= @hud.intensity.display %>
         </span>
         <span class="dim">set on the control board</span>
       </div>
-      <%= if @hud.maid_level.value do %>
-        <div class="meter"><div style={"width: #{@hud.maid_level.value}%"}></div></div>
+      <%= if @hud.intensity.percent do %>
+        <div class="meter"><div style={"width: #{@hud.intensity.percent}%"}></div></div>
       <% end %>
     </div>
     <% end %>
@@ -448,7 +448,7 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDLive do
     </div>
     <% end %>
 
-    <%= if @tab == "her" do %>
+    <%= if @tab == "goddess" do %>
     <div class="card">
       <div class="card-title">Mood and wishes  — set on the control board</div>
       <div class="row">
@@ -488,7 +488,7 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDLive do
     </div>
     <% end %>
 
-    <%= if @tab == "her" do %>
+    <%= if @tab == "goddess" do %>
     <div class="card">
       <div class="card-title">Calls she has sent — seen and done stay separate</div>
       <%= cond do %>

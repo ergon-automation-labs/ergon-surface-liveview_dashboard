@@ -18,7 +18,7 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDTabsTest do
   # below is drawn from the template, and the numbers are the bot's business.
   @answer Jason.encode!(%{
             "ok" => true,
-            "data" => %{"maid_level" => 40, "containment" => "held", "chorus" => nil},
+            "data" => %{"intent" => %{"intensity_level" => 7}, "containment" => "held"},
             "schema_version" => "1.0"
           })
 
@@ -66,13 +66,13 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDTabsTest do
     refute render(view) =~ "The chorus — ask the house"
     refute render(view) =~ "Calls she has sent"
 
-    her = render_click(view, "tab", %{"tab" => "her"})
-    assert her =~ "Calls she has sent"
-    assert her =~ "Mood and wishes"
-    assert her =~ "Exit — always available"
-    refute her =~ "Containment"
-    refute her =~ "The ladder"
-    refute her =~ "The chorus — ask the house"
+    goddess = render_click(view, "tab", %{"tab" => "goddess"})
+    assert goddess =~ "Calls she has sent"
+    assert goddess =~ "Mood and wishes"
+    assert goddess =~ "Exit — always available"
+    refute goddess =~ "Containment"
+    refute goddess =~ "The ladder"
+    refute goddess =~ "The chorus — ask the house"
 
     house = render_click(view, "tab", %{"tab" => "house"})
     assert house =~ "The ladder — who answers to whom"
