@@ -22,7 +22,24 @@ defmodule BotArmyDashboardLiveview.BrokerTest do
              Broker.request("wife_care.control_panel.hygiene", ~s({"a":1}), timeout: 500)
 
     assert_received {:broker_stub_request, :nats_connection, "wife_care.control_panel.hygiene",
-                     ~s({"a":1}), [timeout: 500]}
+                     ~s({"a":1}), [receive_timeout: 500]}
+  end
+
+  # `Gnat.request/4` reads `receive_timeout`; `timeout` is not an option it looks
+  # at. Every screen in this app asked with `timeout: 5000` and got Gnat's 60s
+  # default instead: a screen whose bot was down sat on its spinner for a full
+  # minute and then reported the failure as "no projects found".
+  test "the deadline the caller asked for is named the way Gnat reads it" do
+    assert Broker.gnat_opts(timeout: 500) == [receive_timeout: 500]
+    assert Broker.gnat_opts([]) == []
+    assert Broker.gnat_opts(receive_timeout: 100, timeout: 500) == [receive_timeout: 100]
+  end
+
+  test "a caller's deadline reaches the transport under Gnat's name" do
+    assert {:ok, %{body: "{}"}} = Broker.request("system.health.bots", "{}", timeout: 2000)
+
+    assert_received {:broker_stub_request, :nats_connection, "system.health.bots", "{}",
+                     [receive_timeout: 2000]}
   end
 
   test "a dead connection comes back as an error, not as an exit out of the caller" do
