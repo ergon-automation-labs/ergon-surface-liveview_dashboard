@@ -1,6 +1,7 @@
 defmodule BotArmyDashboardLiveview.SystemHealthPhoneLive do
   use Phoenix.LiveView
   import BotArmyDashboardLiveview.ReadError
+  alias BotArmyDashboardLiveview.BotHealth
   alias BotArmyDashboardLiveview.BotRead
   alias BotArmyDashboardLiveview.Broker
   alias BotArmyDashboardLiveview.PhoneNav
@@ -23,34 +24,17 @@ defmodule BotArmyDashboardLiveview.SystemHealthPhoneLive do
         loading: true
       )
       |> fetch_bot_health()
-      |> fetch_nats_status()
       |> schedule_tick()
 
     {:ok, socket}
   end
 
+  # `system.health.bots` and `system.health.nats` were probed here and are
+  # answered by nothing on the fleet, so this screen said "No bots found" and
+  # "NATS Offline" whatever was true. The registry answers, and a round trip to
+  # it that comes back is itself the proof that NATS is reachable.
   defp fetch_bot_health(socket) do
-    BotRead.async(self(), :bots_loaded, "system.health.bots", %{}, timeout: 5000)
-    socket
-  end
-
-  defp fetch_nats_status(socket) do
-    parent = self()
-
-    Task.start_link(fn ->
-      try do
-        case Broker.request("system.health.nats", Jason.encode!(%{}), timeout: 2000) do
-          {:ok, _} ->
-            send(parent, {:nats_status, :healthy})
-
-          {:error, _} ->
-            send(parent, {:nats_status, :unhealthy})
-        end
-      rescue
-        _ -> send(parent, {:nats_status, :unhealthy})
-      end
-    end)
-
+    BotRead.async(self(), :bots_loaded, "bot_army.registry.bots.list", %{}, timeout: 5000)
     socket
   end
 
@@ -62,14 +46,17 @@ defmodule BotArmyDashboardLiveview.SystemHealthPhoneLive do
   @impl true
   def handle_info({:bots_loaded, answer}, socket) do
     case BotRead.list(answer, "bots") do
-      {:ok, bots} -> {:noreply, assign(socket, bots: bots, loading: false)}
-      :error -> {:noreply, BotRead.failed(socket, :unexpected_reply)}
-    end
-  end
+      {:ok, bots} ->
+        {:noreply,
+         assign(socket,
+           bots: Enum.map(bots, &with_status/1),
+           loading: false,
+           nats_status: :healthy
+         )}
 
-  @impl true
-  def handle_info({:nats_status, status}, socket) do
-    {:noreply, assign(socket, nats_status: status)}
+      :error ->
+        {:noreply, BotRead.failed(socket, :unexpected_reply)}
+    end
   end
 
   @impl true
@@ -125,13 +112,15 @@ defmodule BotArmyDashboardLiveview.SystemHealthPhoneLive do
     {:noreply, socket}
   end
 
-  defp health_status_emoji(status) when is_binary(status) do
-    case String.downcase(status) do
-      "healthy" -> "✅"
-      "degraded" -> "⚠️"
-      "unhealthy" -> "❌"
-      _ -> "❓"
-    end
+  # The render wants the registry's facts in the shape it draws: a status word
+  # its badge classes accept, and the heartbeat as a person reads it.
+  defp with_status(bot) do
+    status = BotHealth.derive_status(bot)
+
+    bot
+    |> Map.put("status", BotHealth.status_word(status))
+    |> Map.put("status_emoji", BotHealth.status_emoji(status))
+    |> Map.put("last_heartbeat", BotHealth.format_heartbeat(bot["last_heartbeat"]))
   end
 
   @impl true
@@ -201,7 +190,7 @@ defmodule BotArmyDashboardLiveview.SystemHealthPhoneLive do
               <div class="bot-name"><%= current_bot["name"] || current_bot["id"] %></div>
 
               <div class="status-badge-large">
-                <%= health_status_emoji(current_bot["status"]) %>
+                <%= current_bot["status_emoji"] %>
                 <%= String.capitalize(current_bot["status"] || "unknown") %>
               </div>
 

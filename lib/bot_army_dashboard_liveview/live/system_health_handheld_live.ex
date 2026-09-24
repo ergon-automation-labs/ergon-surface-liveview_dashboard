@@ -1,6 +1,7 @@
 defmodule BotArmyDashboardLiveview.SystemHealthHandheldLive do
   use Phoenix.LiveView
   import BotArmyDashboardLiveview.ReadError
+  alias BotArmyDashboardLiveview.BotHealth
   alias BotArmyDashboardLiveview.BotRead
   alias BotArmyDashboardLiveview.Broker
   require Logger
@@ -34,7 +35,7 @@ defmodule BotArmyDashboardLiveview.SystemHealthHandheldLive do
           Enum.map(bots, fn bot ->
             %{
               name: bot["name"] || "Unknown",
-              status: derive_status(bot),
+              status: BotHealth.derive_status(bot),
               last_heartbeat: bot["last_heartbeat"],
               subjects: bot["subjects"] || []
             }
@@ -133,20 +134,20 @@ defmodule BotArmyDashboardLiveview.SystemHealthHandheldLive do
                     <%= if idx == @selected_bot_index do %>
                       <div class="current-item selected">
                         <div class="item-header">
-                          <span class={["status-indicator", bot.status]}><%= status_emoji(bot.status) %></span>
+                          <span class={["status-indicator", bot.status]}><%= BotHealth.status_emoji(bot.status) %></span>
                           <div class="item-title"><%= bot.name %></div>
                         </div>
                         <div class="item-meta">
                           <span class="status-badge"><%= bot.status %></span>
                           <%= if bot.last_heartbeat do %>
-                            <span class="heartbeat"><%= format_heartbeat(bot.last_heartbeat) %></span>
+                            <span class="heartbeat"><%= BotHealth.format_heartbeat(bot.last_heartbeat) %></span>
                           <% end %>
                         </div>
                       </div>
                     <% else %>
                       <div class="current-item">
                         <div class="item-header">
-                          <span class={["status-indicator", bot.status]}><%= status_emoji(bot.status) %></span>
+                          <span class={["status-indicator", bot.status]}><%= BotHealth.status_emoji(bot.status) %></span>
                           <div class="item-title"><%= bot.name %></div>
                         </div>
                       </div>
@@ -181,7 +182,7 @@ defmodule BotArmyDashboardLiveview.SystemHealthHandheldLive do
           <% else %>
             <div class="detail-view">
               <div class="view-title">
-                <span><%= status_emoji(Enum.at(@bots, @selected_bot_index, %{}).status) %></span>
+                <span><%= BotHealth.status_emoji(Enum.at(@bots, @selected_bot_index, %{}).status) %></span>
                 <span><%= Enum.at(@bots, @selected_bot_index, %{}).name %></span>
               </div>
 
@@ -198,7 +199,7 @@ defmodule BotArmyDashboardLiveview.SystemHealthHandheldLive do
                 <div class="detail-section">
                   <div class="section-label">Last Heartbeat</div>
                   <div class="section-value">
-                    <%= format_heartbeat(Enum.at(@bots, @selected_bot_index, %{}).last_heartbeat) %>
+                    <%= BotHealth.format_heartbeat(Enum.at(@bots, @selected_bot_index, %{}).last_heartbeat) %>
                   </div>
                 </div>
 
@@ -484,55 +485,4 @@ defmodule BotArmyDashboardLiveview.SystemHealthHandheldLive do
     </div>
     """
   end
-
-  defp derive_status(bot) do
-    case bot["last_heartbeat"] do
-      nil ->
-        :offline
-
-      hb when is_binary(hb) ->
-        case DateTime.from_iso8601(hb) do
-          {:ok, hb_time, _} ->
-            seconds_ago = DateTime.diff(DateTime.utc_now(), hb_time, :second)
-
-            cond do
-              seconds_ago < 30 -> :healthy
-              seconds_ago < 300 -> :idle
-              true -> :offline
-            end
-
-          _ ->
-            :offline
-        end
-
-      _ ->
-        :offline
-    end
-  end
-
-  defp status_emoji(:healthy), do: "✓"
-  defp status_emoji(:idle), do: "⏸"
-  defp status_emoji(:offline), do: "✗"
-  defp status_emoji(_), do: "?"
-
-  defp format_heartbeat(nil), do: "No heartbeat"
-
-  defp format_heartbeat(hb) when is_binary(hb) do
-    case DateTime.from_iso8601(hb) do
-      {:ok, hb_time, _} ->
-        seconds_ago = DateTime.diff(DateTime.utc_now(), hb_time, :second)
-
-        cond do
-          seconds_ago < 60 -> "now"
-          seconds_ago < 3600 -> "#{div(seconds_ago, 60)}m ago"
-          seconds_ago < 86400 -> "#{div(seconds_ago, 3600)}h ago"
-          true -> "#{div(seconds_ago, 86400)}d ago"
-        end
-
-      _ ->
-        "unknown"
-    end
-  end
-
-  defp format_heartbeat(_), do: "unknown"
 end

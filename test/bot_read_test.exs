@@ -157,5 +157,17 @@ defmodule BotArmyDashboardLiveview.BotReadTest do
       assert failed.assigns.saving == true
       assert failed.assigns.read_error == "the bot did not answer in time"
     end
+
+    test "a screen with a NATS badge learns the broker did not answer" do
+      socket = assign(%Phoenix.LiveView.Socket{}, %{loading: true, nats_status: :checking})
+
+      assert BotRead.failed(socket, :timeout).assigns.nats_status == :unhealthy
+    end
+
+    test "a screen with no NATS badge gets no nats_status assign invented for it" do
+      socket = assign(%Phoenix.LiveView.Socket{}, %{loading: true})
+
+      refute Map.has_key?(BotRead.failed(socket, :timeout).assigns, :nats_status)
+    end
   end
 end

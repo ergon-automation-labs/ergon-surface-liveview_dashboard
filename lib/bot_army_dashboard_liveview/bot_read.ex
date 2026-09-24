@@ -127,6 +127,19 @@ defmodule BotArmyDashboardLiveview.BotRead do
     socket
     |> assign(:read_error, message(reason))
     |> stop_spinners()
+    |> mark_broker_unreachable()
+  end
+
+  # A screen that shows a NATS badge learns the truth from the same failure: if a
+  # read just went unanswered, that badge is not "Offline" because a probe of
+  # some subject nothing serves said so — it is offline because the round trip
+  # did not come back. Only screens that track one get the assign.
+  defp mark_broker_unreachable(socket) do
+    if Map.has_key?(socket.assigns, :nats_status) do
+      assign(socket, :nats_status, :unhealthy)
+    else
+      socket
+    end
   end
 
   # Every spinner on the screen stops when a read fails. `loading` is the usual

@@ -96,6 +96,24 @@ defmodule BotArmyDashboardLiveview.ViewReadPathTest do
     refute render(view) =~ "Checking system..."
   end
 
+  # The phone health screen read `system.health.bots` and `system.health.nats`,
+  # subjects nothing on the fleet answers, so it could only ever say "No bots
+  # found" and "NATS Offline". It reads the registry now, like the handheld.
+  test "the phone health screen shows the bots the registry answers with" do
+    install_reply(
+      ~s({"data":{"bots":[{"name":"wife_care","last_heartbeat":") <>
+        DateTime.to_iso8601(DateTime.utc_now()) <>
+        ~s(","subjects":[]}],"count":1,"responder":"registry"},) <>
+        ~s("ok":true,"schema_version":"1.0","timestamp":"2026-09-24T02:06:37Z"})
+    )
+
+    {:ok, view, _html} = live(build_conn(), "/system-health-phone")
+
+    await(view, "wife_care")
+    assert render(view) =~ "Connected"
+    refute render(view) =~ "No bots found"
+  end
+
   # The registry answers with its own wrapper, and this screen was empty for so
   # long that its bot list had never actually rendered — its heartbeat line had
   # `#{format_heartbeat(...)}` in a text node, where HEEx keeps it literal.
