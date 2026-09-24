@@ -137,6 +137,8 @@ defmodule BotArmyDashboardLiveview.EnergyMoodPhoneLive do
   end
 
   defp publish_energy_mood(socket) do
+    parent = self()
+
     Task.start_link(fn ->
       try do
         payload = %{
@@ -147,13 +149,13 @@ defmodule BotArmyDashboardLiveview.EnergyMoodPhoneLive do
 
         case Gnat.pub(:nats_connection, "events.context.updated", Jason.encode!(payload)) do
           :ok ->
-            send(self(), {:context_updated})
+            send(parent, {:context_updated})
 
           _ ->
-            send(self(), {:publish_failed})
+            send(parent, {:publish_failed})
         end
       rescue
-        _ -> send(self(), {:publish_failed})
+        _ -> send(parent, {:publish_failed})
       end
     end)
 
@@ -245,7 +247,7 @@ defmodule BotArmyDashboardLiveview.EnergyMoodPhoneLive do
     {:noreply, socket}
   end
 
-    @impl true
+  @impl true
   def render(assigns) do
     ~H"""
     <div id="energy-mood-phone-container" class="handheld-container energy-mood-phone" phx-hook="TouchCarousel">

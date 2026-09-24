@@ -19,6 +19,8 @@ defmodule BotArmyDashboardLiveview.FitnessHandheldLive do
   end
 
   defp fetch_recent_workouts(socket) do
+    parent = self()
+
     Task.start_link(fn ->
       try do
         case Broker.request(
@@ -30,17 +32,17 @@ defmodule BotArmyDashboardLiveview.FitnessHandheldLive do
             case Jason.decode(body) do
               {:ok, data} ->
                 workouts = data["workouts"] || []
-                send(self(), {:workouts_loaded, workouts})
+                send(parent, {:workouts_loaded, workouts})
 
               {:error, _} ->
-                send(self(), {:workouts_loaded, []})
+                send(parent, {:workouts_loaded, []})
             end
 
           {:error, _} ->
-            send(self(), {:workouts_loaded, []})
+            send(parent, {:workouts_loaded, []})
         end
       rescue
-        _ -> send(self(), {:workouts_loaded, []})
+        _ -> send(parent, {:workouts_loaded, []})
       end
     end)
 
@@ -96,6 +98,8 @@ defmodule BotArmyDashboardLiveview.FitnessHandheldLive do
   end
 
   defp log_workout(socket, workout) do
+    parent = self()
+
     Task.start_link(fn ->
       try do
         payload = %{
@@ -106,13 +110,13 @@ defmodule BotArmyDashboardLiveview.FitnessHandheldLive do
 
         case Broker.request("fitness.set.log", Jason.encode!(%{payload: payload}), timeout: 5000) do
           {:ok, _response} ->
-            send(self(), {:workout_logged, workout["title"]})
+            send(parent, {:workout_logged, workout["title"]})
 
           {:error, _} ->
-            send(self(), {:workout_log_failed, "Failed to log workout"})
+            send(parent, {:workout_log_failed, "Failed to log workout"})
         end
       rescue
-        _ -> send(self(), {:workout_log_failed, "Error logging workout"})
+        _ -> send(parent, {:workout_log_failed, "Error logging workout"})
       end
     end)
 

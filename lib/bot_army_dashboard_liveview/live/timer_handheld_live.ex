@@ -27,26 +27,28 @@ defmodule BotArmyDashboardLiveview.TimerHandheldLive do
   end
 
   defp fetch_tasks(socket) do
+    parent = self()
+
     Task.start_link(fn ->
       try do
         case Broker.request("bridge.task.list", Jason.encode!(%{}), timeout: 5000) do
           {:ok, %{body: body}} ->
             case Jason.decode(body) do
               {:ok, %{"tasks" => tasks}} ->
-                send(self(), {:tasks_loaded, tasks})
+                send(parent, {:tasks_loaded, tasks})
 
               {:ok, tasks} when is_list(tasks) ->
-                send(self(), {:tasks_loaded, tasks})
+                send(parent, {:tasks_loaded, tasks})
 
               {:error, _} ->
-                send(self(), {:tasks_loaded, []})
+                send(parent, {:tasks_loaded, []})
             end
 
           {:error, _} ->
-            send(self(), {:tasks_loaded, []})
+            send(parent, {:tasks_loaded, []})
         end
       rescue
-        _ -> send(self(), {:tasks_loaded, []})
+        _ -> send(parent, {:tasks_loaded, []})
       end
     end)
 
@@ -236,6 +238,8 @@ defmodule BotArmyDashboardLiveview.TimerHandheldLive do
   end
 
   defp publish_work_session(socket, task) do
+    parent = self()
+
     Task.start_link(fn ->
       try do
         payload = %{
@@ -248,13 +252,13 @@ defmodule BotArmyDashboardLiveview.TimerHandheldLive do
 
         case Gnat.pub(:nats_connection, "events.timer.session_completed", Jason.encode!(payload)) do
           :ok ->
-            send(self(), {:session_published, task["title"]})
+            send(parent, {:session_published, task["title"]})
 
           _ ->
-            send(self(), {:publish_failed})
+            send(parent, {:publish_failed})
         end
       rescue
-        _ -> send(self(), {:publish_failed})
+        _ -> send(parent, {:publish_failed})
       end
     end)
 

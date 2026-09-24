@@ -161,6 +161,8 @@ defmodule BotArmyDashboardLiveview.FitnessPhoneLive do
   end
 
   defp publish_workout(socket) do
+    parent = self()
+
     Task.start_link(fn ->
       try do
         payload = %{
@@ -172,13 +174,13 @@ defmodule BotArmyDashboardLiveview.FitnessPhoneLive do
 
         case Gnat.pub(:nats_connection, "events.fitness.workout_logged", Jason.encode!(payload)) do
           :ok ->
-            send(self(), {:workout_logged})
+            send(parent, {:workout_logged})
 
           _ ->
-            send(self(), {:publish_failed})
+            send(parent, {:publish_failed})
         end
       rescue
-        _ -> send(self(), {:publish_failed})
+        _ -> send(parent, {:publish_failed})
       end
     end)
 
@@ -271,7 +273,7 @@ defmodule BotArmyDashboardLiveview.FitnessPhoneLive do
     {:noreply, socket}
   end
 
-    @impl true
+  @impl true
   def render(assigns) do
     ~H"""
     <div id="fitness-phone-container" class="handheld-container fitness-phone" phx-hook="TouchCarousel">

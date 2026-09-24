@@ -20,26 +20,28 @@ defmodule BotArmyDashboardLiveview.SystemHealthHandheldLive do
   end
 
   defp fetch_bots_and_health(socket) do
+    parent = self()
+
     Task.start_link(fn ->
       try do
         case Broker.request("bot_army.registry.bots.list", Jason.encode!({}), timeout: 5000) do
           {:ok, %{body: body}} ->
             case Jason.decode(body) do
               {:ok, %{"data" => %{"bots" => bot_list}}} when is_list(bot_list) ->
-                send(self(), {:bots_loaded, bot_list})
+                send(parent, {:bots_loaded, bot_list})
 
               {:ok, %{"data" => bot_list}} when is_list(bot_list) ->
-                send(self(), {:bots_loaded, bot_list})
+                send(parent, {:bots_loaded, bot_list})
 
               {:error, _} ->
-                send(self(), {:bots_loaded, []})
+                send(parent, {:bots_loaded, []})
             end
 
           {:error, _} ->
-            send(self(), {:bots_loaded, []})
+            send(parent, {:bots_loaded, []})
         end
       rescue
-        _ -> send(self(), {:bots_loaded, []})
+        _ -> send(parent, {:bots_loaded, []})
       end
     end)
 

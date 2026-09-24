@@ -45,26 +45,28 @@ defmodule BotArmyDashboardLiveview.TimerPhoneLive do
   end
 
   defp fetch_tasks(socket) do
+    parent = self()
+
     Task.start_link(fn ->
       try do
         case Broker.request("bridge.task.list", Jason.encode!(%{}), timeout: 5000) do
           {:ok, %{body: body}} ->
             case Jason.decode(body) do
               {:ok, %{"tasks" => tasks}} ->
-                send(self(), {:tasks_loaded, tasks})
+                send(parent, {:tasks_loaded, tasks})
 
               {:ok, tasks} when is_list(tasks) ->
-                send(self(), {:tasks_loaded, tasks})
+                send(parent, {:tasks_loaded, tasks})
 
               {:error, _} ->
-                send(self(), {:tasks_loaded, []})
+                send(parent, {:tasks_loaded, []})
             end
 
           {:error, _} ->
-            send(self(), {:tasks_loaded, []})
+            send(parent, {:tasks_loaded, []})
         end
       rescue
-        _ -> send(self(), {:tasks_loaded, []})
+        _ -> send(parent, {:tasks_loaded, []})
       end
     end)
 
@@ -328,6 +330,8 @@ defmodule BotArmyDashboardLiveview.TimerPhoneLive do
   end
 
   defp publish_work_session(socket, task) do
+    parent = self()
+
     Task.start_link(fn ->
       try do
         payload = %{
@@ -342,7 +346,7 @@ defmodule BotArmyDashboardLiveview.TimerPhoneLive do
 
         case Gnat.pub(:nats_connection, "events.timer.session_completed", encoded_payload) do
           :ok ->
-            send(self(), {:session_published, task["title"]})
+            send(parent, {:session_published, task["title"]})
 
           _ ->
             BotArmyDashboardLiveview.OfflineQueue.enqueue_publish(
@@ -352,7 +356,7 @@ defmodule BotArmyDashboardLiveview.TimerPhoneLive do
               %{"task_title" => task["title"]}
             )
 
-            send(self(), {:publish_queued, task["title"]})
+            send(parent, {:publish_queued, task["title"]})
         end
       rescue
         _ ->
@@ -369,7 +373,7 @@ defmodule BotArmyDashboardLiveview.TimerPhoneLive do
             %{"task_title" => task["title"]}
           )
 
-          send(self(), {:publish_queued, task["title"]})
+          send(parent, {:publish_queued, task["title"]})
       end
     end)
 

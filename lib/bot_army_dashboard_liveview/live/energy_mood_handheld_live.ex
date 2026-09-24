@@ -21,6 +21,8 @@ defmodule BotArmyDashboardLiveview.EnergyMoodHandheldLive do
 
   defp load_last_state(socket) do
     # Try to load the last saved state from NATS
+    parent = self()
+
     Task.start_link(fn ->
       try do
         case Broker.request(
@@ -31,7 +33,7 @@ defmodule BotArmyDashboardLiveview.EnergyMoodHandheldLive do
           {:ok, %{body: body}} ->
             case Jason.decode(body) do
               {:ok, %{"energy" => energy, "mood" => mood}} ->
-                send(self(), {:state_loaded, energy, mood})
+                send(parent, {:state_loaded, energy, mood})
 
               _ ->
                 :ok
@@ -134,6 +136,8 @@ defmodule BotArmyDashboardLiveview.EnergyMoodHandheldLive do
     energy = Enum.at(socket.assigns.energy_levels, socket.assigns.selected_energy_index)
     mood = Enum.at(socket.assigns.moods, socket.assigns.selected_mood_index)
 
+    parent = self()
+
     Task.start_link(fn ->
       try do
         payload = %{
@@ -144,13 +148,13 @@ defmodule BotArmyDashboardLiveview.EnergyMoodHandheldLive do
 
         case Gnat.pub(:nats_connection, "events.context.updated", Jason.encode!(payload)) do
           :ok ->
-            send(self(), {:state_saved, energy, mood})
+            send(parent, {:state_saved, energy, mood})
 
           _ ->
-            send(self(), {:save_failed})
+            send(parent, {:save_failed})
         end
       rescue
-        _ -> send(self(), {:save_failed})
+        _ -> send(parent, {:save_failed})
       end
     end)
 

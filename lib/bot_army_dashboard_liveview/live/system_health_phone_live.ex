@@ -1,9 +1,9 @@
 defmodule BotArmyDashboardLiveview.SystemHealthPhoneLive do
   use Phoenix.LiveView
   alias BotArmyDashboardLiveview.Broker
-  alias Phoenix.PubSub
   alias BotArmyDashboardLiveview.PhoneNav
   alias BotArmyDashboardLiveview.SyncStatus
+  alias Phoenix.PubSub
 
   @impl true
   def mount(_params, _session, socket) do
@@ -28,23 +28,25 @@ defmodule BotArmyDashboardLiveview.SystemHealthPhoneLive do
   end
 
   defp fetch_bot_health(socket) do
+    parent = self()
+
     Task.start_link(fn ->
       try do
         case Broker.request("system.health.bots", Jason.encode!(%{}), timeout: 5000) do
           {:ok, %{body: body}} ->
             case Jason.decode(body) do
               {:ok, %{"bots" => bots}} ->
-                send(self(), {:bots_loaded, bots})
+                send(parent, {:bots_loaded, bots})
 
               {:error, _} ->
-                send(self(), {:bots_loaded, []})
+                send(parent, {:bots_loaded, []})
             end
 
           {:error, _} ->
-            send(self(), {:bots_loaded, []})
+            send(parent, {:bots_loaded, []})
         end
       rescue
-        _ -> send(self(), {:bots_loaded, []})
+        _ -> send(parent, {:bots_loaded, []})
       end
     end)
 
@@ -52,17 +54,19 @@ defmodule BotArmyDashboardLiveview.SystemHealthPhoneLive do
   end
 
   defp fetch_nats_status(socket) do
+    parent = self()
+
     Task.start_link(fn ->
       try do
         case Broker.request("system.health.nats", Jason.encode!(%{}), timeout: 2000) do
           {:ok, _} ->
-            send(self(), {:nats_status, :healthy})
+            send(parent, {:nats_status, :healthy})
 
           {:error, _} ->
-            send(self(), {:nats_status, :unhealthy})
+            send(parent, {:nats_status, :unhealthy})
         end
       rescue
-        _ -> send(self(), {:nats_status, :unhealthy})
+        _ -> send(parent, {:nats_status, :unhealthy})
       end
     end)
 

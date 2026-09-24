@@ -108,6 +108,8 @@ defmodule BotArmyDashboardLiveview.ReflectPhoneLive do
   end
 
   defp publish_reflection(socket) do
+    parent = self()
+
     Task.start_link(fn ->
       try do
         payload = %{
@@ -118,13 +120,13 @@ defmodule BotArmyDashboardLiveview.ReflectPhoneLive do
 
         case Gnat.pub(:nats_connection, "events.reflection.captured", Jason.encode!(payload)) do
           :ok ->
-            send(self(), {:reflection_saved})
+            send(parent, {:reflection_saved})
 
           _ ->
-            send(self(), {:reflection_failed})
+            send(parent, {:reflection_failed})
         end
       rescue
-        _ -> send(self(), {:reflection_failed})
+        _ -> send(parent, {:reflection_failed})
       end
     end)
 
@@ -195,7 +197,7 @@ defmodule BotArmyDashboardLiveview.ReflectPhoneLive do
     {:noreply, socket}
   end
 
-    @impl true
+  @impl true
   def render(assigns) do
     ~H"""
     <div id="reflect-phone-container" class="handheld-container reflect-phone" phx-hook="TouchCarousel">

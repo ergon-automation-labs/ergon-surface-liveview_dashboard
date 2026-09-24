@@ -1,10 +1,10 @@
 defmodule BotArmyDashboardLiveview.GtdPhoneLive do
   use Phoenix.LiveView
   alias BotArmyDashboardLiveview.Broker
-  alias Phoenix.PubSub
   alias BotArmyDashboardLiveview.PhoneNav
-  alias BotArmyDashboardLiveview.SyncStatus
   alias BotArmyDashboardLiveview.PhoneNavModal
+  alias BotArmyDashboardLiveview.SyncStatus
+  alias Phoenix.PubSub
 
   @impl true
   def mount(_params, _session, socket) do
@@ -34,23 +34,25 @@ defmodule BotArmyDashboardLiveview.GtdPhoneLive do
   end
 
   defp fetch_projects(socket) do
+    parent = self()
+
     Task.start_link(fn ->
       try do
         case Broker.request("bridge.project.list", Jason.encode!(%{}), timeout: 5000) do
           {:ok, %{body: body}} ->
             case Jason.decode(body) do
               {:ok, %{"projects" => projects}} ->
-                send(self(), {:projects_loaded, projects})
+                send(parent, {:projects_loaded, projects})
 
               {:error, _} ->
-                send(self(), {:projects_loaded, []})
+                send(parent, {:projects_loaded, []})
             end
 
           {:error, _} ->
-            send(self(), {:projects_loaded, []})
+            send(parent, {:projects_loaded, []})
         end
       rescue
-        _ -> send(self(), {:projects_loaded, []})
+        _ -> send(parent, {:projects_loaded, []})
       end
     end)
 
@@ -58,6 +60,8 @@ defmodule BotArmyDashboardLiveview.GtdPhoneLive do
   end
 
   defp fetch_tasks(socket, project_id) do
+    parent = self()
+
     Task.start_link(fn ->
       try do
         case Broker.request(
@@ -68,20 +72,20 @@ defmodule BotArmyDashboardLiveview.GtdPhoneLive do
           {:ok, %{body: body}} ->
             case Jason.decode(body) do
               {:ok, %{"tasks" => tasks}} ->
-                send(self(), {:tasks_loaded, tasks})
+                send(parent, {:tasks_loaded, tasks})
 
               {:ok, tasks} when is_list(tasks) ->
-                send(self(), {:tasks_loaded, tasks})
+                send(parent, {:tasks_loaded, tasks})
 
               {:error, _} ->
-                send(self(), {:tasks_loaded, []})
+                send(parent, {:tasks_loaded, []})
             end
 
           {:error, _} ->
-            send(self(), {:tasks_loaded, []})
+            send(parent, {:tasks_loaded, []})
         end
       rescue
-        _ -> send(self(), {:tasks_loaded, []})
+        _ -> send(parent, {:tasks_loaded, []})
       end
     end)
 
@@ -299,6 +303,8 @@ defmodule BotArmyDashboardLiveview.GtdPhoneLive do
   end
 
   defp publish_task_action(socket, task, action) do
+    parent = self()
+
     Task.start_link(fn ->
       try do
         payload = %{
@@ -316,13 +322,13 @@ defmodule BotArmyDashboardLiveview.GtdPhoneLive do
 
         case Gnat.pub(:nats_connection, subject, Jason.encode!(payload)) do
           :ok ->
-            send(self(), {:action_published, action, task["title"]})
+            send(parent, {:action_published, action, task["title"]})
 
           _ ->
-            send(self(), {:action_failed})
+            send(parent, {:action_failed})
         end
       rescue
-        _ -> send(self(), {:action_failed})
+        _ -> send(parent, {:action_failed})
       end
     end)
 

@@ -24,26 +24,28 @@ defmodule BotArmyDashboardLiveview.GTDHandheldLive do
   end
 
   defp fetch_projects(socket) do
+    parent = self()
+
     Task.start_link(fn ->
       try do
         case Broker.request("bridge.project.list", Jason.encode!({}), timeout: 5000) do
           {:ok, %{body: body}} ->
             case Jason.decode(body) do
               {:ok, projects} when is_list(projects) ->
-                send(self(), {:projects_loaded, projects})
+                send(parent, {:projects_loaded, projects})
 
               {:ok, project} when is_map(project) ->
-                send(self(), {:projects_loaded, [project]})
+                send(parent, {:projects_loaded, [project]})
 
               {:error, _} ->
-                send(self(), {:projects_loaded, []})
+                send(parent, {:projects_loaded, []})
             end
 
           {:error, _} ->
-            send(self(), {:projects_loaded, []})
+            send(parent, {:projects_loaded, []})
         end
       rescue
-        _ -> send(self(), {:projects_loaded, []})
+        _ -> send(parent, {:projects_loaded, []})
       end
     end)
 
@@ -51,6 +53,8 @@ defmodule BotArmyDashboardLiveview.GTDHandheldLive do
   end
 
   defp fetch_tasks(socket, project_id) do
+    parent = self()
+
     Task.start_link(fn ->
       try do
         payload = %{project_id: project_id, limit: 20}
@@ -59,20 +63,20 @@ defmodule BotArmyDashboardLiveview.GTDHandheldLive do
           {:ok, %{body: body}} ->
             case Jason.decode(body) do
               {:ok, %{"tasks" => tasks}} ->
-                send(self(), {:tasks_loaded, tasks})
+                send(parent, {:tasks_loaded, tasks})
 
               {:ok, tasks} when is_list(tasks) ->
-                send(self(), {:tasks_loaded, tasks})
+                send(parent, {:tasks_loaded, tasks})
 
               {:error, _} ->
-                send(self(), {:tasks_loaded, []})
+                send(parent, {:tasks_loaded, []})
             end
 
           {:error, _} ->
-            send(self(), {:tasks_loaded, []})
+            send(parent, {:tasks_loaded, []})
         end
       rescue
-        _ -> send(self(), {:tasks_loaded, []})
+        _ -> send(parent, {:tasks_loaded, []})
       end
     end)
 
@@ -208,19 +212,21 @@ defmodule BotArmyDashboardLiveview.GTDHandheldLive do
   end
 
   defp complete_task(socket, task_id) do
+    parent = self()
+
     Task.start_link(fn ->
       try do
         payload = %{task_id: task_id}
 
         case Broker.request("bridge.task.complete", Jason.encode!(payload), timeout: 5000) do
           {:ok, _} ->
-            send(self(), {:task_updated, "✓ Task completed"})
+            send(parent, {:task_updated, "✓ Task completed"})
 
           {:error, _} ->
-            send(self(), {:task_updated, "✗ Failed to complete"})
+            send(parent, {:task_updated, "✗ Failed to complete"})
         end
       rescue
-        _ -> send(self(), {:task_updated, "✗ Error"})
+        _ -> send(parent, {:task_updated, "✗ Error"})
       end
     end)
 
@@ -228,19 +234,21 @@ defmodule BotArmyDashboardLiveview.GTDHandheldLive do
   end
 
   defp defer_task(socket, task_id) do
+    parent = self()
+
     Task.start_link(fn ->
       try do
         payload = %{task_id: task_id, status: "someday"}
 
         case Broker.request("bridge.task.update", Jason.encode!(payload), timeout: 5000) do
           {:ok, _} ->
-            send(self(), {:task_updated, "⏱ Deferred"})
+            send(parent, {:task_updated, "⏱ Deferred"})
 
           {:error, _} ->
-            send(self(), {:task_updated, "✗ Failed to defer"})
+            send(parent, {:task_updated, "✗ Failed to defer"})
         end
       rescue
-        _ -> send(self(), {:task_updated, "✗ Error"})
+        _ -> send(parent, {:task_updated, "✗ Error"})
       end
     end)
 
@@ -248,6 +256,8 @@ defmodule BotArmyDashboardLiveview.GTDHandheldLive do
   end
 
   defp add_note_to_task(socket, task_id, note_text) do
+    parent = self()
+
     Task.start_link(fn ->
       try do
         payload = %{
@@ -257,13 +267,13 @@ defmodule BotArmyDashboardLiveview.GTDHandheldLive do
 
         case Broker.request("bridge.task.update", Jason.encode!(payload), timeout: 5000) do
           {:ok, _} ->
-            send(self(), {:task_updated, "✓ Note added"})
+            send(parent, {:task_updated, "✓ Note added"})
 
           {:error, _} ->
-            send(self(), {:task_updated, "✗ Failed to add note"})
+            send(parent, {:task_updated, "✗ Failed to add note"})
         end
       rescue
-        _ -> send(self(), {:task_updated, "✗ Error"})
+        _ -> send(parent, {:task_updated, "✗ Error"})
       end
     end)
 

@@ -100,6 +100,8 @@ defmodule BotArmyDashboardLiveview.QuestPhoneLive do
   end
 
   defp publish_quest_completed(socket, quest) do
+    parent = self()
+
     Task.start_link(fn ->
       try do
         payload = %{
@@ -110,13 +112,13 @@ defmodule BotArmyDashboardLiveview.QuestPhoneLive do
 
         case Gnat.pub(:nats_connection, "events.quest.completed", Jason.encode!(payload)) do
           :ok ->
-            send(self(), {:quest_completed, quest["title"]})
+            send(parent, {:quest_completed, quest["title"]})
 
           _ ->
-            send(self(), {:quest_publish_failed})
+            send(parent, {:quest_publish_failed})
         end
       rescue
-        _ -> send(self(), {:quest_publish_failed})
+        _ -> send(parent, {:quest_publish_failed})
       end
     end)
 
