@@ -1,13 +1,14 @@
 defmodule BotArmyDashboardLiveview.TimerPhoneLive do
   use Phoenix.LiveView
+  alias BotArmyDashboardLiveview.Broker
   alias Phoenix.PubSub
-  import BotArmyDashboardLiveview.PhoneNav
-  import BotArmyDashboardLiveview.PhoneNavModal
-  import BotArmyDashboardLiveview.SyncStatus
+  alias BotArmyDashboardLiveview.PhoneNav
+  alias BotArmyDashboardLiveview.PhoneNavModal
+  alias BotArmyDashboardLiveview.SyncStatus
 
   @impl true
   def mount(_params, _session, socket) do
-    {:ok, _} = PubSub.subscribe(BotArmyDashboardLiveview.PubSub, "gamepad")
+    :ok = PubSub.subscribe(BotArmyDashboardLiveview.PubSub, "gamepad")
 
     socket_id = socket.id
     {:ok, _} = BotArmyDashboardLiveview.OfflineQueue.start_link(socket_id: socket_id)
@@ -46,7 +47,7 @@ defmodule BotArmyDashboardLiveview.TimerPhoneLive do
   defp fetch_tasks(socket) do
     Task.start_link(fn ->
       try do
-        case Gnat.request(:nats_connection, "bridge.task.list", Jason.encode!(%{}), timeout: 5000) do
+        case Broker.request("bridge.task.list", Jason.encode!(%{}), timeout: 5000) do
           {:ok, %{body: body}} ->
             case Jason.decode(body) do
               {:ok, %{"tasks" => tasks}} ->

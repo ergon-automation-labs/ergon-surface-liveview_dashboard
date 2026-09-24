@@ -1,5 +1,6 @@
 defmodule BotArmyDashboardLiveview.TimerHandheldLive do
   use Phoenix.LiveView
+  alias BotArmyDashboardLiveview.Broker
   require Logger
 
   @impl true
@@ -28,7 +29,7 @@ defmodule BotArmyDashboardLiveview.TimerHandheldLive do
   defp fetch_tasks(socket) do
     Task.start_link(fn ->
       try do
-        case Gnat.request(:nats_connection, "bridge.task.list", Jason.encode!(%{}), timeout: 5000) do
+        case Broker.request("bridge.task.list", Jason.encode!(%{}), timeout: 5000) do
           {:ok, %{body: body}} ->
             case Jason.decode(body) do
               {:ok, %{"tasks" => tasks}} ->

@@ -1,5 +1,6 @@
 defmodule BotArmyDashboardLiveview.GTDHandheldLive do
   use Phoenix.LiveView
+  alias BotArmyDashboardLiveview.Broker
 
   require Logger
 
@@ -25,9 +26,7 @@ defmodule BotArmyDashboardLiveview.GTDHandheldLive do
   defp fetch_projects(socket) do
     Task.start_link(fn ->
       try do
-        case Gnat.request(:nats_connection, "bridge.project.list", Jason.encode!({}),
-               timeout: 5000
-             ) do
+        case Broker.request("bridge.project.list", Jason.encode!({}), timeout: 5000) do
           {:ok, %{body: body}} ->
             case Jason.decode(body) do
               {:ok, projects} when is_list(projects) ->
@@ -56,9 +55,7 @@ defmodule BotArmyDashboardLiveview.GTDHandheldLive do
       try do
         payload = %{project_id: project_id, limit: 20}
 
-        case Gnat.request(:nats_connection, "bridge.task.list", Jason.encode!(payload),
-               timeout: 5000
-             ) do
+        case Broker.request("bridge.task.list", Jason.encode!(payload), timeout: 5000) do
           {:ok, %{body: body}} ->
             case Jason.decode(body) do
               {:ok, %{"tasks" => tasks}} ->
@@ -215,9 +212,7 @@ defmodule BotArmyDashboardLiveview.GTDHandheldLive do
       try do
         payload = %{task_id: task_id}
 
-        case Gnat.request(:nats_connection, "bridge.task.complete", Jason.encode!(payload),
-               timeout: 5000
-             ) do
+        case Broker.request("bridge.task.complete", Jason.encode!(payload), timeout: 5000) do
           {:ok, _} ->
             send(self(), {:task_updated, "✓ Task completed"})
 
@@ -237,9 +232,7 @@ defmodule BotArmyDashboardLiveview.GTDHandheldLive do
       try do
         payload = %{task_id: task_id, status: "someday"}
 
-        case Gnat.request(:nats_connection, "bridge.task.update", Jason.encode!(payload),
-               timeout: 5000
-             ) do
+        case Broker.request("bridge.task.update", Jason.encode!(payload), timeout: 5000) do
           {:ok, _} ->
             send(self(), {:task_updated, "⏱ Deferred"})
 
@@ -262,9 +255,7 @@ defmodule BotArmyDashboardLiveview.GTDHandheldLive do
           note: note_text
         }
 
-        case Gnat.request(:nats_connection, "bridge.task.update", Jason.encode!(payload),
-               timeout: 5000
-             ) do
+        case Broker.request("bridge.task.update", Jason.encode!(payload), timeout: 5000) do
           {:ok, _} ->
             send(self(), {:task_updated, "✓ Note added"})
 

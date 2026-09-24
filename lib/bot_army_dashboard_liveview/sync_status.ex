@@ -7,7 +7,18 @@ defmodule BotArmyDashboardLiveview.SyncStatus do
   use Phoenix.Component
 
   @doc """
+  The status a screen starts from: nothing queued, nothing failed.
+  """
+  def initial do
+    %{"queued" => 0, "syncing" => 0, "failed" => 0, "total" => 0, "synced" => 0}
+  end
+
+  @doc """
   Render sync status indicator for phone handhelds.
+
+  `status` and `is_online` default, so a screen that has not heard from the
+  offline queue yet still renders — every phone view that assigns them assigns
+  them from a message that only arrives later.
 
   Usage in render:
     <SyncStatus.sync_status
@@ -16,6 +27,13 @@ defmodule BotArmyDashboardLiveview.SyncStatus do
     />
   """
   def sync_status(assigns) do
+    assigns =
+      assigns
+      |> Map.put_new(:status, initial())
+      |> Map.put_new(:is_online, true)
+
+    assigns = Map.update!(assigns, :status, &(&1 || initial()))
+
     ~H"""
     <div class="sync-status-bar">
       <%= if !@is_online do %>

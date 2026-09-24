@@ -1,19 +1,21 @@
 defmodule BotArmyDashboardLiveview.EnergyMoodPhoneLive do
   use Phoenix.LiveView
   alias Phoenix.PubSub
-  import BotArmyDashboardLiveview.PhoneNav
-  import BotArmyDashboardLiveview.SyncStatus
+  alias BotArmyDashboardLiveview.PhoneNav
+  alias BotArmyDashboardLiveview.SyncStatus
 
   @energy_levels [:low, :medium, :high]
   @moods [:focused, :creative, :energized, :calm, :recovering, :scattered]
 
   @impl true
   def mount(_params, _session, socket) do
-    {:ok, _} = PubSub.subscribe(BotArmyDashboardLiveview.PubSub, "gamepad")
+    :ok = PubSub.subscribe(BotArmyDashboardLiveview.PubSub, "gamepad")
 
     socket =
       socket
       |> assign(
+        sync_status: SyncStatus.initial(),
+        is_online: true,
         state: :energy,
         selected_energy_index: 1,
         selected_mood_index: 0,

@@ -1,5 +1,6 @@
 defmodule BotArmyDashboardLiveview.EnergyMoodHandheldLive do
   use Phoenix.LiveView
+  alias BotArmyDashboardLiveview.Broker
   require Logger
 
   @impl true
@@ -22,8 +23,7 @@ defmodule BotArmyDashboardLiveview.EnergyMoodHandheldLive do
     # Try to load the last saved state from NATS
     Task.start_link(fn ->
       try do
-        case Gnat.request(
-               :nats_connection,
+        case Broker.request(
                "context.state.query",
                Jason.encode!(%{"type" => "energy_mood"}),
                timeout: 2000

@@ -6,6 +6,8 @@ defmodule BotArmyDashboardLiveview.NATSBridge do
   """
 
   use GenServer
+
+  alias BotArmyDashboardLiveview.Broker
   require Logger
 
   alias Phoenix.PubSub
@@ -78,9 +80,7 @@ defmodule BotArmyDashboardLiveview.NATSBridge do
   def handle_call(:get_tasks, _from, state) do
     tasks =
       try do
-        case Gnat.request(:nats_connection, "bridge.task.list", Jason.encode!(%{"limit" => 100}),
-               timeout: 5000
-             ) do
+        case Broker.request("bridge.task.list", Jason.encode!(%{"limit" => 100}), timeout: 5000) do
           {:ok, response} ->
             case Jason.decode(response.body) do
               {:ok, decoded} -> Map.get(decoded, "data", %{}) |> Map.get("tasks", [])
@@ -100,8 +100,7 @@ defmodule BotArmyDashboardLiveview.NATSBridge do
   def handle_call(:get_completed_tasks, _from, state) do
     tasks =
       try do
-        case Gnat.request(
-               :nats_connection,
+        case Broker.request(
                "bridge.task.search",
                Jason.encode!(%{
                  "query" => "*",

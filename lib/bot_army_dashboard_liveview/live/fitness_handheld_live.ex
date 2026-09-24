@@ -1,5 +1,6 @@
 defmodule BotArmyDashboardLiveview.FitnessHandheldLive do
   use Phoenix.LiveView
+  alias BotArmyDashboardLiveview.Broker
 
   require Logger
 
@@ -20,8 +21,7 @@ defmodule BotArmyDashboardLiveview.FitnessHandheldLive do
   defp fetch_recent_workouts(socket) do
     Task.start_link(fn ->
       try do
-        case Gnat.request(
-               :nats_connection,
+        case Broker.request(
                "fitness.workout.list",
                Jason.encode!(%{payload: %{limit: 10}}),
                timeout: 5000
@@ -104,9 +104,7 @@ defmodule BotArmyDashboardLiveview.FitnessHandheldLive do
           intensity: workout["intensity"] || "moderate"
         }
 
-        case Gnat.request(:nats_connection, "fitness.set.log", Jason.encode!(%{payload: payload}),
-               timeout: 5000
-             ) do
+        case Broker.request("fitness.set.log", Jason.encode!(%{payload: payload}), timeout: 5000) do
           {:ok, _response} ->
             send(self(), {:workout_logged, workout["title"]})
 

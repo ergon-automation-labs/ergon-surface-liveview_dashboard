@@ -1,8 +1,8 @@
 defmodule BotArmyDashboardLiveview.ReflectPhoneLive do
   use Phoenix.LiveView
   alias Phoenix.PubSub
-  import BotArmyDashboardLiveview.PhoneNav
-  import BotArmyDashboardLiveview.SyncStatus
+  alias BotArmyDashboardLiveview.PhoneNav
+  alias BotArmyDashboardLiveview.SyncStatus
 
   @prompts [
     "What just happened?",
@@ -19,11 +19,13 @@ defmodule BotArmyDashboardLiveview.ReflectPhoneLive do
 
   @impl true
   def mount(_params, _session, socket) do
-    {:ok, _} = PubSub.subscribe(BotArmyDashboardLiveview.PubSub, "gamepad")
+    :ok = PubSub.subscribe(BotArmyDashboardLiveview.PubSub, "gamepad")
 
     socket =
       socket
       |> assign(
+        sync_status: SyncStatus.initial(),
+        is_online: true,
         reflection_text: "",
         prompts: @prompts,
         prompt_index: Enum.random(0..(length(@prompts) - 1)),

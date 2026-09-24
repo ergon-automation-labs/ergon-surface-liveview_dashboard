@@ -17,7 +17,7 @@ defmodule BotArmyDashboardLiveview.ReflectionLive do
 
   @impl true
   def mount(_params, _session, socket) do
-    {:ok, _} = PubSub.subscribe(BotArmyDashboardLiveview.PubSub, "gamepad")
+    :ok = PubSub.subscribe(BotArmyDashboardLiveview.PubSub, "gamepad")
 
     socket =
       socket

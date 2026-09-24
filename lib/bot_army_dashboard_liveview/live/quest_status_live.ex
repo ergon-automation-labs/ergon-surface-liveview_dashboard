@@ -1,5 +1,6 @@
 defmodule BotArmyDashboardLiveview.QuestStatusLive do
   use Phoenix.LiveView
+  alias BotArmyDashboardLiveview.Broker
   alias Phoenix.PubSub
   alias BotArmyDashboardLiveview.QuestPayload
 
@@ -38,9 +39,7 @@ defmodule BotArmyDashboardLiveview.QuestStatusLive do
     Task.start_link(fn ->
       result =
         try do
-          case Gnat.request(:nats_connection, "bridge.quest.current", Jason.encode!(%{}),
-                 timeout: 5000
-               ) do
+          case Broker.request("bridge.quest.current", Jason.encode!(%{}), timeout: 5000) do
             {:ok, %{body: body}} -> QuestPayload.parse(body)
             {:error, _} -> nil
           end
@@ -67,7 +66,7 @@ defmodule BotArmyDashboardLiveview.QuestStatusLive do
             "user_id" => "abby"
           }
 
-          case Gnat.request(:nats_connection, "bridge.narrative.refresh", Jason.encode!(payload),
+          case Broker.request("bridge.narrative.refresh", Jason.encode!(payload),
                  receive_timeout: 5000
                ) do
             {:ok, %{body: body}} ->
@@ -168,8 +167,7 @@ defmodule BotArmyDashboardLiveview.QuestStatusLive do
 
         result =
           try do
-            case Gnat.request(
-                   :nats_connection,
+            case Broker.request(
                    "bridge.narrative.refresh",
                    Jason.encode!(payload),
                    receive_timeout: 5000

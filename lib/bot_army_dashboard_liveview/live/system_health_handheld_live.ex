@@ -1,5 +1,6 @@
 defmodule BotArmyDashboardLiveview.SystemHealthHandheldLive do
   use Phoenix.LiveView
+  alias BotArmyDashboardLiveview.Broker
   require Logger
 
   @impl true
@@ -21,9 +22,7 @@ defmodule BotArmyDashboardLiveview.SystemHealthHandheldLive do
   defp fetch_bots_and_health(socket) do
     Task.start_link(fn ->
       try do
-        case Gnat.request(:nats_connection, "bot_army.registry.bots.list", Jason.encode!({}),
-               timeout: 5000
-             ) do
+        case Broker.request("bot_army.registry.bots.list", Jason.encode!({}), timeout: 5000) do
           {:ok, %{body: body}} ->
             case Jason.decode(body) do
               {:ok, %{"data" => %{"bots" => bot_list}}} when is_list(bot_list) ->

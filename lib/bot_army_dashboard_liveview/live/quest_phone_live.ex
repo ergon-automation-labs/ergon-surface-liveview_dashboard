@@ -1,17 +1,20 @@
 defmodule BotArmyDashboardLiveview.QuestPhoneLive do
   use Phoenix.LiveView
+  alias BotArmyDashboardLiveview.Broker
   alias Phoenix.PubSub
-  import BotArmyDashboardLiveview.PhoneNav
-  import BotArmyDashboardLiveview.SyncStatus
+  alias BotArmyDashboardLiveview.PhoneNav
+  alias BotArmyDashboardLiveview.SyncStatus
   alias BotArmyDashboardLiveview.QuestPayload
 
   @impl true
   def mount(_params, _session, socket) do
-    {:ok, _} = PubSub.subscribe(BotArmyDashboardLiveview.PubSub, "gamepad")
+    :ok = PubSub.subscribe(BotArmyDashboardLiveview.PubSub, "gamepad")
 
     socket =
       socket
       |> assign(
+        sync_status: SyncStatus.initial(),
+        is_online: true,
         quest: nil,
         next_quest_preview: nil,
         message: nil,
@@ -32,9 +35,7 @@ defmodule BotArmyDashboardLiveview.QuestPhoneLive do
     Task.start_link(fn ->
       result =
         try do
-          case Gnat.request(:nats_connection, "bridge.quest.current", Jason.encode!(%{}),
-                 timeout: 5000
-               ) do
+          case Broker.request("bridge.quest.current", Jason.encode!(%{}), timeout: 5000) do
             {:ok, %{body: body}} -> QuestPayload.parse(body)
             {:error, _} -> nil
           end

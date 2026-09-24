@@ -1,18 +1,20 @@
 defmodule BotArmyDashboardLiveview.GtdPhoneLive do
   use Phoenix.LiveView
+  alias BotArmyDashboardLiveview.Broker
   alias Phoenix.PubSub
-  import BotArmyDashboardLiveview.PhoneNav
-  import BotArmyDashboardLiveview.SyncStatus
-  import BotArmyDashboardLiveview.PhoneNavModal
-  import BotArmyDashboardLiveview.SyncStatus
+  alias BotArmyDashboardLiveview.PhoneNav
+  alias BotArmyDashboardLiveview.SyncStatus
+  alias BotArmyDashboardLiveview.PhoneNavModal
 
   @impl true
   def mount(_params, _session, socket) do
-    {:ok, _} = PubSub.subscribe(BotArmyDashboardLiveview.PubSub, "gamepad")
+    :ok = PubSub.subscribe(BotArmyDashboardLiveview.PubSub, "gamepad")
 
     socket =
       socket
       |> assign(
+        sync_status: SyncStatus.initial(),
+        is_online: true,
         state: :projects,
         projects: [],
         tasks: [],
@@ -34,9 +36,7 @@ defmodule BotArmyDashboardLiveview.GtdPhoneLive do
   defp fetch_projects(socket) do
     Task.start_link(fn ->
       try do
-        case Gnat.request(:nats_connection, "bridge.project.list", Jason.encode!(%{}),
-               timeout: 5000
-             ) do
+        case Broker.request("bridge.project.list", Jason.encode!(%{}), timeout: 5000) do
           {:ok, %{body: body}} ->
             case Jason.decode(body) do
               {:ok, %{"projects" => projects}} ->
@@ -60,8 +60,7 @@ defmodule BotArmyDashboardLiveview.GtdPhoneLive do
   defp fetch_tasks(socket, project_id) do
     Task.start_link(fn ->
       try do
-        case Gnat.request(
-               :nats_connection,
+        case Broker.request(
                "bridge.task.list",
                Jason.encode!(%{"project_id" => project_id}),
                timeout: 5000
@@ -388,7 +387,7 @@ defmodule BotArmyDashboardLiveview.GtdPhoneLive do
     {:noreply, socket}
   end
 
-    @impl true
+  @impl true
   def render(assigns) do
     ~H"""
     <div id="gtd-phone-container" class="handheld-container gtd-phone" phx-hook="TouchCarousel">

@@ -1,19 +1,21 @@
 defmodule BotArmyDashboardLiveview.FitnessPhoneLive do
   use Phoenix.LiveView
   alias Phoenix.PubSub
-  import BotArmyDashboardLiveview.PhoneNav
-  import BotArmyDashboardLiveview.SyncStatus
+  alias BotArmyDashboardLiveview.PhoneNav
+  alias BotArmyDashboardLiveview.SyncStatus
 
   @workout_types [:run, :walk, :strength, :yoga, :swim, :bike, :sports, :stretch]
   @intensity_levels [:light, :moderate, :intense]
 
   @impl true
   def mount(_params, _session, socket) do
-    {:ok, _} = PubSub.subscribe(BotArmyDashboardLiveview.PubSub, "gamepad")
+    :ok = PubSub.subscribe(BotArmyDashboardLiveview.PubSub, "gamepad")
 
     socket =
       socket
       |> assign(
+        sync_status: SyncStatus.initial(),
+        is_online: true,
         state: :type,
         selected_type_index: 0,
         selected_intensity_index: 1,

@@ -1,14 +1,18 @@
 defmodule BotArmyDashboardLiveview.SessionHistoryPhoneLive do
   use Phoenix.LiveView
+  alias BotArmyDashboardLiveview.PhoneNav
+  alias BotArmyDashboardLiveview.SyncStatus
   alias Phoenix.PubSub
 
   @impl true
   def mount(_params, _session, socket) do
-    {:ok, _} = PubSub.subscribe(BotArmyDashboardLiveview.PubSub, "gamepad")
+    :ok = PubSub.subscribe(BotArmyDashboardLiveview.PubSub, "gamepad")
 
     socket =
       socket
       |> assign(
+        sync_status: SyncStatus.initial(),
+        is_online: true,
         state: :overview,
         selected_session_index: 0,
         sessions: [],
@@ -173,7 +177,7 @@ defmodule BotArmyDashboardLiveview.SessionHistoryPhoneLive do
     {:noreply, socket}
   end
 
-    @impl true
+  @impl true
   def render(assigns) do
     ~H"""
     <div id="session-history-phone-container" class="handheld-container session-history-phone" phx-hook="TouchCarousel">

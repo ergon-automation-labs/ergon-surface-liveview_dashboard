@@ -1,15 +1,19 @@
 defmodule BotArmyDashboardLiveview.HabitAnchorsLive do
   use Phoenix.LiveView
+  alias BotArmyDashboardLiveview.Broker
+  require Logger
+  alias BotArmyDashboardLiveview.HabitItems
   alias Phoenix.PubSub
 
   @impl true
   def mount(_params, _session, socket) do
-    {:ok, _} = PubSub.subscribe(BotArmyDashboardLiveview.PubSub, "gamepad")
+    :ok = PubSub.subscribe(BotArmyDashboardLiveview.PubSub, "gamepad")
 
     socket =
       socket
       |> assign(
         habits: [],
+        habits_error: nil,
         selected_habit_index: 0,
         message: nil,
         loading: true
@@ -21,33 +25,74 @@ defmodule BotArmyDashboardLiveview.HabitAnchorsLive do
   end
 
   defp fetch_habits(socket) do
+    live_view_pid = self()
+
     Task.start_link(fn ->
-      try do
-        case Gnat.request(:nats_connection, "bridge.habit.list", Jason.encode!(%{}),
-               timeout: 5000
-             ) do
-          {:ok, %{body: body}} ->
-            case Jason.decode(body) do
-              {:ok, %{"habits" => habits}} ->
-                send(self(), {:habits_loaded, habits})
-
-              {:ok, habits} when is_list(habits) ->
-                send(self(), {:habits_loaded, habits})
-
-              {:error, _} ->
-                send(self(), {:habits_loaded, []})
-            end
-
-          {:error, _} ->
-            send(self(), {:habits_loaded, []})
-        end
-      rescue
-        _ -> send(self(), {:habits_loaded, []})
+      case hygiene_items() do
+        {:ok, items} -> send(live_view_pid, {:habits_loaded, hygiene_items_to_habits(items)})
+        {:error, reason} -> send(live_view_pid, {:habits_unavailable, reason})
       end
     end)
 
     socket
   end
+
+  # The exit case (`:noproc` when the broker is down) is handled by Broker; the
+  # rescue/catch here are the backstop for anything else. Every way of getting
+  # nothing back answers with a reason *and* leaves a trace, because a screen
+  # saying "can't reach the bot" with an empty log is indistinguishable from a
+  # screen nobody opened.
+  defp hygiene_items do
+    case Broker.request("wife_care.control_panel.hygiene", Jason.encode!(%{}), timeout: 5000) do
+      {:ok, %{body: body}} ->
+        decode_hygiene(body)
+
+      {:error, reason} ->
+        note_failure(reason)
+        {:error, unavailable_reason(reason)}
+    end
+  rescue
+    error ->
+      note_failure(error)
+      {:error, unavailable_reason({:raised, error})}
+  catch
+    kind, reason ->
+      note_failure({kind, reason})
+      {:error, "the bot is not reachable right now"}
+  end
+
+  defp note_failure(reason) do
+    Logger.warning("[HabitAnchors] hygiene answered nothing: #{inspect(reason)}")
+  end
+
+  defp decode_hygiene(body) do
+    case Jason.decode(body) do
+      {:ok, %{"ok" => true, "data" => %{"hygiene" => %{"items" => items}}}} when is_list(items) ->
+        {:ok, items}
+
+      {:ok, %{"ok" => false, "error" => error}} ->
+        {:error, error_message(error)}
+
+      _ ->
+        {:error, "the bot answered something unreadable"}
+    end
+  end
+
+  # A read that answers nothing is not an empty list: "no habits configured"
+  # over a dead bot is a claim about her data that the bot never made.
+  defp error_message(error) when is_map(error), do: error["message"] || "the bot refused the read"
+  defp error_message(error) when is_binary(error), do: error
+  defp error_message(_error), do: "the bot refused the read"
+
+  defp unavailable_reason(:no_broker), do: "the bot is not reachable right now"
+  defp unavailable_reason(:timeout), do: "the bot did not answer in time"
+  defp unavailable_reason(reason) when is_atom(reason), do: to_string(reason)
+  defp unavailable_reason(_reason), do: "the request failed"
+
+  # The bot already orders these for reading (overdue first, then never logged,
+  # then in rhythm), and it is the only party that knows how long ago each one
+  # was logged. Both live in HabitItems, tested on its own.
+  defp hygiene_items_to_habits(items), do: HabitItems.to_habits(items)
 
   defp schedule_tick(socket) do
     Process.send_after(self(), :tick, 500)
@@ -56,7 +101,24 @@ defmodule BotArmyDashboardLiveview.HabitAnchorsLive do
 
   @impl true
   def handle_info({:habits_loaded, habits}, socket) do
-    {:noreply, assign(socket, habits: habits, loading: false, selected_habit_index: 0)}
+    {:noreply,
+     assign(socket,
+       habits: habits,
+       habits_error: nil,
+       loading: false,
+       selected_habit_index: 0
+     )}
+  end
+
+  @impl true
+  def handle_info({:habits_unavailable, reason}, socket) do
+    {:noreply,
+     assign(socket, habits: [], habits_error: reason, loading: false, selected_habit_index: 0)}
+  end
+
+  @impl true
+  def handle_event("retry", _params, socket) do
+    {:noreply, socket |> assign(loading: true, habits_error: nil, message: nil) |> fetch_habits()}
   end
 
   @impl true
@@ -105,23 +167,31 @@ defmodule BotArmyDashboardLiveview.HabitAnchorsLive do
   end
 
   defp publish_habit_check_in(socket, habit) do
+    live_view_pid = self()
+
     Task.start_link(fn ->
       try do
-        payload = %{
-          "habit_id" => habit["id"],
-          "name" => habit["name"],
-          "timestamp" => DateTime.utc_now() |> DateTime.to_iso8601()
-        }
+        payload = %{"event" => habit["id"], "reason" => "dashboard check-in"}
 
-        case Gnat.pub(:nats_connection, "events.habit.check_in", Jason.encode!(payload)) do
-          :ok ->
-            send(self(), {:habit_checked_in, habit["name"]})
+        case Broker.request(
+               "wife_care.control_panel.record_hygiene_event",
+               Jason.encode!(payload),
+               timeout: 5000
+             ) do
+          {:ok, %{body: body}} ->
+            case Jason.decode(body) do
+              {:ok, %{"ok" => true}} ->
+                send(live_view_pid, {:habit_checked_in, habit["name"]})
 
-          _ ->
-            send(self(), {:check_in_failed})
+              _ ->
+                send(live_view_pid, {:check_in_failed})
+            end
+
+          {:error, _} ->
+            send(live_view_pid, {:check_in_failed})
         end
       rescue
-        _ -> send(self(), {:check_in_failed})
+        _ -> send(live_view_pid, {:check_in_failed})
       end
     end)
 
@@ -136,7 +206,8 @@ defmodule BotArmyDashboardLiveview.HabitAnchorsLive do
     {:noreply,
      socket
      |> assign(message: "✓ #{name} checked in")
-     |> schedule_message_clear(3000)}
+     |> schedule_message_clear(3000)
+     |> fetch_habits()}
   end
 
   @impl true
@@ -167,11 +238,20 @@ defmodule BotArmyDashboardLiveview.HabitAnchorsLive do
           <p>Loading habits...</p>
         </div>
       <% else %>
-        <%= if Enum.empty?(@habits) do %>
+        <%= if @habits_error do %>
           <div class="empty-state">
-            <p>No habits configured yet</p>
+            <p>Can't reach the bot</p>
+            <p class="empty-detail"><%= @habits_error %></p>
+            <button class="retry-button" phx-click="retry">Try again</button>
           </div>
         <% else %>
+          <%= if Enum.empty?(@habits) do %>
+            <div class="empty-state">
+              <p>No items to check in yet</p>
+              <p class="empty-detail">The bot answered with an empty list.</p>
+              <button class="retry-button" phx-click="retry">Try again</button>
+            </div>
+          <% else %>
           <% current_habit = Enum.at(@habits, @selected_habit_index) %>
           <div class="habit-card">
             <div class="view-title">✓ Check In</div>
@@ -179,6 +259,7 @@ defmodule BotArmyDashboardLiveview.HabitAnchorsLive do
             <div class="habit-display">
               <div class="habit-name"><%= current_habit["name"] %></div>
               <div class="habit-category"><%= current_habit["category"] || "anchor" %></div>
+              <div class="habit-logged"><%= current_habit["logged"] %></div>
             </div>
 
             <div class="habit-question">
@@ -204,6 +285,7 @@ defmodule BotArmyDashboardLiveview.HabitAnchorsLive do
               <%= @selected_habit_index + 1 %> of <%= length(@habits) %>
             </div>
           </div>
+          <% end %>
         <% end %>
       <% end %>
 
@@ -262,6 +344,28 @@ defmodule BotArmyDashboardLiveview.HabitAnchorsLive do
         color: #b0b0b0;
         text-transform: uppercase;
         letter-spacing: 2px;
+      }
+
+      .habit-logged {
+        margin-top: 10px;
+        font-size: 13px;
+        color: #909090;
+      }
+
+      .empty-detail {
+        font-size: 13px;
+        color: #808080;
+        margin: 8px 0 16px;
+      }
+
+      .retry-button {
+        background: transparent;
+        border: 1px solid #00d4ff;
+        color: #00d4ff;
+        padding: 10px 18px;
+        border-radius: 6px;
+        font-size: 14px;
+        min-height: 44px;
       }
 
       .habit-question {

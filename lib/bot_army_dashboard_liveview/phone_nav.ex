@@ -9,6 +9,7 @@ defmodule BotArmyDashboardLiveview.PhoneNav do
   @handhelds [
     {"/timer-phone", "⏱️", "Timer"},
     {"/habits-phone", "✓", "Habits"},
+    {"/habit-anchors", "🪥", "Anchors"},
     {"/quest-phone", "⚔️", "Quest"},
     {"/reflect-phone", "📝", "Reflect"},
     {"/energy-mood-phone", "🌡️", "Energy"},
@@ -38,10 +39,14 @@ defmodule BotArmyDashboardLiveview.PhoneNav do
   Returns navigation HTML component for use in LiveView templates.
   Pass current_route to highlight active page.
 
+  `handhelds` defaults to the full list, so a screen that just wants the bar
+  at the bottom does not have to know it.
+
   Usage in render:
     <.phone_nav current_route={request_path} />
   """
   def nav(assigns) do
+    assigns = Map.put_new(assigns, :handhelds, @handhelds)
     render(assigns)
   end
 

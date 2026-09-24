@@ -24,9 +24,19 @@ defmodule BotArmyDashboardLiveview.OfflineQueue do
 
   # Public API
 
+  # A queue belongs to a session, and a session can mount more than once (a
+  # second tab, a reconnect, the dead render a curl makes before the socket
+  # exists). Returning the live process instead of `{:error, {:already_started,
+  # pid}}` is what keeps those mounts from 500ing: every caller matches
+  # `{:ok, _}`. The `rescue` in the calls below already handles the other
+  # direction — a queue that is not there at all.
   def start_link(opts) do
     socket_id = Keyword.fetch!(opts, :socket_id)
-    GenServer.start_link(__MODULE__, opts, name: via_tuple(socket_id))
+
+    case GenServer.start_link(__MODULE__, opts, name: via_tuple(socket_id)) do
+      {:error, {:already_started, pid}} -> {:ok, pid}
+      other -> other
+    end
   end
 
   def enqueue_publish(socket_id, subject, payload, metadata \\ %{}) do

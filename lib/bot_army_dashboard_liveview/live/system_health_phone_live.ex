@@ -1,16 +1,19 @@
 defmodule BotArmyDashboardLiveview.SystemHealthPhoneLive do
   use Phoenix.LiveView
+  alias BotArmyDashboardLiveview.Broker
   alias Phoenix.PubSub
-  import BotArmyDashboardLiveview.PhoneNav
-  import BotArmyDashboardLiveview.SyncStatus
+  alias BotArmyDashboardLiveview.PhoneNav
+  alias BotArmyDashboardLiveview.SyncStatus
 
   @impl true
   def mount(_params, _session, socket) do
-    {:ok, _} = PubSub.subscribe(BotArmyDashboardLiveview.PubSub, "gamepad")
+    :ok = PubSub.subscribe(BotArmyDashboardLiveview.PubSub, "gamepad")
 
     socket =
       socket
       |> assign(
+        sync_status: SyncStatus.initial(),
+        is_online: true,
         bots: [],
         selected_bot_index: 0,
         nats_status: :checking,
@@ -27,9 +30,7 @@ defmodule BotArmyDashboardLiveview.SystemHealthPhoneLive do
   defp fetch_bot_health(socket) do
     Task.start_link(fn ->
       try do
-        case Gnat.request(:nats_connection, "system.health.bots", Jason.encode!(%{}),
-               timeout: 5000
-             ) do
+        case Broker.request("system.health.bots", Jason.encode!(%{}), timeout: 5000) do
           {:ok, %{body: body}} ->
             case Jason.decode(body) do
               {:ok, %{"bots" => bots}} ->
@@ -53,9 +54,7 @@ defmodule BotArmyDashboardLiveview.SystemHealthPhoneLive do
   defp fetch_nats_status(socket) do
     Task.start_link(fn ->
       try do
-        case Gnat.request(:nats_connection, "system.health.nats", Jason.encode!(%{}),
-               timeout: 2000
-             ) do
+        case Broker.request("system.health.nats", Jason.encode!(%{}), timeout: 2000) do
           {:ok, _} ->
             send(self(), {:nats_status, :healthy})
 
@@ -174,7 +173,7 @@ defmodule BotArmyDashboardLiveview.SystemHealthPhoneLive do
     {:noreply, socket}
   end
 
-    @impl true
+  @impl true
   def render(assigns) do
     ~H"""
     <div id="system-health-phone-container" class="handheld-container system-health-phone" phx-hook="TouchCarousel">

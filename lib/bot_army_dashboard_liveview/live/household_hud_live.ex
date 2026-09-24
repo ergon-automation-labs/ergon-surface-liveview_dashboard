@@ -14,6 +14,7 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDLive do
   """
 
   use Phoenix.LiveView
+  alias BotArmyDashboardLiveview.Broker
   require Logger
 
   alias BotArmyDashboardLiveview.HouseholdHUDPayload, as: HUD
@@ -83,7 +84,7 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDLive do
   # `Gnat.request/4` to a broker that is not there exits (`:noproc`), and an exit
   # is not an exception — `rescue` alone would let the task die silently.
   defp request(subject) do
-    case Gnat.request(:nats_connection, subject, "", timeout: @request_timeout) do
+    case Broker.request(subject, "", timeout: @request_timeout) do
       {:ok, %{body: body}} -> body
       other -> unreachable(subject, other)
     end
