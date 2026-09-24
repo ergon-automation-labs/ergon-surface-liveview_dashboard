@@ -66,6 +66,19 @@ defmodule BotArmyDashboardLiveview.BotReadTest do
                {:ok, %{"bots" => [%{"id" => "wife_care"}]}}
     end
 
+    test "unwraps the bot registry's answer, which wraps its bots in data" do
+      # Measured off the wire, 2026-09-24. The registry's wrapper carries its own
+      # `ok` and `schema_version`, and a strict envelope rule that did not know
+      # them read the bots as an unreadable answer.
+      reply(
+        ~s({"data":{"bots":[{"id":"wife_care"}],"count":1,"responder":"registry"},) <>
+          ~s("ok":true,"schema_version":"1.0","timestamp":"2026-09-24T02:06:37Z"})
+      )
+
+      assert {:ok, answer} = BotRead.read("bot_army.registry.bots.list", %{})
+      assert BotRead.list(answer, "bots") == {:ok, [%{"id" => "wife_care"}]}
+    end
+
     test "leaves a payload alone when it has a data key of its own" do
       # An envelope is `data` and nothing but envelope keys beside it. Anything
       # else is the answer itself, and taking its `data` would hand the screen the

@@ -24,7 +24,12 @@ defmodule BotArmyDashboardLiveview.BotRead do
 
   alias BotArmyDashboardLiveview.Broker
 
-  @envelope ~w(data correlation_id timestamp event_type)
+  # The fields a responder wraps around the payload it is answering with. `data`
+  # is the payload; the rest is the wrapper's bookkeeping. Measured against what
+  # is actually on the wire: `bot_army.registry.bots.list` answers
+  # `{"data": {"bots": […]}, "ok": true, "schema_version": "1.0", "timestamp": …}`,
+  # so `ok` and `schema_version` have to be here or its bots never unwrap.
+  @envelope ~w(data ok error correlation_id timestamp event_type schema_version)
 
   @doc """
   Ask in a task, and answer the process that asked for it.
