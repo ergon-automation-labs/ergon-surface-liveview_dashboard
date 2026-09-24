@@ -145,4 +145,43 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDLiveTest do
     assert html =~ "Household HUD"
     assert render_async(view) =~ "No answer from the wife care bot yet."
   end
+
+  # All four lenses are drawn from one read, so switching must not ask again and
+  # must not take anything away. With no broker the cards below the strip never
+  # render (`household_hud_tabs_test.exs` covers them with an answer), so what is
+  # asserted here is the part that must hold in every state: one lens marked, the
+  # marker moving, and the exit still on the screen after every switch.
+  test "the strip opens one lens at a time, and the exit survives every one" do
+    {:ok, view, html} = live(build_conn(), "/household-hud")
+    html = render_async(view)
+
+    assert html =~ "hud-tabs"
+
+    for key <- ~w(now her house ask) do
+      assert has_element?(view, "button[phx-value-tab=#{key}]")
+    end
+
+    assert has_element?(view, "button[phx-value-tab=now].tab.on")
+    refute has_element?(view, "button[phx-value-tab=her].tab.on")
+
+    for key <- ~w(her house ask now) do
+      render_click(view, "tab", %{"tab" => key})
+
+      assert has_element?(view, "button[phx-value-tab=#{key}].tab.on")
+      assert render(view) =~ "Exit — always available"
+    end
+  end
+
+  # The event arrives from the browser, so it can carry anything. An unknown key
+  # is ignored rather than guessed at or used as an assign.
+  test "an unknown lens is left alone" do
+    {:ok, view, _html} = live(build_conn(), "/household-hud")
+    render_async(view)
+
+    render_click(view, "tab", %{"tab" => "not-a-lens"})
+
+    assert has_element?(view, "button[phx-value-tab=now].tab.on")
+    assert render(view) =~ "Active state"
+    refute render(view) =~ "not-a-lens"
+  end
 end

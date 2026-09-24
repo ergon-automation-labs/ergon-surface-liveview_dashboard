@@ -40,11 +40,17 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDLive do
   @request_timeout 3_000
   @panel_port 30013
 
+  # The screen answers all of this in one read; the strip only decides what is
+  # drawn. Keeping the keys here means a typo cannot quietly add a sixth lens.
+  @tab_keys ~w(now her house ask)
+  @tabs [{"now", "Now"}, {"her", "Her"}, {"house", "The house"}, {"ask", "Ask"}]
+
   @impl true
   def mount(_params, _session, socket) do
     socket =
       socket
       |> assign(hud: HUD.build(nil, nil), loading?: true, asked_at: nil)
+      |> assign(tab: "now")
       |> assign(control_panel_url: control_panel_url(socket.host_uri))
 
     if connected?(socket) do
@@ -72,6 +78,15 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDLive do
      socket
      |> assign(hud: HUD.build(nil, nil), loading?: false, asked_at: clock())}
   end
+
+  # Changing lenses never asks the bot again — all four are already on this
+  # screen. An unknown key is left alone rather than guessed at.
+  @impl true
+  def handle_event("tab", %{"tab" => tab}, socket) when tab in @tab_keys do
+    {:noreply, assign(socket, tab: tab)}
+  end
+
+  def handle_event("tab", _params, socket), do: {:noreply, socket}
 
   @impl true
   def handle_event("refresh", _params, socket) do
@@ -187,6 +202,11 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDLive do
       .hud-sub { color: #8b93b0; font-size: 13px; margin-bottom: 18px; }
       .card { background: #131a3a; border: 1px solid #222c56; border-radius: 10px; padding: 14px 16px; margin-bottom: 14px; }
       .card-title { font-size: 12px; letter-spacing: 1.5px; text-transform: uppercase; color: #6f7db2; margin-bottom: 10px; }
+      /* Four lenses, one screen. They split the width evenly so a thumb or a dpad
+         reaches any of them without aiming, and the exit stays below them. */
+      .hud-tabs { display: flex; gap: 8px; margin: 0 0 14px; }
+      .hud-tabs .tab { flex: 1; padding: 10px 8px; font: inherit; font-size: 13px; letter-spacing: 0.5px; color: #a9b4e0; background: #10162f; border: 1px solid #222c56; border-radius: 8px; cursor: pointer; }
+      .hud-tabs .tab.on { color: #0a0e27; background: #ffb3d1; border-color: #ff5fa2; }
       .row { display: flex; justify-content: space-between; gap: 12px; padding: 4px 0; font-size: 14px; }
       .dim { color: #8b93b0; }
       .unreported { color: #6f7db2; font-style: italic; }
@@ -244,6 +264,8 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDLive do
           answered at <%= @asked_at %> — <%= if @hud.answering?, do: "the panel is reporting", else: "the panel did not answer" %>
         <% end %>
       </div>
+      <%= render_tabs(assigns) %>
+
       <%= cond do %>
         <% @loading? -> %>
           <div class="card">
@@ -271,6 +293,7 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDLive do
   # is drawn with its reason. Nothing here is ever a hardcoded 65%.
   defp render_state(assigns) do
     ~H"""
+    <%= if @tab == "now" do %>
     <div class="card">
       <div class="card-title">Active state — the interface's texture</div>
       <div class="row">
@@ -309,6 +332,7 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDLive do
         Not derived yet: <%= Enum.map_join(@hud.visual.underivable, "; ", fn s -> "#{s.name} — #{s.missing}" end) %>.
       </p>
     </div>
+    <% end %>
     """
   end
 
@@ -322,6 +346,7 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDLive do
   # Structure, not data: the ladder is drawn whether or not anything answered.
   defp render_ladder(assigns) do
     ~H"""
+    <%= if @tab == "house" do %>
     <div class="card">
       <div class="card-title">The ladder — who answers to whom</div>
       <div class="ladder">
@@ -336,6 +361,22 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDLive do
         The bots are the mechanism, not the authority: authority is delegated, scoped, and revocable.
       </p>
     </div>
+    <% end %>
+    """
+  end
+
+  # A button, not a link: the lens is this screen's own state and there is no
+  # second read to pay for. The exit is deliberately not one of these — it stays
+  # under the strip in every lens.
+  defp tabs, do: @tabs
+
+  defp render_tabs(assigns) do
+    ~H"""
+    <nav class="hud-tabs">
+      <%= for {key, label} <- tabs() do %>
+        <button type="button" phx-click="tab" phx-value-tab={key} class={"tab#{if @tab == key, do: " on", else: ""}"}><%= label %></button>
+      <% end %>
+    </nav>
     """
   end
 
@@ -360,6 +401,7 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDLive do
   # Only the sections that need a reading come from here.
   defp render_hud(assigns) do
     ~H"""
+    <%= if @tab == "now" do %>
     <div class="card">
       <div class="card-title">Containment</div>
       <div class="row">
@@ -377,7 +419,9 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDLive do
         <div class="meter"><div style={"width: #{@hud.maid_level.value}%"}></div></div>
       <% end %>
     </div>
+    <% end %>
 
+    <%= if @tab == "house" do %>
     <div class="card">
       <div class="card-title">Pet layer — who may be warm</div>
       <div class="row">
@@ -402,7 +446,9 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDLive do
       <% end %>
       <p class="dim" style="margin-top:8px; font-size:12px;">Tone: <%= @hud.pet.register %><%= if @hud.pet.example, do: " — “#{@hud.pet.example}”", else: "" %></p>
     </div>
+    <% end %>
 
+    <%= if @tab == "her" do %>
     <div class="card">
       <div class="card-title">Mood and wishes  — set on the control board</div>
       <div class="row">
@@ -422,7 +468,9 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDLive do
         <p class="dim" style="margin-top:8px; font-size:12px;">Suggestion (hers always outranks it): <%= @hud.wishes.suggestion %></p>
       <% end %>
     </div>
+    <% end %>
 
+    <%= if @tab == "now" do %>
     <div class="card">
       <div class="card-title">Yearning — the goddess-focus indicator</div>
       <%= if @hud.yearning.active? do %>
@@ -438,7 +486,9 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDLive do
       <% end %>
       <p class="dim" style="margin-top:6px; font-size:12px;"><%= @hud.yearning.line %></p>
     </div>
+    <% end %>
 
+    <%= if @tab == "her" do %>
     <div class="card">
       <div class="card-title">Calls she has sent — seen and done stay separate</div>
       <%= cond do %>
@@ -464,7 +514,9 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDLive do
           <% end %>
       <% end %>
     </div>
+    <% end %>
 
+    <%= if @tab == "ask" do %>
     <div class="card">
       <div class="card-title">The chorus — ask the house  (six questions)</div>
       <%= if @hud.chorus.categories == [] do %>
@@ -482,6 +534,7 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDLive do
         </p>
       <% end %>
     </div>
+    <% end %>
     """
   end
 end
