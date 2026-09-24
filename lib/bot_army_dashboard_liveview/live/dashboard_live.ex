@@ -1,6 +1,13 @@
 defmodule BotArmyDashboardLiveview.DashboardLive do
   use Phoenix.LiveView
+  import BotArmyDashboardLiveview.ReadError
   require Logger
+
+  alias BotArmyDashboardLiveview.BotRead
+
+  # Two unserved subjects are asked about below, each with a five-second timeout,
+  # so the poll has to be no faster than a round trip or the reads stack up.
+  @refresh_ms 5_000
 
   @impl true
   def mount(_params, _session, socket) do
@@ -24,39 +31,35 @@ defmodule BotArmyDashboardLiveview.DashboardLive do
       Logger.debug("[DashboardLive] Querying NATS status")
       nats_status = BotArmyDashboardLiveview.NATSBridge.get_status()
 
-      # Query current tasks from bridge
-      Logger.debug("[DashboardLive] Querying tasks from bridge")
-      tasks = BotArmyDashboardLiveview.NATSBridge.get_tasks()
+      # Schedule periodic task refresh.
+      Process.send_after(self(), :refresh_tasks, @refresh_ms)
 
-      # Schedule periodic task refresh (every 5 seconds)
-      Process.send_after(self(), :refresh_tasks, 5000)
+      # Initial state. Both task reads are in flight rather than awaited: nothing
+      # on this page may hold a render for a broker round trip. `bridge.task.list`
+      # and `bridge.task.search` have no responder on this broker, so reading them
+      # in band made this a ten-second page — two five-second waits, one after the
+      # other — and the poll below repeated the same pair every five seconds.
+      socket =
+        assign(socket,
+          nats_connected: nats_status,
+          task_feed: [],
+          completed_tasks: [],
+          loading: true,
+          pending: 2,
+          decompositions: [],
+          bot_health: %{},
+          learning_focused_task: nil,
+          learning_form: %{
+            "what_learned" => "",
+            "key_insights" => "",
+            "mistakes_made" => "",
+            "difficulty_level" => "medium",
+            "tags" => ""
+          },
+          stats: %{tasks_today: 0, completed_today: 0, in_progress: 0, blocked: 0}
+        )
 
-      # Query completed tasks for learning capture
-      completed_tasks = BotArmyDashboardLiveview.NATSBridge.get_completed_tasks()
-
-      # Initial state
-      {:ok,
-       assign(socket,
-         nats_connected: nats_status,
-         task_feed: Enum.filter(tasks, fn t -> t["status"] != "completed" end),
-         completed_tasks: completed_tasks,
-         decompositions: [],
-         bot_health: %{},
-         learning_focused_task: nil,
-         learning_form: %{
-           "what_learned" => "",
-           "key_insights" => "",
-           "mistakes_made" => "",
-           "difficulty_level" => "medium",
-           "tags" => ""
-         },
-         stats: %{
-           tasks_today: Enum.count(tasks),
-           completed_today: Enum.count(completed_tasks),
-           in_progress: Enum.count(Enum.filter(tasks, fn t -> t["status"] != "completed" end)),
-           blocked: 0
-         }
-       )}
+      {:ok, issue_reads(socket)}
     rescue
       error ->
         Logger.error("[DashboardLive] Mount error: #{inspect(error)}")
@@ -222,7 +225,15 @@ defmodule BotArmyDashboardLiveview.DashboardLive do
 
       <div class="section">
         <div class="section-title">📋 Live Task Feed</div>
-        <%= if Enum.empty?(@task_feed) do %>
+        <%= if @read_error do %>
+          <.read_error reason={@read_error} />
+        <% end %>
+        <%= if is_nil(@read_error) and @loading do %>
+          <div class="empty-state">
+            <p>Reading the task list&hellip;</p>
+          </div>
+        <% end %>
+        <%= if is_nil(@read_error) and not @loading and Enum.empty?(@task_feed) do %>
           <div class="empty-state">
             <div class="emoji">🎯</div>
             <p>No tasks yet. Tasks will appear here as they are created.</p>
@@ -264,7 +275,7 @@ defmodule BotArmyDashboardLiveview.DashboardLive do
 
       <div class="section">
         <div class="section-title">📚 Learning Capture</div>
-        <%= if Enum.empty?(@completed_tasks) do %>
+        <%= if is_nil(@read_error) and not @loading and Enum.empty?(@completed_tasks) do %>
           <div class="empty-state">
             <div class="emoji">🎓</div>
             <p>No completed tasks to review. Complete a task to capture learnings!</p>
@@ -382,26 +393,72 @@ defmodule BotArmyDashboardLiveview.DashboardLive do
   end
 
   def handle_info(:refresh_tasks, socket) do
-    Logger.debug("[DashboardLive] Refreshing tasks from bridge")
+    Process.send_after(self(), :refresh_tasks, @refresh_ms)
 
-    tasks = BotArmyDashboardLiveview.NATSBridge.get_tasks()
-    completed = BotArmyDashboardLiveview.NATSBridge.get_completed_tasks()
-    active = tasks
+    # Nothing here blocks: while the previous pair is still in flight this tick is
+    # just the clock, and the reads go out when they land.
+    {:noreply, if(socket.assigns.pending > 0, do: socket, else: issue_reads(socket))}
+  end
 
-    # Schedule next refresh
-    Process.send_after(self(), :refresh_tasks, 5000)
+  @impl true
+  def handle_info({:tasks_loaded, answer}, socket) do
+    case BotRead.list(answer, "tasks") do
+      {:ok, tasks} ->
+        completed = socket.assigns.completed_tasks
+        {:noreply, socket |> assign(task_feed: tasks, stats: stats(tasks, completed)) |> landed()}
 
-    {:noreply,
-     assign(socket,
-       task_feed: active,
-       completed_tasks: completed,
-       stats: %{
-         tasks_today: Enum.count(tasks),
-         completed_today: Enum.count(completed),
-         in_progress: Enum.count(active),
-         blocked: 0
-       }
-     )}
+      :error ->
+        {:noreply, BotRead.failed(socket, :unexpected_reply)}
+    end
+  end
+
+  @impl true
+  def handle_info({:completed_loaded, answer}, socket) do
+    case BotRead.list(answer, "tasks") do
+      {:ok, completed} ->
+        tasks = socket.assigns.task_feed
+
+        {:noreply,
+         socket |> assign(completed_tasks: completed, stats: stats(tasks, completed)) |> landed()}
+
+      :error ->
+        {:noreply, BotRead.failed(socket, :unexpected_reply)}
+    end
+  end
+
+  # The two reads go out together and answer separately; the screen is loading
+  # while either is outstanding.
+  defp issue_reads(socket) do
+    BotRead.async(self(), :tasks_loaded, "bridge.task.list", %{"limit" => 100}, timeout: 5_000)
+
+    BotRead.async(
+      self(),
+      :completed_loaded,
+      "bridge.task.search",
+      %{"query" => "*", "filters" => %{"status" => "completed"}, "limit" => 50},
+      timeout: 5_000
+    )
+
+    assign(socket, pending: 2, read_error: nil)
+  end
+
+  defp landed(socket) do
+    pending = max(socket.assigns.pending - 1, 0)
+    assign(socket, pending: pending, loading: pending > 0)
+  end
+
+  # A task that is not completed is what the feed is for; the answer to
+  # `bridge.task.list` is not pre-filtered, so the feed filters it here rather
+  # than showing completed work as in progress.
+  defp active(tasks), do: Enum.filter(tasks, &(&1["status"] != "completed"))
+
+  defp stats(tasks, completed) do
+    %{
+      tasks_today: length(tasks),
+      completed_today: length(completed),
+      in_progress: length(active(tasks)),
+      blocked: 0
+    }
   end
 
   def handle_event("open_learning_form", %{"task_id" => task_id}, socket) do

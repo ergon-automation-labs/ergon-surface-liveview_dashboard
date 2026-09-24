@@ -26,6 +26,13 @@ config :bot_army_dashboard_liveview, BotArmyDashboardLiveview.Endpoint,
 # Tests must be hermetic: they bind no listener and open no broker connection, so a
 # run cannot collide with the deployed surface's port or read the live system. See
 # config/test.exs.
+# Which log lines are worth keeping. Nearly everything a screen logs per event is
+# `:debug`, and a release's default level is `:debug` too — which is how this
+# service's log reached 4.9 GB in /var/log/bot_army/surface_dashboard.log. Pinned
+# here rather than left to a default; left at `:debug` in test so a test can still
+# capture what a view logs.
+config :logger, level: if(config_env() == :test, do: :debug, else: :info)
+
 if config_env() == :test do
   import_config "test.exs"
 end

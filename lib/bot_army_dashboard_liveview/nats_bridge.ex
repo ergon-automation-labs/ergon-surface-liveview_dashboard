@@ -77,6 +77,10 @@ defmodule BotArmyDashboardLiveview.NATSBridge do
     {:reply, state.status, state}
   end
 
+  def handle_call(:get_status, _from, state) do
+    {:reply, state.status, state}
+  end
+
   def handle_call(:get_tasks, _from, state) do
     tasks =
       try do
