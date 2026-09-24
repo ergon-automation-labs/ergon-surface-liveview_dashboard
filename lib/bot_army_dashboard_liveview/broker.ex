@@ -13,22 +13,44 @@ defmodule BotArmyDashboardLiveview.Broker do
 
   Every call site in this app sits inside a `Task` (or in mount) and already
   handles `{:error, reason}`, so turning the exit into one is the whole fix.
+
+  What this module must not do is turn its own bugs into that message. The first
+  version of it asked *itself* instead of the connection and, with a blanket
+  `rescue`, reported the resulting stack error as `:no_broker`: every read in the
+  dashboard said "the bot is not reachable right now" while the broker was up and
+  the bot was answering. A wrapper that guesses at the cause of a local failure
+  is a lie about a remote one, so there is no rescue here — only an exit is
+  translated, and a raised error is left to raise.
   """
 
+  @connection :nats_connection
+  @config :bot_army_dashboard_liveview
+
   @doc """
-  `request(subject, payload, opts)`, with an unreachable connection returned as
-  `{:error, :no_broker}` instead of an exit.
+  `request(subject, payload, opts)` on the registered connection, with an
+  unreachable connection returned as `{:error, :no_broker}` instead of an exit.
 
   The exit reason is deliberately not passed on: it embeds the call arguments,
   and those arguments are sometimes her typed words.
   """
   @spec request(String.t(), iodata(), keyword()) :: {:ok, term()} | {:error, term()}
   def request(subject, payload, opts \\ []) do
-    Broker.request(subject, payload, opts)
-  rescue
-    _ -> {:error, :no_broker}
+    transport().request(@connection, subject, payload, opts)
   catch
-    :exit, _reason -> {:error, :no_broker}
-    kind, reason -> {:error, {kind, reason}}
+    :exit, {:noproc, _} -> {:error, :no_broker}
+    :exit, {:timeout, _} -> {:error, :timeout}
+    :exit, _reason -> {:error, :broker_exit}
+  end
+
+  @doc """
+  The module that talks to the connection.
+
+  A test swaps this to drive a screen's read path without a broker, which is the
+  only way to test what a screen does with an answer — as opposed to what it does
+  with a message the test put in its mailbox itself.
+  """
+  @spec transport() :: module()
+  def transport do
+    Application.get_env(@config, :broker_transport, Gnat)
   end
 end

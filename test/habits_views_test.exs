@@ -1,16 +1,60 @@
 defmodule BotArmyDashboardLiveview.HabitsViewsTest do
   # The NATS bridge is off in test, so the mount-time read takes the "nothing
   # answered" path. That is the state these screens must never lie in.
-  use ExUnit.Case, async: true
+  #
+  # Not async: the read-path tests swap the app's broker transport for a stub, and
+  # a concurrent test asserting "can't reach the bot" would be reading a stubbed
+  # answer while it ran.
+  use ExUnit.Case, async: false
 
   import Phoenix.ConnTest
   import Phoenix.LiveViewTest
+
+  alias BotArmyDashboardLiveview.BrokerStub
 
   @endpoint BotArmyDashboardLiveview.Endpoint
 
   # HEEx escapes the apostrophe in a text node, so this is what the screen
   # actually says: `Can&#39;t reach the bot`.
   @cannot_reach "Can&#39;t reach the bot"
+
+  # What the bot answers a healthy read with, in its own wire shape.
+  @hygiene_reply Jason.encode!(%{
+                   "ok" => true,
+                   "data" => %{
+                     "hygiene" => %{
+                       "items" => [
+                         %{
+                           "event" => "teeth_brushed",
+                           "kind" => "compliance",
+                           "recorded" => true,
+                           "days_since" => 3.0
+                         },
+                         %{
+                           "event" => "cage_cleaned",
+                           "kind" => "wellness",
+                           "recorded" => false,
+                           "days_since" => nil
+                         }
+                       ]
+                     }
+                   }
+                 })
+
+  # Swaps the broker for a stub. Without this the suite can only ever test what a
+  # screen does when nothing answers — which is how a `Broker` that asked nobody
+  # passed for a broker that was down (see `BrokerTest`).
+  defp install_broker(reply) do
+    Application.put_env(:bot_army_dashboard_liveview, :broker_transport, BrokerStub)
+    Application.put_env(:bot_army_dashboard_liveview, :broker_stub_reply, reply)
+    Application.put_env(:bot_army_dashboard_liveview, :broker_stub_listener, self())
+
+    on_exit(fn ->
+      Application.delete_env(:bot_army_dashboard_liveview, :broker_transport)
+      Application.delete_env(:bot_army_dashboard_liveview, :broker_stub_reply)
+      Application.delete_env(:bot_army_dashboard_liveview, :broker_stub_listener)
+    end)
+  end
 
   defp habits_fixture do
     [
@@ -49,6 +93,53 @@ defmodule BotArmyDashboardLiveview.HabitsViewsTest do
   end
 
   for {path, tag} <- [{"habits-phone", "HabitsPhone"}, {"habit-anchors", "HabitAnchors"}] do
+    test "#{tag} draws the reading the bot answers with, not a message the test sends" do
+      install_broker(@hygiene_reply)
+
+      {:ok, view, _html} = live(build_conn(), "/" <> unquote(path))
+
+      html = await(view, "Teeth Brushed")
+
+      assert html =~ "Teeth Brushed"
+      assert html =~ "last logged 3 days ago"
+      assert html =~ "1 of 2"
+      refute html =~ @cannot_reach
+
+      # The carousel shows one item at a time, so the second reading is only on
+      # screen once it is asked for.
+      assert render_click(element(view, ~s(button[phx-click="gamepad-down"]))) =~ "not logged yet"
+      assert render(view) =~ "2 of 2"
+
+      assert_received {:broker_stub_request, :nats_connection, "wife_care.control_panel.hygiene",
+                       _payload, _opts}
+    end
+
+    # The end of the write path, with an answer instead of a refusal: button →
+    # broker → reply → card. The stub answers in the bot's own shape, so the only
+    # thing missing here is the bot.
+    test "#{tag} believes the bot's answer to a check-in, not the click" do
+      install_broker(@hygiene_reply)
+
+      {:ok, view, _html} = live(build_conn(), "/" <> unquote(path))
+      assert await(view, "Check this one in") =~ "Check this one in"
+
+      Application.put_env(:bot_army_dashboard_liveview, :broker_stub_reply, ~s({"ok":true}))
+
+      assert render_click(element(view, ~s(button[phx-click="gamepad-a"]))) =~ "Checking in..."
+      assert await(view, "checked in") =~ "checked in"
+
+      assert_received {:broker_stub_request, :nats_connection,
+                       "wife_care.control_panel.record_hygiene_event", payload, _opts}
+
+      assert Jason.decode!(payload) == %{
+               "event" => "teeth_brushed",
+               "reason" =>
+                 unquote(
+                   if(path == "habits-phone", do: "phone check-in", else: "dashboard check-in")
+                 )
+             }
+    end
+
     test "#{tag} says it cannot reach the bot instead of claiming there are no habits" do
       {:ok, view, html} = live(build_conn(), "/" <> unquote(path))
 
