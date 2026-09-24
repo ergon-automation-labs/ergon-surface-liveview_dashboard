@@ -11,12 +11,21 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDLive do
   Nothing here is decorative data. A section that has no reading says so.
 
 
-  There are no keys to press and nothing to click on this screen. It used to
-  advertise "r refresh" and a "?" note, and it bound neither: this surface has
-  no key handler at all, so the hint was a promise the page could not keep. The
-  link to the control panel is the one interactive thing, and it names the host
-  this page was reached on, because `localhost` is the viewer's machine and the
-  panel does not run there.
+  There are no keys to press. It used to advertise "r refresh" and a "?" note,
+  and it bound neither: this surface has no key handler at all, so the hint was a
+  promise the page could not keep. The one interactive thing is the exit's button
+  to the control panel, and it names the host this page was reached on, because
+  `localhost` is the viewer's machine and the panel does not run there.
+
+  That button asks the bot for a **one-time entry ticket** and follows the
+  redirect, so the panel opens without anyone typing a code: the ticket is
+  single-use, good for sixty seconds, and mintable only for `louiza`. If the bot
+  does not answer, the button falls back to the plain panel address — which lands
+  on the panel's own front door, where the code from another device works. The
+  fast path failing costs a tap, never the way in. What a ticket is *not* is
+  proof of who is pressing: this dashboard is ungated, and whoever can load it
+  can obtain an entry. The bus the request travels on is the household network's,
+  and the panel refuses a ticket naming any other identity.
   """
 
   use Phoenix.LiveView
@@ -27,6 +36,7 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDLive do
 
   @panel_subject "wife_care.control_panel.state"
   @chorus_subject "wife_care.chorus.categories"
+  @entry_ticket_subject "wife_care.control_panel.entry_ticket"
   @request_timeout 3_000
   @panel_port 30013
 
@@ -66,6 +76,11 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDLive do
   @impl true
   def handle_event("refresh", _params, socket) do
     {:noreply, fetch(socket)}
+  end
+
+  @impl true
+  def handle_event("open_panel", _params, socket) do
+    {:noreply, redirect(socket, external: panel_entry_url(socket.assigns.control_panel_url))}
   end
 
   # `hud-help` and `open-control-panel` used to sit here as `{:noreply, socket}`
@@ -117,6 +132,47 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDLive do
 
   defp panel_host(%URI{host: host}) when is_binary(host) and host != "", do: host
   defp panel_host(_host_uri), do: "localhost"
+
+  # One tap: mint a ticket, then follow the redirect into it. `Door` on the panel
+  # is what recognises the `k_…` shape, so nothing here has to know the format.
+  defp panel_entry_url(panel_url) do
+    case Broker.request(@entry_ticket_subject, "{}", timeout: @request_timeout) do
+      {:ok, %{body: body}} -> ticket_entry_url(panel_url, body)
+      other -> plain_panel_url(panel_url, other)
+    end
+  rescue
+    error -> plain_panel_url(panel_url, {:raised, error})
+  catch
+    kind, reason -> plain_panel_url(panel_url, {kind, reason})
+  end
+
+  defp ticket_entry_url(panel_url, body) do
+    case Jason.decode(body) do
+      {:ok, %{"ok" => true, "data" => %{"ticket" => ticket}}} when is_binary(ticket) ->
+        panel_url <> "/enter?t=" <> URI.encode_www_form(ticket)
+
+      {:ok, %{"ok" => false}} ->
+        plain_panel_url(panel_url, :refused)
+
+      {:ok, _decoded} ->
+        plain_panel_url(panel_url, :unexpected_reply)
+
+      {:error, _} ->
+        plain_panel_url(panel_url, :not_json)
+    end
+  end
+
+  # The whole point of the fallback: a bot that is down, or a build that predates
+  # this subject, costs a tap — the panel still opens, on the page that carries
+  # the code door. Nothing is swallowed silently, so an operator can tell the
+  # three apart from the log.
+  #
+  # A reason and never a body: a mint reply's `data` holds a live ticket, and a
+  # log line is the one place it must never be.
+  defp plain_panel_url(panel_url, reason) do
+    Logger.debug("[HouseholdHUD] no entry ticket: #{inspect(reason)}")
+    panel_url
+  end
 
   defp clock do
     DateTime.utc_now() |> DateTime.to_time() |> Time.to_iso8601() |> String.slice(0, 5)
@@ -290,9 +346,11 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDLive do
     <div class="card exit">
       <div class="card-title">Exit — always available</div>
       <p><%= @hud.exit.label %> — <span class="dim"><%= @hud.exit.detail %></span></p>
-      <p style="margin-top:6px;"><a href={@control_panel_url}>→ open the control panel</a></p>
+      <p style="margin-top:6px;">
+        <button type="button" phx-click="open_panel" phx-disable-with="opening…">→ open the control panel</button>
+      </p>
       <p class="dim" style="margin-top:6px; font-size:12px;">
-        The panel opens from the private link you were sent. If it asks you for one, open that link on this device — its address looks like <b>…/enter?t=…</b>.
+        It asks the wife care bot for one-time entry — good for a minute and a single use. If the bot does not answer, the panel opens on its own front door instead, where you can type the code from another device.
       </p>
       <p class="dim" style="margin-top:6px; font-size:12px;">While paused, anything that raises something is refused at write time — not merely hidden here.</p>
     </div>
