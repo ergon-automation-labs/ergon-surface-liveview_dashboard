@@ -96,6 +96,22 @@ defmodule BotArmyDashboardLiveview.ViewReadPathTest do
     refute render(view) =~ "Checking system..."
   end
 
+  # The registry answers with its own wrapper, and this screen was empty for so
+  # long that its bot list had never actually rendered — its heartbeat line had
+  # `#{format_heartbeat(...)}` in a text node, where HEEx keeps it literal.
+  test "the handheld health screen renders the registry's bots, not its template source" do
+    install_reply(
+      ~s({"data":{"bots":[{"name":"wife_care","last_heartbeat":"2026-09-24T02:06:24.535Z","subjects":[]}],"count":1,"responder":"registry"},) <>
+        ~s("ok":true,"schema_version":"1.0","timestamp":"2026-09-24T02:06:37Z"})
+    )
+
+    {:ok, view, _html} = live(build_conn(), "/system-health-handheld")
+
+    await(view, "wife_care")
+    refute render(view) =~ ~S(#{)
+    refute render(view) =~ "No bots found"
+  end
+
   # The view's own empty state is still in the DOM — the refusal card hides it.
   # Assert the hiding is there, because a hidden "No projects found" and a shown
   # one are the same text in a render/1.

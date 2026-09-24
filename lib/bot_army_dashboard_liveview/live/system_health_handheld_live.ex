@@ -139,7 +139,7 @@ defmodule BotArmyDashboardLiveview.SystemHealthHandheldLive do
                         <div class="item-meta">
                           <span class="status-badge"><%= bot.status %></span>
                           <%= if bot.last_heartbeat do %>
-                            <span class="heartbeat">#{format_heartbeat(bot.last_heartbeat)}</span>
+                            <span class="heartbeat"><%= format_heartbeat(bot.last_heartbeat) %></span>
                           <% end %>
                         </div>
                       </div>
