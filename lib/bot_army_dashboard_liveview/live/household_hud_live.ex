@@ -10,7 +10,13 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDLive do
 
   Nothing here is decorative data. A section that has no reading says so.
 
-  Keys: `r` refresh · `R` also refresh (gamepad) · `?` this note.
+
+  There are no keys to press and nothing to click on this screen. It used to
+  advertise "r refresh" and a "?" note, and it bound neither: this surface has
+  no key handler at all, so the hint was a promise the page could not keep. The
+  link to the control panel is the one interactive thing, and it names the host
+  this page was reached on, because `localhost` is the viewer's machine and the
+  panel does not run there.
   """
 
   use Phoenix.LiveView
@@ -22,13 +28,14 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDLive do
   @panel_subject "wife_care.control_panel.state"
   @chorus_subject "wife_care.chorus.categories"
   @request_timeout 3_000
+  @panel_port 30013
 
   @impl true
   def mount(_params, _session, socket) do
     socket =
       socket
       |> assign(hud: HUD.build(nil, nil), loading?: true, asked_at: nil)
-      |> assign(control_panel_url: control_panel_url())
+      |> assign(control_panel_url: control_panel_url(socket.host_uri))
 
     if connected?(socket) do
       {:ok, fetch(socket)}
@@ -61,17 +68,10 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDLive do
     {:noreply, fetch(socket)}
   end
 
-  @impl true
-  def handle_event("hud-help", _params, socket) do
-    {:noreply, socket}
-  end
-
-  # The exit points across to the surface that owns it.
-  @impl true
-  def handle_event("open-control-panel", _params, socket) do
-    {:noreply, socket}
-  end
-
+  # `hud-help` and `open-control-panel` used to sit here as `{:noreply, socket}`
+  # no-ops that no element ever fired. They are deleted rather than bound: this
+  # screen has no keys and no clickable cards, and dead handlers pretending
+  # otherwise are part of what made the hint line look true.
   # Off the LiveView's own process, so a slow or absent bot never blocks the
   # screen from rendering. `start_async` also makes the load observable in tests
   # (`render_async/1`), which a hand-rolled task would not be.
@@ -106,9 +106,17 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDLive do
     nil
   end
 
-  defp control_panel_url do
-    System.get_env("WIFE_CARE_CONTROL_PANEL_URL", "http://localhost:30013")
+  # The link has to name the host this dashboard was reached on. From a phone or
+  # a second machine, "localhost" is the *viewer's* machine, where the control
+  # panel is not running — which is how a working panel came to look like one that
+  # did not exist. `socket.host_uri` is this request's own host.
+  defp control_panel_url(host_uri) do
+    System.get_env("WIFE_CARE_CONTROL_PANEL_URL") ||
+      "http://#{panel_host(host_uri)}:#{@panel_port}"
   end
+
+  defp panel_host(%URI{host: host}) when is_binary(host) and host != "", do: host
+  defp panel_host(_host_uri), do: "localhost"
 
   defp clock do
     DateTime.utc_now() |> DateTime.to_time() |> Time.to_iso8601() |> String.slice(0, 5)
@@ -138,8 +146,6 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDLive do
       .chorus-item { display: flex; gap: 10px; align-items: baseline; padding: 5px 0; font-size: 14px; }
       .exit { border-color: #ff5fa2; }
       .exit a { color: #ffb3d1; text-decoration: none; }
-      .hints { color: #8b93b0; font-size: 12px; margin-bottom: 12px; }
-      .hints b { color: #e0e0e0; }
       /* The doc's visual states, expressed as a wash behind the cards so the
          hue and texture follow the day. The neutral base stays this surface's
          dark ground; the state changes the light on it. */
@@ -182,21 +188,19 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDLive do
           answered at <%= @asked_at %> — <%= if @hud.answering?, do: "the panel is reporting", else: "the panel did not answer" %>
         <% end %>
       </div>
-      <div class="hints"><b>r</b> refresh · <b>→</b> control panel (stop is always available)</div>
-
       <%= cond do %>
         <% @loading? -> %>
           <div class="card">
-            <div class="card-title">Household HUD  r:refresh</div>
+            <div class="card-title">Household HUD</div>
             <p class="dim">Asking the wife care bot…</p>
           </div>
         <% @hud.answering? -> %>
           <%= render_hud(assigns) %>
         <% true -> %>
           <div class="card">
-            <div class="card-title">Household HUD  r:refresh</div>
+            <div class="card-title">Household HUD</div>
             <p>No answer from the wife care bot yet.</p>
-            <p class="dim">Press <b>r</b> to ask again. If it stays quiet, check the bot is up on the node that owns it.</p>
+            <p class="dim">Reload this page to ask again. If it stays quiet, check the bot is up on the node that owns it.</p>
           </div>
       <% end %>
 
@@ -287,6 +291,9 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDLive do
       <div class="card-title">Exit — always available</div>
       <p><%= @hud.exit.label %> — <span class="dim"><%= @hud.exit.detail %></span></p>
       <p style="margin-top:6px;"><a href={@control_panel_url}>→ open the control panel</a></p>
+      <p class="dim" style="margin-top:6px; font-size:12px;">
+        The panel opens from the private link you were sent. If it asks you for one, open that link on this device — its address looks like <b>…/enter?t=…</b>.
+      </p>
       <p class="dim" style="margin-top:6px; font-size:12px;">While paused, anything that raises something is refused at write time — not merely hidden here.</p>
     </div>
     """

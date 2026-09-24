@@ -208,6 +208,26 @@ defmodule BotArmyDashboardLiveview.HabitsPhoneLive do
     {:noreply, socket}
   end
 
+  # The card has always printed "Y  Check In · B  Skip", but nothing ever bound
+  # those keys. The only events that reached these handlers were the ones the
+  # TouchCarousel hook pushes on touchstart/touchend, so on a laptop with a
+  # mouse the check-in could not be triggered at all — a control the screen
+  # advertised and no input device could fire. A key press now lands on the same
+  # handlers the gesture uses, and so does a click, below.
+  @impl true
+  def handle_event("window-key", %{"key" => key}, socket) do
+    case key do
+      key when key in ["y", "Y", "Enter"] -> handle_event("gamepad-a", %{}, socket)
+      key when key in ["b", "B", "Escape"] -> handle_event("gamepad-b", %{}, socket)
+      key when key in ["ArrowUp", "ArrowLeft"] -> handle_event("gamepad-up", %{}, socket)
+      key when key in ["ArrowDown", "ArrowRight"] -> handle_event("gamepad-down", %{}, socket)
+      _unmapped -> {:noreply, socket}
+    end
+  end
+
+  @impl true
+  def handle_event("window-key", _params, socket), do: {:noreply, socket}
+
   # A hygiene check-in is a request/reply (the bot confirms it actually
   # recorded the event), which doesn't fit the fire-and-forget publish this
   # queue was built for — so a failure here is reported and left for the
@@ -277,7 +297,12 @@ defmodule BotArmyDashboardLiveview.HabitsPhoneLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <div id="habits-phone-container" class="handheld-container habits-phone" phx-hook="TouchCarousel">
+    <div
+      id="habits-phone-container"
+      class="handheld-container habits-phone"
+      phx-hook="TouchCarousel"
+      phx-window-keydown="window-key"
+    >
       <%= if @loading do %>
         <div class="loading-state">
           <div class="spinner"></div>
@@ -304,7 +329,7 @@ defmodule BotArmyDashboardLiveview.HabitsPhoneLive do
 
             <div class="carousel-hint">
               <span>←</span>
-              <span>swipe</span>
+              <span>swipe, or the arrow keys</span>
               <span>→</span>
             </div>
 
@@ -325,15 +350,30 @@ defmodule BotArmyDashboardLiveview.HabitsPhoneLive do
               <%= @selected_habit_index + 1 %> of <%= length(@habits) %>
             </div>
 
+            <div class="nav-buttons">
+              <button
+                class="nav-button"
+                phx-click="gamepad-up"
+                disabled={@selected_habit_index == 0}
+              >
+                ← Previous
+              </button>
+              <button
+                class="nav-button"
+                phx-click="gamepad-down"
+                disabled={@selected_habit_index >= length(@habits) - 1}
+              >
+                Next →
+              </button>
+            </div>
+
             <div class="controls">
-              <div class="control-hint">
-                <span class="key">Y</span>
-                <span class="action">Check In</span>
-              </div>
-              <div class="control-hint">
-                <span class="key">B</span>
-                <span class="action">Skip</span>
-              </div>
+              <button class="action-button primary" phx-click="gamepad-a">
+                Check this one in <span class="key">Y</span>
+              </button>
+              <button class="action-button" phx-click="gamepad-b">
+                Skip for now <span class="key">B</span>
+              </button>
             </div>
 
             <div class="hint-text">
@@ -475,6 +515,55 @@ defmodule BotArmyDashboardLiveview.HabitsPhoneLive do
         border-bottom: 1px solid #333;
         padding: 15px 0;
         margin: 20px 0;
+      }
+
+      .nav-buttons {
+        display: flex;
+        gap: 10px;
+      }
+
+      .nav-button {
+        flex: 1;
+        min-height: 44px;
+        background: transparent;
+        border: 1px solid #333;
+        border-radius: 6px;
+        color: #a0a0a0;
+        font-size: 14px;
+      }
+
+      .nav-button:disabled {
+        opacity: 0.35;
+      }
+
+      .action-button {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        width: 100%;
+        min-height: 48px;
+        padding: 0 14px;
+        background: transparent;
+        border: 1px solid #333;
+        border-radius: 6px;
+        color: #ecf0f1;
+        font-size: 15px;
+      }
+
+      .action-button.primary {
+        background: rgba(0, 212, 255, 0.18);
+        border-color: #00d4ff;
+      }
+
+      .action-button .key {
+        background: #00d4ff;
+        color: #1a1a2e;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-weight: bold;
+        font-size: 12px;
+        min-width: 28px;
+        text-align: center;
       }
 
       .control-hint {

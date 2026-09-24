@@ -41,12 +41,27 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDLiveTest do
     assert log =~ "answered nothing"
   end
 
-  test "shows what the keys do, on every screen" do
+  # The screen used to print "r refresh" and "? this note" while binding neither.
+  # A hint for a key that does nothing is the same kind of lie as a health check
+  # that cannot fail, so the absence is pinned rather than trusted.
+  test "advertises no key it cannot bind" do
     {:ok, view, _html} = live(build_conn(), "/household-hud")
     html = render_async(view)
 
-    assert html =~ "refresh"
-    assert html =~ "control panel"
+    refute html =~ "r:refresh"
+    refute html =~ "<b>r</b>"
+    refute html =~ "this note"
+  end
+
+  # The old link said localhost, which on a phone is the *viewer's* machine: the
+  # working control panel looked like one that did not exist. The link has to name
+  # the host this page was reached on.
+  test "the control-panel link names the host the page was reached on" do
+    {:ok, view, _html} = live(build_conn(), "/household-hud")
+    html = render_async(view)
+
+    assert html =~ ~s(href="http://www.example.com:30013")
+    refute html =~ "localhost:30013"
   end
 
   test "never fabricates the doc's example numbers" do
