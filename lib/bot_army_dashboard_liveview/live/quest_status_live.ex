@@ -1,5 +1,7 @@
 defmodule BotArmyDashboardLiveview.QuestStatusLive do
   use Phoenix.LiveView
+  import BotArmyDashboardLiveview.ReadError
+  alias BotArmyDashboardLiveview.BotRead
   alias BotArmyDashboardLiveview.Broker
   alias Phoenix.PubSub
   alias BotArmyDashboardLiveview.QuestPayload
@@ -31,57 +33,18 @@ defmodule BotArmyDashboardLiveview.QuestStatusLive do
   end
 
   defp fetch_quest(socket) do
-    # The task runs in its own process, so `self()` inside it is the task, not
-    # this LiveView — addressing the result back here has to be explicit, or
-    # the view sits on its spinner forever.
-    parent = self()
-
-    Task.start_link(fn ->
-      result =
-        try do
-          case Broker.request("bridge.quest.current", Jason.encode!(%{}), timeout: 5000) do
-            {:ok, %{body: body}} -> QuestPayload.parse(body)
-            {:error, _} -> nil
-          end
-        rescue
-          _ -> nil
-        end
-
-      send(parent, {:quest_loaded, result})
-    end)
-
+    BotRead.async(self(), :quest_loaded, "bridge.quest.current", %{}, timeout: 5000)
     socket
   end
 
   defp fetch_narrative(socket, quest) do
-    task_id = quest["id"]
-    parent = self()
-
-    Task.start_link(fn ->
-      result =
-        try do
-          payload = %{
-            "task_id" => task_id,
-            "force" => false,
-            "user_id" => "abby"
-          }
-
-          case Broker.request("bridge.narrative.refresh", Jason.encode!(payload),
-                 receive_timeout: 5000
-               ) do
-            {:ok, %{body: body}} ->
-              response = Jason.decode!(body)
-              response["narrative"] || nil
-
-            {:error, _} ->
-              nil
-          end
-        rescue
-          _ -> nil
-        end
-
-      send(parent, {:narrative_loaded, result})
-    end)
+    BotRead.async(
+      self(),
+      :narrative_loaded,
+      "bridge.narrative.refresh",
+      %{"task_id" => quest["id"], "force" => false, "user_id" => "abby"},
+      timeout: 5000
+    )
 
     assign(socket, narrative_loading: true)
   end
@@ -92,13 +55,13 @@ defmodule BotArmyDashboardLiveview.QuestStatusLive do
   end
 
   @impl true
-  def handle_info({:quest_loaded, quest}, socket) do
+  def handle_info({:quest_loaded, body}, socket) do
+    quest = QuestPayload.parse(body)
+
     socket =
       socket
       |> assign(quest: quest, loading: false)
-      |> then(fn s ->
-        if quest, do: fetch_narrative(s, quest), else: s
-      end)
+      |> then(fn s -> if quest, do: fetch_narrative(s, quest), else: s end)
 
     {:noreply, socket}
   end
@@ -441,6 +404,7 @@ defmodule BotArmyDashboardLiveview.QuestStatusLive do
   @impl true
   def render(assigns) do
     ~H"""
+    <%= if @read_error do %><.read_error reason={@read_error} /><% end %>
     <div class="handheld-container quest-status">
       <%= if @loading do %>
         <div class="loading-state">

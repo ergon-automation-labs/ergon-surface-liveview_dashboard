@@ -1,5 +1,7 @@
 defmodule BotArmyDashboardLiveview.SystemHealthPhoneLive do
   use Phoenix.LiveView
+  import BotArmyDashboardLiveview.ReadError
+  alias BotArmyDashboardLiveview.BotRead
   alias BotArmyDashboardLiveview.Broker
   alias BotArmyDashboardLiveview.PhoneNav
   alias BotArmyDashboardLiveview.SyncStatus
@@ -28,28 +30,7 @@ defmodule BotArmyDashboardLiveview.SystemHealthPhoneLive do
   end
 
   defp fetch_bot_health(socket) do
-    parent = self()
-
-    Task.start_link(fn ->
-      try do
-        case Broker.request("system.health.bots", Jason.encode!(%{}), timeout: 5000) do
-          {:ok, %{body: body}} ->
-            case Jason.decode(body) do
-              {:ok, %{"bots" => bots}} ->
-                send(parent, {:bots_loaded, bots})
-
-              {:error, _} ->
-                send(parent, {:bots_loaded, []})
-            end
-
-          {:error, _} ->
-            send(parent, {:bots_loaded, []})
-        end
-      rescue
-        _ -> send(parent, {:bots_loaded, []})
-      end
-    end)
-
+    BotRead.async(self(), :bots_loaded, "system.health.bots", %{}, timeout: 5000)
     socket
   end
 
@@ -79,8 +60,11 @@ defmodule BotArmyDashboardLiveview.SystemHealthPhoneLive do
   end
 
   @impl true
-  def handle_info({:bots_loaded, bots}, socket) do
-    {:noreply, assign(socket, bots: bots, loading: false)}
+  def handle_info({:bots_loaded, answer}, socket) do
+    case BotRead.list(answer, "bots") do
+      {:ok, bots} -> {:noreply, assign(socket, bots: bots, loading: false)}
+      :error -> {:noreply, BotRead.failed(socket, :unexpected_reply)}
+    end
   end
 
   @impl true
@@ -180,6 +164,7 @@ defmodule BotArmyDashboardLiveview.SystemHealthPhoneLive do
   @impl true
   def render(assigns) do
     ~H"""
+    <%= if @read_error do %><.read_error reason={@read_error} /><% end %>
     <div id="system-health-phone-container" class="handheld-container system-health-phone" phx-hook="TouchCarousel">
       <div id="offline-hook" phx-hook="OfflineDetectionHook" style="display: none;"></div>
       <div id="sync-manager-hook" phx-hook="SyncManagerHook" style="display: none;"></div>

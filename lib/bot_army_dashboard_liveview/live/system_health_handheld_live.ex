@@ -1,5 +1,7 @@
 defmodule BotArmyDashboardLiveview.SystemHealthHandheldLive do
   use Phoenix.LiveView
+  import BotArmyDashboardLiveview.ReadError
+  alias BotArmyDashboardLiveview.BotRead
   alias BotArmyDashboardLiveview.Broker
   require Logger
 
@@ -20,50 +22,32 @@ defmodule BotArmyDashboardLiveview.SystemHealthHandheldLive do
   end
 
   defp fetch_bots_and_health(socket) do
-    parent = self()
-
-    Task.start_link(fn ->
-      try do
-        case Broker.request("bot_army.registry.bots.list", Jason.encode!({}), timeout: 5000) do
-          {:ok, %{body: body}} ->
-            case Jason.decode(body) do
-              {:ok, %{"data" => %{"bots" => bot_list}}} when is_list(bot_list) ->
-                send(parent, {:bots_loaded, bot_list})
-
-              {:ok, %{"data" => bot_list}} when is_list(bot_list) ->
-                send(parent, {:bots_loaded, bot_list})
-
-              {:error, _} ->
-                send(parent, {:bots_loaded, []})
-            end
-
-          {:error, _} ->
-            send(parent, {:bots_loaded, []})
-        end
-      rescue
-        _ -> send(parent, {:bots_loaded, []})
-      end
-    end)
-
+    BotRead.async(self(), :bots_loaded, "bot_army.registry.bots.list", %{}, timeout: 5000)
     socket
   end
 
   @impl true
-  def handle_info({:bots_loaded, bots}, socket) do
-    formatted_bots =
-      Enum.map(bots, fn bot ->
-        %{
-          name: bot["name"] || "Unknown",
-          status: derive_status(bot),
-          last_heartbeat: bot["last_heartbeat"],
-          subjects: bot["subjects"] || []
-        }
-      end)
+  def handle_info({:bots_loaded, answer}, socket) do
+    case BotRead.list(answer, "bots") do
+      {:ok, bots} ->
+        formatted_bots =
+          Enum.map(bots, fn bot ->
+            %{
+              name: bot["name"] || "Unknown",
+              status: derive_status(bot),
+              last_heartbeat: bot["last_heartbeat"],
+              subjects: bot["subjects"] || []
+            }
+          end)
 
-    {:noreply,
-     socket
-     |> assign(bots: formatted_bots, loading: false, nats_status: :connected)
-     |> assign(message: if(Enum.empty?(formatted_bots), do: "No bots found", else: nil))}
+        {:noreply,
+         socket
+         |> assign(bots: formatted_bots, loading: false, nats_status: :connected)
+         |> assign(message: if(Enum.empty?(formatted_bots), do: "No bots found", else: nil))}
+
+      :error ->
+        {:noreply, BotRead.failed(socket, :unexpected_reply)}
+    end
   end
 
   @impl true
@@ -118,6 +102,7 @@ defmodule BotArmyDashboardLiveview.SystemHealthHandheldLive do
   @impl true
   def render(assigns) do
     ~H"""
+    <%= if @read_error do %><.read_error reason={@read_error} /><% end %>
     <div class="system-health-handheld">
       <div class="handheld-container">
         <%= if @loading do %>

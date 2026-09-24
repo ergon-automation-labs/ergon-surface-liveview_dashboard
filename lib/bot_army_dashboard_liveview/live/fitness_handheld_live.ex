@@ -1,5 +1,7 @@
 defmodule BotArmyDashboardLiveview.FitnessHandheldLive do
   use Phoenix.LiveView
+  import BotArmyDashboardLiveview.ReadError
+  alias BotArmyDashboardLiveview.BotRead
   alias BotArmyDashboardLiveview.Broker
 
   require Logger
@@ -19,42 +21,31 @@ defmodule BotArmyDashboardLiveview.FitnessHandheldLive do
   end
 
   defp fetch_recent_workouts(socket) do
-    parent = self()
-
-    Task.start_link(fn ->
-      try do
-        case Broker.request(
-               "fitness.workout.list",
-               Jason.encode!(%{payload: %{limit: 10}}),
-               timeout: 5000
-             ) do
-          {:ok, %{body: body}} ->
-            case Jason.decode(body) do
-              {:ok, data} ->
-                workouts = data["workouts"] || []
-                send(parent, {:workouts_loaded, workouts})
-
-              {:error, _} ->
-                send(parent, {:workouts_loaded, []})
-            end
-
-          {:error, _} ->
-            send(parent, {:workouts_loaded, []})
-        end
-      rescue
-        _ -> send(parent, {:workouts_loaded, []})
-      end
-    end)
+    BotRead.async(
+      self(),
+      :workouts_loaded,
+      "fitness.workout.list",
+      %{"payload" => %{"limit" => 10}},
+      timeout: 5000
+    )
 
     socket
   end
 
   @impl true
-  def handle_info({:workouts_loaded, workouts}, socket) do
-    {:noreply,
-     socket
-     |> assign(workouts: workouts, loading: false)
-     |> assign(message: if(Enum.empty?(workouts), do: "No workouts yet. Create one!", else: nil))}
+  def handle_info({:workouts_loaded, answer}, socket) do
+    case BotRead.list(answer, "workouts") do
+      {:ok, workouts} ->
+        {:noreply,
+         socket
+         |> assign(workouts: workouts, loading: false)
+         |> assign(
+           message: if(Enum.empty?(workouts), do: "No workouts yet. Create one!", else: nil)
+         )}
+
+      :error ->
+        {:noreply, BotRead.failed(socket, :unexpected_reply)}
+    end
   end
 
   @impl true
@@ -126,6 +117,7 @@ defmodule BotArmyDashboardLiveview.FitnessHandheldLive do
   @impl true
   def render(assigns) do
     ~H"""
+    <%= if @read_error do %><.read_error reason={@read_error} /><% end %>
     <div class="fitness-handheld">
       <div class="handheld-container">
         <%= if @loading do %>

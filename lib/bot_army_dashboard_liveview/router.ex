@@ -21,24 +21,29 @@ defmodule BotArmyDashboardLiveview.Router do
   scope "/", BotArmyDashboardLiveview do
     pipe_through(:browser)
 
-    live("/", DashboardLive)
-    live("/household-hud", HouseholdHUDLive)
-    live("/fitness-handheld", FitnessHandheldLive)
-    live("/gtd-handheld", GTDHandheldLive)
-    live("/system-health-handheld", SystemHealthHandheldLive)
-    live("/energy-mood-handheld", EnergyMoodHandheldLive)
-    live("/timer-handheld", TimerHandheldLive)
-    live("/habit-anchors", HabitAnchorsLive)
-    live("/quest-status", QuestStatusLive)
-    live("/reflection", ReflectionLive)
-    live("/timer-phone", TimerPhoneLive)
-    live("/habits-phone", HabitsPhoneLive)
-    live("/quest-phone", QuestPhoneLive)
-    live("/reflect-phone", ReflectPhoneLive)
-    live("/energy-mood-phone", EnergyMoodPhoneLive)
-    live("/fitness-phone", FitnessPhoneLive)
-    live("/system-health-phone", SystemHealthPhoneLive)
-    live("/gtd-phone", GtdPhoneLive)
-    live("/session-history-phone", SessionHistoryPhoneLive)
+    # Every screen gets `assign(:read_error, nil)` and the one hook that reports a
+    # failed read. All the routes are in one session so that navigating between
+    # them stays a live navigation rather than a full page load.
+    live_session :screens, on_mount: {BotArmyDashboardLiveview.ReadHooks, :default} do
+      live("/", DashboardLive)
+      live("/household-hud", HouseholdHUDLive)
+      live("/fitness-handheld", FitnessHandheldLive)
+      live("/gtd-handheld", GTDHandheldLive)
+      live("/system-health-handheld", SystemHealthHandheldLive)
+      live("/energy-mood-handheld", EnergyMoodHandheldLive)
+      live("/timer-handheld", TimerHandheldLive)
+      live("/habit-anchors", HabitAnchorsLive)
+      live("/quest-status", QuestStatusLive)
+      live("/reflection", ReflectionLive)
+      live("/timer-phone", TimerPhoneLive)
+      live("/habits-phone", HabitsPhoneLive)
+      live("/quest-phone", QuestPhoneLive)
+      live("/reflect-phone", ReflectPhoneLive)
+      live("/energy-mood-phone", EnergyMoodPhoneLive)
+      live("/fitness-phone", FitnessPhoneLive)
+      live("/system-health-phone", SystemHealthPhoneLive)
+      live("/gtd-phone", GtdPhoneLive)
+      live("/session-history-phone", SessionHistoryPhoneLive)
+    end
   end
 end

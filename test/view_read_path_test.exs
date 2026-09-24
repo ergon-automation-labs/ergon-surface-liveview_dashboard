@@ -73,4 +73,38 @@ defmodule BotArmyDashboardLiveview.ViewReadPathTest do
     await(view, "Wife Care")
     refute render(view) =~ "Checking system..."
   end
+
+  # The lie this file exists for. A read that failed used to arrive as `[]`, and
+  # `[]` renders as "No projects found" — a claim about the world made by a screen
+  # that had not heard anything at all.
+  test "a read that failed says so instead of showing an empty list" do
+    install_reply({:exit, {:noproc, {:gen_server, :call, []}}})
+
+    {:ok, view, _html} = live(build_conn(), "/gtd-phone")
+
+    await(view, "Can\u2019t reach the bot")
+    assert render(view) =~ "the bot is not reachable right now"
+    refute render(view) =~ "Loading projects..."
+  end
+
+  test "the health screen reports a failed read as a failed read" do
+    install_reply({:error, :timeout})
+
+    {:ok, view, _html} = live(build_conn(), "/system-health-phone")
+
+    await(view, "the bot did not answer in time")
+    refute render(view) =~ "Checking system..."
+  end
+
+  # The view's own empty state is still in the DOM — the refusal card hides it.
+  # Assert the hiding is there, because a hidden "No projects found" and a shown
+  # one are the same text in a render/1.
+  test "a failed read hides the empty state it would otherwise claim" do
+    install_reply({:error, :timeout})
+
+    {:ok, view, _html} = live(build_conn(), "/system-health-phone")
+
+    await(view, "the bot did not answer in time")
+    assert render(view) =~ ".empty-state { display: none; }"
+  end
 end

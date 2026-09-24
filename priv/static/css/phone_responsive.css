@@ -532,3 +532,35 @@ button,
 .handheld-container.with-nav {
   padding-bottom: 70px;
 }
+
+/* A read that came back with nothing. The screen says what happened and why, and
+   the view's own empty state is hidden while this is on screen — an empty state
+   is a claim about the world, and while a read has failed there is no claim to
+   make. Amber rather than red: the reason is the bot's absence, not a mistake of
+   the person holding the phone. */
+.read-error {
+  margin: 12px;
+  padding: 14px 16px;
+  border: 1px solid rgba(255, 200, 90, 0.45);
+  background: rgba(255, 200, 90, 0.1);
+  border-radius: 10px;
+  color: #ecf0f1;
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+.read-error-title {
+  margin: 0 0 6px;
+  font-weight: 600;
+}
+
+.read-error-reason {
+  margin: 0 0 6px;
+  opacity: 0.95;
+}
+
+.read-error-hint {
+  margin: 0;
+  font-size: 13px;
+  opacity: 0.7;
+}

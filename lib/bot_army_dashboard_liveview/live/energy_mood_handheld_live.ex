@@ -1,5 +1,7 @@
 defmodule BotArmyDashboardLiveview.EnergyMoodHandheldLive do
   use Phoenix.LiveView
+  import BotArmyDashboardLiveview.ReadError
+  alias BotArmyDashboardLiveview.BotRead
   alias BotArmyDashboardLiveview.Broker
   require Logger
 
@@ -20,38 +22,19 @@ defmodule BotArmyDashboardLiveview.EnergyMoodHandheldLive do
   end
 
   defp load_last_state(socket) do
-    # Try to load the last saved state from NATS
-    parent = self()
-
-    Task.start_link(fn ->
-      try do
-        case Broker.request(
-               "context.state.query",
-               Jason.encode!(%{"type" => "energy_mood"}),
-               timeout: 2000
-             ) do
-          {:ok, %{body: body}} ->
-            case Jason.decode(body) do
-              {:ok, %{"energy" => energy, "mood" => mood}} ->
-                send(parent, {:state_loaded, energy, mood})
-
-              _ ->
-                :ok
-            end
-
-          _ ->
-            :ok
-        end
-      rescue
-        _ -> :ok
-      end
-    end)
+    BotRead.async(
+      self(),
+      :state_loaded,
+      "context.state.query",
+      %{"type" => "energy_mood"},
+      timeout: 2000
+    )
 
     socket
   end
 
   @impl true
-  def handle_info({:state_loaded, energy, mood}, socket) do
+  def handle_info({:state_loaded, %{"energy" => energy, "mood" => mood}}, socket) do
     energy_index = Enum.find_index(socket.assigns.energy_levels, &(&1 == energy)) || 1
     mood_index = Enum.find_index(socket.assigns.moods, &(&1 == mood)) || 0
 
@@ -60,6 +43,9 @@ defmodule BotArmyDashboardLiveview.EnergyMoodHandheldLive do
      |> assign(selected_energy_index: energy_index, selected_mood_index: mood_index)
      |> assign(last_saved: "Restored previous state")}
   end
+
+  def handle_info({:state_loaded, _other}, socket),
+    do: {:noreply, BotRead.failed(socket, :unexpected_reply)}
 
   def handle_info({:state_saved, energy, mood}, socket) do
     Logger.info("[EnergyMoodHandheld] Saved state: #{energy}, #{mood}")
@@ -190,6 +176,7 @@ defmodule BotArmyDashboardLiveview.EnergyMoodHandheldLive do
   @impl true
   def render(assigns) do
     ~H"""
+    <%= if @read_error do %><.read_error reason={@read_error} /><% end %>
     <div class="energy-mood-handheld">
       <div class="handheld-container">
         <%= if @view_mode == :energy do %>

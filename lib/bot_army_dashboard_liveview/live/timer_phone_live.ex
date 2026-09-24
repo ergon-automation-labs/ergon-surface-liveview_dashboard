@@ -1,5 +1,7 @@
 defmodule BotArmyDashboardLiveview.TimerPhoneLive do
   use Phoenix.LiveView
+  import BotArmyDashboardLiveview.ReadError
+  alias BotArmyDashboardLiveview.BotRead
   alias BotArmyDashboardLiveview.Broker
   alias Phoenix.PubSub
   alias BotArmyDashboardLiveview.PhoneNav
@@ -45,31 +47,7 @@ defmodule BotArmyDashboardLiveview.TimerPhoneLive do
   end
 
   defp fetch_tasks(socket) do
-    parent = self()
-
-    Task.start_link(fn ->
-      try do
-        case Broker.request("bridge.task.list", Jason.encode!(%{}), timeout: 5000) do
-          {:ok, %{body: body}} ->
-            case Jason.decode(body) do
-              {:ok, %{"tasks" => tasks}} ->
-                send(parent, {:tasks_loaded, tasks})
-
-              {:ok, tasks} when is_list(tasks) ->
-                send(parent, {:tasks_loaded, tasks})
-
-              {:error, _} ->
-                send(parent, {:tasks_loaded, []})
-            end
-
-          {:error, _} ->
-            send(parent, {:tasks_loaded, []})
-        end
-      rescue
-        _ -> send(parent, {:tasks_loaded, []})
-      end
-    end)
-
+    BotRead.async(self(), :tasks_loaded, "bridge.task.list", %{}, timeout: 5000)
     socket
   end
 
@@ -79,8 +57,11 @@ defmodule BotArmyDashboardLiveview.TimerPhoneLive do
   end
 
   @impl true
-  def handle_info({:tasks_loaded, tasks}, socket) do
-    {:noreply, assign(socket, tasks: tasks, selected_task_index: 0)}
+  def handle_info({:tasks_loaded, answer}, socket) do
+    case BotRead.list(answer, "tasks") do
+      {:ok, tasks} -> {:noreply, assign(socket, tasks: tasks, selected_task_index: 0)}
+      :error -> {:noreply, BotRead.failed(socket, :unexpected_reply)}
+    end
   end
 
   @impl true
@@ -461,6 +442,7 @@ defmodule BotArmyDashboardLiveview.TimerPhoneLive do
   @impl true
   def render(assigns) do
     ~H"""
+    <%= if @read_error do %><.read_error reason={@read_error} /><% end %>
     <div
       id="timer-phone-container"
       class="handheld-container timer-phone"

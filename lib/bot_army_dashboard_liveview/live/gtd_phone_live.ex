@@ -1,5 +1,7 @@
 defmodule BotArmyDashboardLiveview.GtdPhoneLive do
   use Phoenix.LiveView
+  import BotArmyDashboardLiveview.ReadError
+  alias BotArmyDashboardLiveview.BotRead
   alias BotArmyDashboardLiveview.Broker
   alias BotArmyDashboardLiveview.PhoneNav
   alias BotArmyDashboardLiveview.PhoneNavModal
@@ -34,60 +36,18 @@ defmodule BotArmyDashboardLiveview.GtdPhoneLive do
   end
 
   defp fetch_projects(socket) do
-    parent = self()
-
-    Task.start_link(fn ->
-      try do
-        case Broker.request("bridge.project.list", Jason.encode!(%{}), timeout: 5000) do
-          {:ok, %{body: body}} ->
-            case Jason.decode(body) do
-              {:ok, %{"projects" => projects}} ->
-                send(parent, {:projects_loaded, projects})
-
-              {:error, _} ->
-                send(parent, {:projects_loaded, []})
-            end
-
-          {:error, _} ->
-            send(parent, {:projects_loaded, []})
-        end
-      rescue
-        _ -> send(parent, {:projects_loaded, []})
-      end
-    end)
-
+    BotRead.async(self(), :projects_loaded, "bridge.project.list", %{}, timeout: 5000)
     socket
   end
 
   defp fetch_tasks(socket, project_id) do
-    parent = self()
-
-    Task.start_link(fn ->
-      try do
-        case Broker.request(
-               "bridge.task.list",
-               Jason.encode!(%{"project_id" => project_id}),
-               timeout: 5000
-             ) do
-          {:ok, %{body: body}} ->
-            case Jason.decode(body) do
-              {:ok, %{"tasks" => tasks}} ->
-                send(parent, {:tasks_loaded, tasks})
-
-              {:ok, tasks} when is_list(tasks) ->
-                send(parent, {:tasks_loaded, tasks})
-
-              {:error, _} ->
-                send(parent, {:tasks_loaded, []})
-            end
-
-          {:error, _} ->
-            send(parent, {:tasks_loaded, []})
-        end
-      rescue
-        _ -> send(parent, {:tasks_loaded, []})
-      end
-    end)
+    BotRead.async(
+      self(),
+      :tasks_loaded,
+      "bridge.task.list",
+      %{"project_id" => project_id},
+      timeout: 5000
+    )
 
     socket
   end
@@ -98,13 +58,22 @@ defmodule BotArmyDashboardLiveview.GtdPhoneLive do
   end
 
   @impl true
-  def handle_info({:projects_loaded, projects}, socket) do
-    {:noreply, assign(socket, projects: projects, loading: false, selected_project_index: 0)}
+  def handle_info({:projects_loaded, answer}, socket) do
+    case BotRead.list(answer, "projects") do
+      {:ok, projects} ->
+        {:noreply, assign(socket, projects: projects, loading: false, selected_project_index: 0)}
+
+      :error ->
+        {:noreply, BotRead.failed(socket, :unexpected_reply)}
+    end
   end
 
   @impl true
-  def handle_info({:tasks_loaded, tasks}, socket) do
-    {:noreply, assign(socket, tasks: tasks, selected_task_index: 0)}
+  def handle_info({:tasks_loaded, answer}, socket) do
+    case BotRead.list(answer, "tasks") do
+      {:ok, tasks} -> {:noreply, assign(socket, tasks: tasks, selected_task_index: 0)}
+      :error -> {:noreply, BotRead.failed(socket, :unexpected_reply)}
+    end
   end
 
   @impl true
@@ -396,6 +365,7 @@ defmodule BotArmyDashboardLiveview.GtdPhoneLive do
   @impl true
   def render(assigns) do
     ~H"""
+    <%= if @read_error do %><.read_error reason={@read_error} /><% end %>
     <div id="gtd-phone-container" class="handheld-container gtd-phone" phx-hook="TouchCarousel">
       <div id="offline-hook" phx-hook="OfflineDetectionHook" style="display: none;"></div>
       <div id="sync-manager-hook" phx-hook="SyncManagerHook" style="display: none;"></div>

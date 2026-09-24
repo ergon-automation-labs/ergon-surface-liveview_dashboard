@@ -1,5 +1,7 @@
 defmodule BotArmyDashboardLiveview.GTDHandheldLive do
   use Phoenix.LiveView
+  import BotArmyDashboardLiveview.ReadError
+  alias BotArmyDashboardLiveview.BotRead
   alias BotArmyDashboardLiveview.Broker
 
   require Logger
@@ -24,76 +26,42 @@ defmodule BotArmyDashboardLiveview.GTDHandheldLive do
   end
 
   defp fetch_projects(socket) do
-    parent = self()
-
-    Task.start_link(fn ->
-      try do
-        case Broker.request("bridge.project.list", Jason.encode!({}), timeout: 5000) do
-          {:ok, %{body: body}} ->
-            case Jason.decode(body) do
-              {:ok, projects} when is_list(projects) ->
-                send(parent, {:projects_loaded, projects})
-
-              {:ok, project} when is_map(project) ->
-                send(parent, {:projects_loaded, [project]})
-
-              {:error, _} ->
-                send(parent, {:projects_loaded, []})
-            end
-
-          {:error, _} ->
-            send(parent, {:projects_loaded, []})
-        end
-      rescue
-        _ -> send(parent, {:projects_loaded, []})
-      end
-    end)
-
+    BotRead.async(self(), :projects_loaded, "bridge.project.list", %{}, timeout: 5000)
     socket
   end
 
   defp fetch_tasks(socket, project_id) do
-    parent = self()
-
-    Task.start_link(fn ->
-      try do
-        payload = %{project_id: project_id, limit: 20}
-
-        case Broker.request("bridge.task.list", Jason.encode!(payload), timeout: 5000) do
-          {:ok, %{body: body}} ->
-            case Jason.decode(body) do
-              {:ok, %{"tasks" => tasks}} ->
-                send(parent, {:tasks_loaded, tasks})
-
-              {:ok, tasks} when is_list(tasks) ->
-                send(parent, {:tasks_loaded, tasks})
-
-              {:error, _} ->
-                send(parent, {:tasks_loaded, []})
-            end
-
-          {:error, _} ->
-            send(parent, {:tasks_loaded, []})
-        end
-      rescue
-        _ -> send(parent, {:tasks_loaded, []})
-      end
-    end)
+    BotRead.async(
+      self(),
+      :tasks_loaded,
+      "bridge.task.list",
+      %{"project_id" => project_id, "limit" => 20},
+      timeout: 5000
+    )
 
     socket
   end
 
   @impl true
-  def handle_info({:projects_loaded, projects}, socket) do
-    {:noreply,
-     socket
-     |> assign(projects: projects, loading: false)
-     |> assign(message: if(Enum.empty?(projects), do: "No projects found", else: nil))}
+  def handle_info({:projects_loaded, answer}, socket) do
+    case BotRead.list(answer, "projects") do
+      {:ok, projects} ->
+        {:noreply,
+         socket
+         |> assign(projects: projects, loading: false)
+         |> assign(message: if(Enum.empty?(projects), do: "No projects found", else: nil))}
+
+      :error ->
+        {:noreply, BotRead.failed(socket, :unexpected_reply)}
+    end
   end
 
   @impl true
-  def handle_info({:tasks_loaded, tasks}, socket) do
-    {:noreply, assign(socket, tasks: tasks, selected_task_index: 0)}
+  def handle_info({:tasks_loaded, answer}, socket) do
+    case BotRead.list(answer, "tasks") do
+      {:ok, tasks} -> {:noreply, assign(socket, tasks: tasks, selected_task_index: 0)}
+      :error -> {:noreply, BotRead.failed(socket, :unexpected_reply)}
+    end
   end
 
   @impl true
@@ -285,6 +253,7 @@ defmodule BotArmyDashboardLiveview.GTDHandheldLive do
   @impl true
   def render(assigns) do
     ~H"""
+    <%= if @read_error do %><.read_error reason={@read_error} /><% end %>
     <div class="gtd-handheld">
       <div class="handheld-container">
         <%= if @loading do %>

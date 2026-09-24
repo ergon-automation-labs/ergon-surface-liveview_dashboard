@@ -1,5 +1,7 @@
 defmodule BotArmyDashboardLiveview.QuestPhoneLive do
   use Phoenix.LiveView
+  import BotArmyDashboardLiveview.ReadError
+  alias BotArmyDashboardLiveview.BotRead
   alias BotArmyDashboardLiveview.Broker
   alias Phoenix.PubSub
   alias BotArmyDashboardLiveview.PhoneNav
@@ -27,25 +29,7 @@ defmodule BotArmyDashboardLiveview.QuestPhoneLive do
   end
 
   defp fetch_quest(socket) do
-    # The task runs in its own process, so `self()` inside it is the task, not
-    # this LiveView — addressing the result back here has to be explicit, or
-    # the view sits on its spinner forever.
-    parent = self()
-
-    Task.start_link(fn ->
-      result =
-        try do
-          case Broker.request("bridge.quest.current", Jason.encode!(%{}), timeout: 5000) do
-            {:ok, %{body: body}} -> QuestPayload.parse(body)
-            {:error, _} -> nil
-          end
-        rescue
-          _ -> nil
-        end
-
-      send(parent, {:quest_loaded, result})
-    end)
-
+    BotRead.async(self(), :quest_loaded, "bridge.quest.current", %{}, timeout: 5000)
     socket
   end
 
@@ -55,8 +39,8 @@ defmodule BotArmyDashboardLiveview.QuestPhoneLive do
   end
 
   @impl true
-  def handle_info({:quest_loaded, quest}, socket) do
-    {:noreply, assign(socket, quest: quest, loading: false)}
+  def handle_info({:quest_loaded, body}, socket) do
+    {:noreply, assign(socket, quest: QuestPayload.parse(body), loading: false)}
   end
 
   @impl true
@@ -206,6 +190,7 @@ defmodule BotArmyDashboardLiveview.QuestPhoneLive do
   @impl true
   def render(assigns) do
     ~H"""
+    <%= if @read_error do %><.read_error reason={@read_error} /><% end %>
     <div id="quest-phone-container" class="handheld-container quest-phone" phx-hook="TouchCarousel">
       <div id="offline-hook" phx-hook="OfflineDetectionHook" style="display: none;"></div>
       <div id="sync-manager-hook" phx-hook="SyncManagerHook" style="display: none;"></div>
