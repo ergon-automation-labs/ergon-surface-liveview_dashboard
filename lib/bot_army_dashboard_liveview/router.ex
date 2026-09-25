@@ -29,6 +29,7 @@ defmodule BotArmyDashboardLiveview.Router do
       live("/household-hud", HouseholdHUDLive)
       live("/yearning-phone", YearningPhoneLive)
       live("/body-phone", BodyPhoneLive)
+      live("/devotion-phone", DevotionPhoneLive)
       live("/fitness-handheld", FitnessHandheldLive)
       live("/gtd-handheld", GTDHandheldLive)
       live("/system-health-handheld", SystemHealthHandheldLive)

@@ -20,6 +20,7 @@ defmodule BotArmyDashboardLiveview.PhoneNav do
     {"/household-hud", "🏠", "House"},
     {"/yearning-phone", "💗", "Yearning"},
     {"/body-phone", "🫀", "Body"},
+    {"/devotion-phone", "🕯️", "Devotion"},
     {"/timer-phone", "⏱️", "Timer"},
     {"/habits-phone", "✓", "Habits"},
     {"/habit-anchors", "🪥", "Anchors"},

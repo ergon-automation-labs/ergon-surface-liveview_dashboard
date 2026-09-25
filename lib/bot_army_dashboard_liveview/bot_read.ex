@@ -44,7 +44,7 @@ defmodule BotArmyDashboardLiveview.BotRead do
   @spec async(pid(), atom(), String.t(), term(), keyword()) :: :ok
   def async(parent, tag, subject, payload, opts \\ []) do
     Task.start_link(fn ->
-      send(parent, {:read_started})
+      send(parent, {:read_started, tag})
       send(parent, reply(tag, read(subject, payload, opts)))
     end)
 
@@ -67,7 +67,7 @@ defmodule BotArmyDashboardLiveview.BotRead do
   end
 
   defp reply(tag, {:ok, value}), do: {tag, value}
-  defp reply(_tag, {:error, reason}), do: {:read_failed, reason}
+  defp reply(tag, {:error, reason}), do: {:read_failed, tag, reason}
 
   defp encode(payload) when is_binary(payload), do: {:ok, payload}
 
@@ -123,9 +123,20 @@ defmodule BotArmyDashboardLiveview.BotRead do
   to carry a clause for it and none can forget one.
   """
   @spec failed(map(), term()) :: map()
-  def failed(socket, reason) do
+  def failed(socket, reason), do: failed(socket, nil, reason)
+
+  @doc """
+  The same, naming the read that failed.
+
+  The name matters because a screen can have several reads in flight: without it
+  the next read to start erases the failure of the one before it, and the screen
+  shows a tidy page for a question that was never answered.
+  """
+  @spec failed(map(), atom() | nil, term()) :: map()
+  def failed(socket, tag, reason) do
     socket
     |> assign(:read_error, message(reason))
+    |> assign(:read_failed_tag, tag)
     |> stop_spinners()
     |> mark_broker_unreachable()
   end
@@ -157,10 +168,20 @@ defmodule BotArmyDashboardLiveview.BotRead do
   defp spinner?(key), do: key |> Atom.to_string() |> String.ends_with?("_loading")
 
   @doc """
-  Clear the failed read. A new attempt is news; the screen may as well say so.
+  Clear the failed read, when the attempt is of the read that failed.
+
+  A retry of the question that went unanswered is news and the screen may say so.
+  A different question starting is not news about this one, so the failure stands
+  until the read it belongs to is asked again.
   """
-  @spec started(map()) :: map()
-  def started(socket), do: assign(socket, :read_error, nil)
+  @spec started(map(), atom() | nil) :: map()
+  def started(socket, tag) do
+    if socket.assigns[:read_failed_tag] == tag do
+      socket |> assign(:read_error, nil) |> assign(:read_failed_tag, nil)
+    else
+      socket
+    end
+  end
 
   @doc """
   What to tell the operator about a failed read.

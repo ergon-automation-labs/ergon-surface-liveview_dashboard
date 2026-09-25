@@ -27,6 +27,9 @@ defmodule BotArmyDashboardLiveview.PhoneNavTest do
 
   @yearning_page "/yearning-phone"
   @body_page "/body-phone"
+  @devotion_page "/devotion-phone"
+
+  defp reporting_pages, do: [@yearning_page, @body_page, @devotion_page]
 
   setup do
     Application.put_env(@app, :broker_transport, BrokerStub)
@@ -44,20 +47,21 @@ defmodule BotArmyDashboardLiveview.PhoneNavTest do
     :ok
   end
 
-  test "the nav bar carries both reporting screens, as peers of the others" do
+  test "the nav bar carries the reporting screens, as peers of the others" do
     handhelds = PhoneNav.all_handhelds()
 
     assert {@yearning_page, "💗", "Yearning"} in handhelds
     assert {@body_page, "🫀", "Body"} in handhelds
+    assert {@devotion_page, "🕯️", "Devotion"} in handhelds
 
-    # Two options, not one page with two modes.
-    assert length(handhelds) == 12
+    # One option each, not one page with modes.
+    assert length(handhelds) == 13
     routes = Enum.map(handhelds, &elem(&1, 0))
     assert Enum.uniq(routes) == routes
   end
 
   test "each reporting screen is its own page, and says so in the bar" do
-    for route <- [@yearning_page, @body_page] do
+    for route <- reporting_pages() do
       html = render(page(route, "nav-item"))
 
       assert html =~ ~s(href="#{route}")
@@ -86,7 +90,7 @@ defmodule BotArmyDashboardLiveview.PhoneNavTest do
   # on a screen that had it a tap on a point would drive whatever listens for
   # that. It is not on these screens at all.
   test "a reporting screen has no touch carousel, so a tap means one thing" do
-    for route <- [@yearning_page, @body_page] do
+    for route <- reporting_pages() do
       refute render(page(route, "nav-item")) =~ ~s(phx-hook="TouchCarousel")
     end
   end

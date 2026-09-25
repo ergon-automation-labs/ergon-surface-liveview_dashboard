@@ -17,8 +17,8 @@ defmodule BotArmyDashboardLiveview.ReadHooks do
       socket
       |> assign(:read_error, nil)
       |> attach_hook(:bot_read, :handle_info, fn
-        {:read_started}, socket -> {:halt, BotRead.started(socket)}
-        {:read_failed, reason}, socket -> {:halt, BotRead.failed(socket, reason)}
+        {:read_started, tag}, socket -> {:halt, BotRead.started(socket, tag)}
+        {:read_failed, tag, reason}, socket -> {:halt, BotRead.failed(socket, tag, reason)}
         _message, socket -> {:cont, socket}
       end)
 

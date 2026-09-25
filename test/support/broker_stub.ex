@@ -11,7 +11,10 @@ defmodule BotArmyDashboardLiveview.BrokerStub do
 
   Configure with `:broker_stub_reply`:
 
-    * a binary — the reply body
+    * a binary — the reply body, for every subject
+    * a map — the reply body per subject, so a screen that asks two questions
+      can be answered differently on each (a subject the map does not name is
+      answered with `"{}"`)
     * `{:error, reason}`
     * `{:exit, reason}` — to exercise the exit paths
     * `{:raise, message}` — to prove a bug is not mistaken for a dead bot
@@ -22,15 +25,23 @@ defmodule BotArmyDashboardLiveview.BrokerStub do
   def request(conn, subject, payload, opts) do
     listener = Application.get_env(@config, :broker_stub_listener, self())
     send(listener, {:broker_stub_request, conn, subject, payload, opts})
-    reply()
+    reply(subject)
   end
 
-  defp reply do
-    case Application.get_env(@config, :broker_stub_reply, "{}") do
-      {:exit, reason} -> exit(reason)
-      {:raise, message} -> raise message
-      {:error, reason} -> {:error, reason}
-      body when is_binary(body) -> {:ok, %{body: body}}
-    end
+  defp reply(subject) do
+    @config
+    |> Application.get_env(:broker_stub_reply, "{}")
+    |> resolve(subject)
   end
+
+  defp resolve(replies, subject) when is_map(replies) do
+    answer(Map.get(replies, subject, "{}"))
+  end
+
+  defp resolve(reply, _subject), do: answer(reply)
+
+  defp answer({:exit, reason}), do: exit(reason)
+  defp answer({:raise, message}), do: raise(message)
+  defp answer({:error, reason}), do: {:error, reason}
+  defp answer(body) when is_binary(body), do: {:ok, %{body: body}}
 end

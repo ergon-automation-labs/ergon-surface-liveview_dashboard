@@ -111,7 +111,7 @@ defmodule BotArmyDashboardLiveview.BotReadTest do
       reply(~s({"projects":[]}))
       assert BotRead.async(self(), :projects_loaded, "bridge.project.list", %{}) == :ok
 
-      assert_receive {:read_started}
+      assert_receive {:read_started, :projects_loaded}
       assert_receive {:projects_loaded, %{"projects" => []}}
     end
 
@@ -119,8 +119,8 @@ defmodule BotArmyDashboardLiveview.BotReadTest do
       reply({:exit, {:noproc, {:gen_server, :call, []}}})
       assert BotRead.async(self(), :projects_loaded, "bridge.project.list", %{}) == :ok
 
-      assert_receive {:read_started}
-      assert_receive {:read_failed, :no_broker}
+      assert_receive {:read_started, :projects_loaded}
+      assert_receive {:read_failed, :projects_loaded, :no_broker}
       refute_received {:projects_loaded, _anything}
     end
   end
@@ -138,6 +138,37 @@ defmodule BotArmyDashboardLiveview.BotReadTest do
         assert is_binary(message) and message != ""
       end
     end
+  end
+
+  describe "started/2" do
+    test "a retry of the read that failed clears the failure" do
+      socket = socket_with_failure()
+
+      assert BotRead.started(socket, :devotion_notes).assigns.read_error == nil
+    end
+
+    # Two reads in flight, and the one that fails first used to be erased by the
+    # other one starting: the screen then showed a tidy page for a question
+    # nobody had answered.
+    test "another read starting does not erase a failure it does not belong to" do
+      socket = socket_with_failure()
+
+      assert BotRead.started(socket, :devotion_facts).assigns.read_error ==
+               "the bot answered, but not with what this screen asked for"
+    end
+
+    test "an unnamed failure is not erased by a named read" do
+      socket = BotRead.failed(assign(%Phoenix.LiveView.Socket{}, %{loading: true}), :timeout)
+
+      assert BotRead.started(socket, :devotion_notes).assigns.read_error ==
+               "the bot did not answer in time"
+    end
+  end
+
+  defp socket_with_failure do
+    %Phoenix.LiveView.Socket{}
+    |> assign(%{loading: true, read_error: nil})
+    |> BotRead.failed(:devotion_notes, :unexpected_reply)
   end
 
   describe "failed/2" do

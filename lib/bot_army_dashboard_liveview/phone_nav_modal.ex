@@ -9,6 +9,7 @@ defmodule BotArmyDashboardLiveview.PhoneNavModal do
   @handhelds [
     {"/yearning-phone", "💗", "Yearning", "Her own number, never measured"},
     {"/body-phone", "🫀", "Body", "Five channels, her own points"},
+    {"/devotion-phone", "🕯️", "Devotion", "Words back to the goddess"},
     {"/timer-phone", "⏱️", "Timer", "Focus sessions with task linking"},
     {"/habits-phone", "✓", "Habits", "Daily shame-free check-ins"},
     {"/quest-phone", "⚔️", "Quest", "Story progression tracker"},

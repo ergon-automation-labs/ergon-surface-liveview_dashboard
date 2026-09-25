@@ -21,6 +21,7 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDPayload do
   | `yearning` | §19 `louiza.yearning` (the derived proximity reading) | `:unreported` |
   | `demands` | §27 `louiza.demands` (sent, seen, done, still open) | `:unreported` |
   | `body` | §15 `body` (five channels, each with its newest reading) | `:unreported` per channel |
+  | `devotion` | the week's count, the run, and `maid_level.notice` | `:unreported` per seed |
 
   ## What this screen may write
 
@@ -245,8 +246,95 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDPayload do
       visual: visual_section(panel),
       chorus: chorus_section(chorus),
       exit: exit_section(panel),
+      devotion: devotion_section(panel),
       scale: house_scale()
     }
+  end
+
+  @doc """
+  The devotion seeds: facts about her own week, for a note she writes back.
+
+  A seed is a fact, never a draft. A screen that arrives with a blank page is a
+  chore, and a screen that arrives with a suggested sentence is putting words in
+  her mouth — so this section carries only what the bot already reports: the
+  week's count against the quota, how long the run is (and how long it has ever
+  been), and the house's own present-tense `notice` (see `MaidLevel.notice/1`).
+
+  Nothing here is a grade. `met?` is the house's compliance verdict and it is
+  carried so the screen can say the ask is met, not so anything can be scored by
+  it: a written devotion is not a performed one, and the window's own rule is
+  that her words never enter a score, a streak, or a quota.
+
+  When the bot has not answered, every seed is `nil` — the screen says the record
+  has not landed rather than drawing zeros.
+  """
+  @spec devotion_section(map() | nil) :: map()
+  def devotion_section(panel) when is_map(panel) do
+    engagement = nested(panel, "engagement")
+    weekly = nested(nested(panel, "quotas"), "weekly")
+    streak = nested(panel, "streak")
+    maid = nested(panel, "maid_level")
+
+    %{
+      week: count_of(engagement, "this_week"),
+      required: count_of(weekly, "required"),
+      met?: value_of(weekly, "status") == "compliant",
+      run: count_of(streak, "current_streak"),
+      longest: count_of(streak, "longest_streak"),
+      notice: notice_of(maid),
+      source: :reported
+    }
+  end
+
+  def devotion_section(_panel) do
+    %{
+      week: nil,
+      required: nil,
+      met?: false,
+      run: nil,
+      longest: nil,
+      notice: nil,
+      source: :unreported
+    }
+  end
+
+  # One level of a panel section, as a map, or an empty one. The state arrives
+  # from JSON with string keys, but the same block read straight off the store
+  # carries atoms, and this module has been bitten by that difference before.
+  defp nested(panel, key) when is_map(panel) do
+    case value_of(panel, key) do
+      value when is_map(value) -> value
+      _other -> %{}
+    end
+  end
+
+  defp nested(_panel, _key), do: %{}
+
+  # A key may arrive as a string (JSON) or an atom (read straight off the store),
+  # and this module has been bitten by that difference before. No atom is created
+  # for a wire key — a key nobody has named is not a reason to name it.
+  defp value_of(map, key) when is_map(map) do
+    Enum.find_value(map, fn
+      {k, value} when is_binary(k) -> if k == key, do: value
+      {k, value} when is_atom(k) -> if Atom.to_string(k) == key, do: value
+      _other -> nil
+    end)
+  end
+
+  defp value_of(_map, _key), do: nil
+
+  defp count_of(map, key) do
+    case value_of(map, key) do
+      value when is_integer(value) -> value
+      _other -> nil
+    end
+  end
+
+  defp notice_of(map) do
+    case value_of(map, "notice") do
+      notice when is_binary(notice) and notice != "" -> notice
+      _other -> nil
+    end
   end
 
   @doc "The house's six points, as the screens say them."
