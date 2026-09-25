@@ -21,6 +21,21 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDPayload do
   | `yearning` | §19 `louiza.yearning` (the derived proximity reading) | `:unreported` |
   | `demands` | §27 `louiza.demands` (sent, seen, done, still open) | `:unreported` |
 
+  ## What this screen may write
+
+  Two things, and both are hers to say: the yearning reading (§19) and a body
+  reading (§15 of the contract). Everything else on this screen is a read.
+
+  A write here is followed by a **re-read**, and what the screen displays is always
+  the bot's own answer — never the number this screen sent. A tap that the bot took
+  but that its reading does not show is reported as exactly that. "Saved" and "the
+  bot says 4" are two different claims, and only the first one is this screen's to
+  make.
+
+  This screen is not the control board and does not pretend to be one: no write
+  here raises anything, so none of them is the thing the pause gate exists to stop.
+  Recording is not pressure.
+
   Her own words are not here either. `wishes.wish_text` is hers and stays on the
   panel she typed it into; the HUD shows which *wishes are in play*, not what she
   wrote. The same allowlist discipline as `Chorus.prompt_context/2`, for the same
@@ -43,6 +58,21 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDPayload do
     %{name: "Bot Army", role: :mechanism, note: "carries out the work"},
     %{name: "Visual Novel Interface", role: :surface, note: "this screen"},
     %{name: "Abby — Maid / Servant", role: :self, note: "the one being held"}
+  ]
+
+  # The house's six points, said out loud. The bot sends this exact scale in its
+  # body block (`BodyReadings.scale/0`), and it is repeated here only for
+  # yearning, which the bot has never sent a scale for. The words are the same on
+  # purpose — one house, one language — with one deliberate difference: 0 reads
+  # "none right now" rather than "none", because it is an answer, not the absence
+  # of one. Nothing has been recorded is a different fact, and it looks different.
+  @house_scale [
+    %{level: 0, word: "none right now"},
+    %{level: 1, word: "a little"},
+    %{level: 2, word: "some"},
+    %{level: 3, word: "a lot"},
+    %{level: 4, word: "a great deal"},
+    %{level: 5, word: "as much as it gets"}
   ]
 
   @mood_glyphs %{
@@ -198,9 +228,14 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDPayload do
       demands: demands_section(panel),
       visual: visual_section(panel),
       chorus: chorus_section(chorus),
-      exit: exit_section(panel)
+      exit: exit_section(panel),
+      scale: house_scale()
     }
   end
+
+  @doc "The house's six points, as the screens say them."
+  @spec house_scale() :: [map()]
+  def house_scale, do: @house_scale
 
   @doc "The doc's ladder — structure, so it is always present."
   @spec ladder() :: [map()]
