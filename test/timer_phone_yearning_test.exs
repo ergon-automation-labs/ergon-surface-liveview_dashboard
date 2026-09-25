@@ -1,4 +1,4 @@
-defmodule BotArmyDashboardLiveview.HouseholdHUDYearningTest do
+defmodule BotArmyDashboardLiveview.TimerPhoneYearningTest do
   # The write path swaps the broker transport for a stub and sets process-wide
   # application env, so this module is not async.
   use ExUnit.Case, async: false
@@ -31,6 +31,9 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDYearningTest do
     Jason.encode!(%{
       "ok" => true,
       "data" => %{
+        # The timer phone also reads its task list; one stub body answers
+        # every subject, so the panel reply carries an empty list for it.
+        "tasks" => [],
         "louiza" => %{
           "yearning" => %{
             "level" => level,
@@ -48,7 +51,7 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDYearningTest do
   # settled card rather than from the "asking the house" state.
   defp hud(level) do
     stub_reply(state_reply(level))
-    {:ok, view, _html} = live(build_conn(), "/household-hud")
+    {:ok, view, _html} = live(build_conn(), "/timer-phone")
     await(view, "#{level} of 5")
     view
   end
@@ -98,7 +101,7 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDYearningTest do
   # "no reading today".
   test "a reading from an earlier day is shown but not highlighted" do
     stub_reply(state_reply(4, false))
-    {:ok, view, _html} = live(build_conn(), "/household-hud")
+    {:ok, view, _html} = live(build_conn(), "/timer-phone")
     await(view, "Last reading on 2026-09-25")
 
     refute has_element?(view, "button.tap.on")
@@ -177,7 +180,7 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDYearningTest do
         await(view, "nothing was recorded")
       end)
 
-    assert log =~ "[HouseholdHUD]"
+    assert log =~ "[SelfReport]"
     assert log =~ ":no_broker"
   end
 

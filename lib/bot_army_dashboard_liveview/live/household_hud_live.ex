@@ -3,17 +3,13 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDLive do
   The household HUD — the doc's visual-novel dashboard, rendered from what the
   wife care bot actually reports.
 
-  It reads the house, and it writes exactly two things — both of them hers to
-  say: the yearning reading (§19) and a body reading (§15). Neither raises
-  anything, so neither is what the pause gate exists to stop; recording is not
-  pressure, and a house that stops her reporting its effect on her has the
-  question backwards.
-
-  Every write is followed by a **re-read**, and what this screen shows is the
-  bot's own reading — never the number this screen sent. A tap the bot took but
-  whose reading does not show it is reported as exactly that. "Saved" and "the
-  bot says 4" are two different claims, and only the first is this screen's to
-  make.
+  It reads the house, and it writes nothing. The two things that are hers to
+  say — the yearning reading (§19) and a body reading (§15) — are reported on
+  her own screen, `/timer-phone`, where the timer she already uses lives. A
+  reading screen and a reporting screen should not be the same screen: one is
+  what the house is, the other is what she says about herself, and putting them
+  together turns a report into something done for a display. What stays here is
+  the *read* of both, as the house's own numbers.
 
   The one control that changes *the house* is still the exit, and the exit lives
   on the control panel, where the pause gate and the audit log are; this screen
@@ -25,9 +21,10 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDLive do
 
   There are no keys to press. It used to advertise "r refresh" and a "?" note,
   and it bound neither: this surface has no key handler at all, so the hint was a
-  promise the page could not keep. The interactive things are the lens strip, the
-  six points under Yearning, the five channels under The body, and the exit's
-  button to the control panel. That
+  promise the page could not keep. The interactive things are the lens strip and
+  the exit's button to the control panel — the two ladders that used to be here
+  are on `/timer-phone`, where she reports, and this screen only reads their
+  latest numbers. That
   button names the host this page was reached on, because `localhost` is the
   viewer's machine and the panel does not run there.
 
@@ -52,8 +49,6 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDLive do
   @panel_subject "wife_care.control_panel.state"
   @chorus_subject "wife_care.chorus.categories"
   @entry_ticket_subject "wife_care.control_panel.entry_ticket"
-  @yearning_subject "wife_care.control_panel.record_goddess_proximity"
-  @body_subject "wife_care.control_panel.record_body_reading"
   @request_timeout 3_000
   @panel_port 30013
 
@@ -68,7 +63,6 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDLive do
       socket
       |> assign(hud: HUD.build(nil, nil), loading?: true, asked_at: nil)
       |> assign(tab: "now")
-      |> assign(tap: nil)
       |> assign(control_panel_url: control_panel_url(socket.host_uri))
 
     if connected?(socket) do
@@ -80,15 +74,9 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDLive do
 
   @impl true
   def handle_async(:hud, {:ok, {panel, chorus}}, socket) do
-    hud = HUD.build(panel, chorus)
-
-    # A tap is confirmed by the reading that came back, not by the write having
-    # returned. This is the whole honesty rule of the write path: the tap set
-    # `confirmed?` to nothing at all, and only this branch may set it.
     {:noreply,
      socket
-     |> assign(hud: hud, loading?: false, asked_at: clock())
-     |> assign(tap: tapped_result(socket.assigns.tap, tap_reading(hud, socket.assigns.tap)))}
+     |> assign(hud: HUD.build(panel, chorus), loading?: false, asked_at: clock())}
   end
 
   # `request/1` already turns a dead broker into `nil`, so this branch is for a
@@ -115,36 +103,6 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDLive do
   @impl true
   def handle_event("refresh", _params, socket) do
     {:noreply, fetch(socket)}
-  end
-
-  # The six points. A tap logs the reading, and then the screen asks again rather
-  # than printing the number it just sent: the bot is the authority on what her
-  # reading is, and a self-report can still be refused (paused house, bad range,
-  # store down).
-  @impl true
-  def handle_event("record_yearning", %{"level" => raw}, socket) do
-    case parse_point(raw) do
-      {:ok, level} ->
-        record_yearning(socket, level)
-
-      :error ->
-        {:noreply, assign(socket, tap: bad_point(:yearning))}
-    end
-  end
-
-  # The same six points, one channel at a time. The channel name is checked here
-  # only against what this screen drew: a key it cannot draw is a stale page, not
-  # a reading, and sending it would put a word in the house's mouth. What the bot
-  # keeps is the bot's to refuse, in its own sentence.
-  def handle_event("record_body_reading", %{"kind" => kind, "level" => raw}, socket) do
-    if drawn_channel?(socket, kind) do
-      case parse_point(raw) do
-        {:ok, level} -> record_body(socket, kind, level)
-        :error -> {:noreply, assign(socket, tap: bad_point(:body))}
-      end
-    else
-      {:noreply, assign(socket, tap: bad_channel(kind))}
-    end
   end
 
   @impl true
@@ -247,161 +205,6 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDLive do
     DateTime.utc_now() |> DateTime.to_time() |> Time.to_iso8601() |> String.slice(0, 5)
   end
 
-  # ── the write path ──────────────────────────────────────────────────────────
-
-  defp record_yearning(socket, level) do
-    case write(@yearning_subject, %{"goddess_proximity_seeking" => level}) do
-      {:ok, _data} ->
-        # The bot has it. Nothing is claimed yet: `tapped_result/2` decides, once
-        # the re-read lands, whether this screen may say the reading is now this.
-        {:noreply, socket |> assign(tap: tap_for(level)) |> fetch()}
-
-      {:error, sentence} ->
-        {:noreply, assign(socket, tap: Map.put(tap_for(level), :error, sentence))}
-    end
-  end
-
-  # A body reading is the same shape as a yearning one, with the channel it is
-  # about. The write reply carries a fresh body block, and this screen ignores it
-  # on purpose: the rule is that every write here is followed by a re-read, and
-  # one rule for both cards is worth the round trip. A reading that came back in
-  # the write but not in the read is a reading this screen will not show.
-  defp record_body(socket, kind, level) do
-    payload = %{"kind" => kind, "level" => level, "source" => "reported"}
-
-    case write(@body_subject, payload) do
-      {:ok, _data} ->
-        {:noreply, socket |> assign(tap: body_tap_for(socket, kind, level)) |> fetch()}
-
-      {:error, sentence} ->
-        {:noreply,
-         assign(socket, tap: socket |> body_tap_for(kind, level) |> Map.put(:error, sentence))}
-    end
-  end
-
-  # A write from this screen. The body is the payload itself — there is nothing
-  # to check here that the bot does not check harder, and a second opinion about
-  # a range is a second place for it to be wrong.
-  defp write(subject, payload) do
-    case Broker.request(subject, Jason.encode!(payload), timeout: @request_timeout) do
-      {:ok, %{body: body}} -> decode_write(body)
-      other -> {:error, write_trouble(other)}
-    end
-  rescue
-    error -> {:error, write_trouble({:raised, error})}
-  catch
-    kind, reason -> {:error, write_trouble({kind, reason})}
-  end
-
-  # A refusal keeps the bot's own sentence: it names the channels, or the range,
-  # or says the house is paused, and none of that is improved by this screen
-  # paraphrasing it. A reply that is not a result says so rather than being
-  # rounded up to success.
-  defp decode_write(body) do
-    case Jason.decode(body) do
-      {:ok, %{"ok" => true, "data" => data}} when is_map(data) -> {:ok, data}
-      {:ok, %{"ok" => true}} -> {:ok, %{}}
-      {:ok, %{"ok" => false, "error" => error}} when is_binary(error) -> {:error, error}
-      {:ok, %{"ok" => false}} -> {:error, "the bot refused it without saying why"}
-      {:ok, _other} -> {:error, "the bot answered something that is not a result"}
-      {:error, _} -> {:error, "the bot's answer could not be read"}
-    end
-  end
-
-  # A dead broker is not a refusal and must not read like one. "Nothing was
-  # recorded" is the one thing this sentence has to make unambiguous.
-  defp write_trouble(reason) do
-    Logger.debug("[HouseholdHUD] a write answered nothing: #{inspect(reason)}")
-    "no answer from the wife care bot — nothing was recorded"
-  end
-
-  defp parse_point(raw) when is_binary(raw) do
-    case Integer.parse(raw) do
-      {level, ""} when level in 0..5 -> {:ok, level}
-      _other -> :error
-    end
-  end
-
-  defp parse_point(_raw), do: :error
-
-  # The word comes from the same scale the buttons were drawn from, so the sentence
-  # and the button cannot disagree about what a 4 means. `what` is the tapped point
-  # said out loud, and it is the only part of the sentence that differs between one
-  # card and the other; `where` is which card owns the sentence, because two cards
-  # are on screen at once and a line under the wrong one is a lie about where the
-  # reading went.
-  defp tap_for(level) do
-    %{where: :yearning, level: level, what: point_phrase(level, HUD.house_scale())}
-  end
-
-  defp body_tap_for(socket, kind, level) do
-    channel = Enum.find(socket.assigns.hud.body.channels, &(&1.key == kind))
-    scale = socket.assigns.hud.body.scale
-    label = if channel, do: channel.label, else: kind
-
-    %{
-      where: :body,
-      kind: kind,
-      level: level,
-      what: "#{label} at #{point_phrase(level, scale)}"
-    }
-  end
-
-  defp point_phrase(level, scale) do
-    word = Enum.find_value(scale, fn point -> point.level == level && point.word end)
-    "#{level} of 5 (#{word})"
-  end
-
-  defp drawn_channel?(socket, kind) do
-    Enum.any?(socket.assigns.hud.body.channels, &(&1.key == kind))
-  end
-
-  defp bad_point(where) do
-    %{where: where, error: "that is not one of the six points this house keeps"}
-  end
-
-  defp bad_channel(kind) do
-    %{
-      where: :body,
-      error: "#{kind} is not a channel on this card — reload the page and tap it again"
-    }
-  end
-
-  # Which reading the re-read produced for the tap that is being confirmed: hers for
-  # yearning, that channel's for a body reading. A channel that vanished between the
-  # tap and the read answers `nil`, which cannot confirm anything and reads as
-  # "not reported" rather than as the number that was sent.
-  defp tap_reading(hud, %{where: :body, kind: kind}) do
-    Enum.find(hud.body.channels, &(&1.key == kind)) ||
-      %{level: nil, today?: false, display: "not reported"}
-  end
-
-  defp tap_reading(hud, _tap), do: hud.yearning
-
-  # `confirmed?` is not "the write returned ok" — it is "the reading that came back
-  # is the one that was sent, and it is today's". Anything less says what the bot
-  # actually reports, which is the only thing this screen knows.
-  defp tapped_result(%{level: level} = tap, %{today?: true, level: level}),
-    do: Map.put(tap, :confirmed?, true)
-
-  defp tapped_result(%{level: _} = tap, yearning),
-    do: tap |> Map.put(:confirmed?, false) |> Map.put(:reading, yearning.display)
-
-  defp tapped_result(tap, _yearning), do: tap
-
-  defp tap_line(%{error: error}), do: error
-
-  defp tap_line(%{confirmed?: true} = tap),
-    do: "logged — the reading that came back is #{tap.what} today."
-
-  defp tap_line(%{reading: reading} = tap),
-    do: "the bot took #{tap.what}, but its reading shows #{reading} — showing what it reports."
-
-  defp tap_line(tap), do: "logged #{tap.what} — reading it back…"
-
-  defp tap_class(%{error: _}), do: "unreported"
-  defp tap_class(_tap), do: "dim"
-
   @impl true
   def render(assigns) do
     ~H"""
@@ -428,14 +231,7 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDLive do
       .ladder .tier.mechanism { border-left-color: #6b48ff; }
       .chip { display: inline-block; padding: 3px 8px; border: 1px solid #2c3766; border-radius: 999px; font-size: 12px; margin: 2px 4px 2px 0; }
       .chip.on { border-color: #ff5fa2; color: #ffb3d1; }
-      /* The six points. 44px is the smallest target a thumb hits without aiming,
-         and the row splits the width evenly for the same reason the lens strip
-         does. A discrete row rather than a slider: a slider implies a precision
-         between the points that nobody has, and it is fiddly on a dpad. */
-      .tap-row { display: flex; gap: 6px; margin: 8px 0 4px; }
-      .tap-row .tap { flex: 1; min-height: 44px; font: inherit; font-size: 15px; color: #a9b4e0; background: #10162f; border: 1px solid #222c56; border-radius: 8px; cursor: pointer; }
-      .tap-row .tap.on { color: #0a0e27; background: #ffd166; border-color: #ffb545; font-weight: 600; }
-      .tap-legend { color: #6f7db2; font-size: 11px; line-height: 1.6; }
+      .read-note { color: #6f7db2; font-size: 11px; line-height: 1.6; }
       .chorus-item { display: flex; gap: 10px; align-items: baseline; padding: 5px 0; font-size: 14px; }
       .exit { border-color: #ff5fa2; }
       .exit a { color: #ffb3d1; text-decoration: none; }
@@ -691,7 +487,7 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDLive do
 
     <%= if @tab == "now" do %>
     <div class="card">
-      <div class="card-title">Yearning — the goddess-focus indicator  ·  tap a point to log it</div>
+      <div class="card-title">Yearning — the goddess-focus indicator</div>
       <%= if @hud.yearning.active? do %>
         <div class="row">
           <span class="chip on">Yearning Active</span>
@@ -704,31 +500,11 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDLive do
         </div>
       <% end %>
       <p class="dim" style="margin-top:6px; font-size:12px;"><%= @hud.yearning.line %></p>
-      <div class="tap-row">
-        <%= for point <- @hud.scale do %>
-          <button
-            type="button"
-            phx-click="record_yearning"
-            phx-value-level={point.level}
-            phx-disable-with="…"
-            title={"#{point.level} — #{point.word}"}
-            aria-label={"log #{point.level}, #{point.word}"}
-            class={"tap#{if @hud.yearning.today? and @hud.yearning.level == point.level, do: " on", else: ""}"}
-          ><%= point.level %></button>
-        <% end %>
-      </div>
-      <p class="tap-legend"><%= Enum.map_join(@hud.scale, " · ", &"#{&1.level} #{&1.word}") %></p>
-      <%= if @tap && Map.get(@tap, :where) == :yearning do %>
-        <p class={tap_class(@tap)} style="margin-top:4px; font-size:12px;"><%= tap_line(@tap) %></p>
-      <% end %>
-      <p class="dim" style="margin-top:6px; font-size:12px;">
-        This one is hers to say and is never measured: the house records what she reports, at the point she picked, now.
-      </p>
+      <p class="read-note" style="margin-top:6px;">Hers to say, and never measured. She taps it on her own screen — this one only reads it.</p>
     </div>
 
     <div class="card">
-      <div class="card-title">The body — five channels  ·  tap a point to log it</div>
-      <p class="tap-legend">The points: <%= Enum.map_join(@hud.body.scale, " · ", &"#{&1.level} #{&1.word}") %></p>
+      <div class="card-title">The body — five channels</div>
       <%= for channel <- @hud.body.channels do %>
         <div class="row" style="margin-top:10px;">
           <span><%= channel.label %></span>
@@ -736,28 +512,9 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDLive do
             <%= channel.display %><%= if channel.source_label, do: " · #{channel.source_label}", else: "" %>
           </span>
         </div>
-        <p class="dim" style="margin:2px 0 4px; font-size:11px;"><%= channel.detail %></p>
-        <div class="tap-row">
-          <%= for point <- @hud.body.scale do %>
-            <button
-              type="button"
-              phx-click="record_body_reading"
-              phx-value-kind={channel.key}
-              phx-value-level={point.level}
-              phx-disable-with="…"
-              title={"#{channel.label} #{point.level} — #{point.word}"}
-              aria-label={"log #{channel.label} at #{point.level}, #{point.word}"}
-              class={"tap#{if channel.today? and channel.level == point.level, do: " on", else: ""}"}
-            ><%= point.level %></button>
-          <% end %>
-        </div>
+        <p class="dim" style="margin:2px 0 0; font-size:11px;"><%= channel.detail %></p>
       <% end %>
-      <%= if @tap && Map.get(@tap, :where) == :body do %>
-        <p class={tap_class(@tap)} style="margin-top:8px; font-size:12px;"><%= tap_line(@tap) %></p>
-      <% end %>
-      <p class="dim" style="margin-top:8px; font-size:12px;">
-        A reading carries one number and the point she picked. A tap is what she says, never what was measured — and a channel with nothing on record stays empty rather than reading as nothing at all.
-      </p>
+      <p class="read-note" style="margin-top:8px;">She logs these on her own screen. Nothing on record stays empty rather than reading as nothing at all.</p>
     </div>
     <% end %>
 

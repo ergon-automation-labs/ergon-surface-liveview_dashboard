@@ -1,4 +1,4 @@
-defmodule BotArmyDashboardLiveview.HouseholdHUDBodyTest do
+defmodule BotArmyDashboardLiveview.TimerPhoneBodyTest do
   # Same harness as the yearning card: the write path swaps the broker transport
   # for a stub and sets process-wide application env, so this module is not async.
   #
@@ -89,7 +89,15 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDBodyTest do
       "any_reported?" => Enum.any?(reported, fn {_kind, row} -> is_map(row) end)
     }
 
-    Jason.encode!(%{"ok" => true, "data" => %{"body" => body}})
+    Jason.encode!(%{
+      "ok" => true,
+      "data" => %{
+        # The timer phone also reads its task list; one stub body answers
+        # every subject, so the panel reply carries an empty list for it.
+        "tasks" => [],
+        "body" => body
+      }
+    })
   end
 
   defp stub_reply(reply), do: Application.put_env(@app, :broker_stub_reply, reply)
@@ -98,7 +106,7 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDBodyTest do
   # card rather than from the "asking the house" state.
   defp hud(reported, opts \\ []) do
     stub_reply(state_reply(reported, opts))
-    {:ok, view, _html} = live(build_conn(), "/household-hud")
+    {:ok, view, _html} = live(build_conn(), "/timer-phone")
     await(view, "The body")
     view
   end
@@ -297,7 +305,7 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDBodyTest do
         await(view, "nothing was recorded")
       end)
 
-    assert log =~ "[HouseholdHUD]"
+    assert log =~ "[SelfReport]"
     assert log =~ ":no_broker"
   end
 
