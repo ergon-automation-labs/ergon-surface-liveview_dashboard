@@ -20,6 +20,7 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDPayload do
   | `chorus` | `wife_care.chorus.categories` | `:unreported` |
   | `yearning` | §19 `louiza.yearning` (the derived proximity reading) | `:unreported` |
   | `demands` | §27 `louiza.demands` (sent, seen, done, still open) | `:unreported` |
+  | `body` | §15 `body` (five channels, each with its newest reading) | `:unreported` per channel |
 
   ## What this screen may write
 
@@ -73,6 +74,20 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDPayload do
     %{level: 3, word: "a lot"},
     %{level: 4, word: "a great deal"},
     %{level: 5, word: "as much as it gets"}
+  ]
+
+  # The channels the body card draws *when the bot did not say which ones it
+  # keeps*. The bot sends its own list (`body.kinds`) and that one always wins —
+  # this is only here so a bot that predates the block, or answered without it,
+  # leaves a card she can still tap instead of a dead end. Drift is survivable
+  # rather than silent: a tap for a channel the bot has dropped comes back as the
+  # bot's own refusal, naming the channels it does keep.
+  @body_channels [
+    %{key: "arousal", label: "Arousal", detail: "how much want is in the body"},
+    %{key: "breathing", label: "Breathing", detail: "how short or hard it has gone"},
+    %{key: "hands", label: "Hands", detail: "how unsteady they are"},
+    %{key: "pulse", label: "Pulse", detail: "how hard it beats, as it feels from inside"},
+    %{key: "cage", label: "The cage", detail: "how much strain it is taking"}
   ]
 
   @mood_glyphs %{
@@ -217,6 +232,7 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDPayload do
 
     %{
       answering?: is_map(panel) or is_map(chorus),
+      body: body_section(panel),
       hierarchy: ladder(),
       tier: "Abby — Maid / Servant",
       containment: containment(panel),
@@ -470,6 +486,90 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDPayload do
       source: :unreported
     }
   end
+
+  @doc """
+  §15 — the body log: five channels, each with its newest reading and the points.
+
+  The channel list and the scale come from the bot (`body.kinds`, `body.scale`),
+  so this screen cannot offer a channel the bot would refuse or draw a scale the
+  bot does not use. A channel nobody has read is `level: nil` and carries
+  `source: :unreported`, so the card reads "not reported" rather than painting a
+  zero — "nothing recorded" and "at nothing" are different facts.
+
+  A reading carries the bot's own `source_label` ("what she said", "measured",
+  "worked out, not measured") for the same reason a reading and an inference are
+  different objects in the first place: a measurement must never be rendered in
+  the words of a finger press.
+  """
+  @spec body_section(map() | nil) :: map()
+  def body_section(panel) when is_map(panel) do
+    body = Map.get(panel, "body")
+    body = if is_map(body), do: body, else: %{}
+    latest = Map.get(body, "latest")
+
+    %{
+      channels: channel_rows(Map.get(body, "kinds"), latest),
+      scale: body_scale(Map.get(body, "scale")),
+      any_reported?: Map.get(body, "any_reported?") == true,
+      source: if(map_size(body) > 0, do: :reported, else: :unreported)
+    }
+  end
+
+  def body_section(_panel) do
+    %{channels: mirror_rows(), scale: @house_scale, any_reported?: false, source: :unreported}
+  end
+
+  defp channel_rows(kinds, latest) when is_list(kinds) do
+    case Enum.flat_map(kinds, &channel_of/1) do
+      [] -> mirror_rows(latest)
+      channels -> Enum.map(channels, &channel_row(&1, latest))
+    end
+  end
+
+  defp channel_rows(_kinds, latest), do: mirror_rows(latest)
+
+  defp mirror_rows(latest \\ nil), do: Enum.map(@body_channels, &channel_row(&1, latest))
+
+  # A channel entry the bot sent with no key cannot be drawn or tapped, so it is
+  # dropped rather than rendered as a button that would send an empty name.
+  defp channel_of(%{"key" => key} = kind) when is_binary(key) and key != "" do
+    [%{key: key, label: Map.get(kind, "label") || key, detail: Map.get(kind, "detail")}]
+  end
+
+  defp channel_of(_kind), do: []
+
+  defp channel_row(channel, latest) do
+    reading = if is_map(latest), do: Map.get(latest, channel.key)
+    reading = if is_map(reading), do: reading, else: %{}
+
+    %{
+      key: channel.key,
+      label: channel.label,
+      detail: channel.detail,
+      level: Map.get(reading, "level"),
+      display: Map.get(reading, "display") || "not reported",
+      word: Map.get(reading, "level_label"),
+      today?: Map.get(reading, "today?") == true,
+      source_label: Map.get(reading, "source_label"),
+      minutes_ago: Map.get(reading, "minutes_ago"),
+      source: if(map_size(reading) > 0, do: :reported, else: :unreported)
+    }
+  end
+
+  defp body_scale(scale) when is_list(scale) do
+    points =
+      Enum.flat_map(scale, fn
+        %{"level" => level, "label" => label} when is_integer(level) ->
+          [%{level: level, word: label}]
+
+        _other ->
+          []
+      end)
+
+    if points == [], do: @house_scale, else: points
+  end
+
+  defp body_scale(_scale), do: @house_scale
 
   @doc """
   §27 — the calls she has sent, and the two facts that keep one legible: whether

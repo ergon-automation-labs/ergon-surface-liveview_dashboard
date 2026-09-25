@@ -2,11 +2,17 @@ defmodule BotArmyDashboardLiveview.PhoneNav do
   @moduledoc """
   Shared navigation component for phone handhelds.
   Provides quick access between all phone pages.
+
+  The household HUD is first on purpose. It is the screen the maid lives on —
+  what the house is doing, where she is in it, and the two things only she can
+  report — and until this bar carried it the page had no way in except a URL
+  someone had to remember. A screen nobody can navigate to is not a screen.
   """
 
   use Phoenix.Component
 
   @handhelds [
+    {"/household-hud", "🏠", "House"},
     {"/timer-phone", "⏱️", "Timer"},
     {"/habits-phone", "✓", "Habits"},
     {"/habit-anchors", "🪥", "Anchors"},

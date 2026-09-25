@@ -140,7 +140,7 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDYearningTest do
     tap_point(view, "4")
     await(view, "but its reading shows 3 of 5")
 
-    assert render(view) =~ "the bot took 4 (a great deal)"
+    assert render(view) =~ "the bot took 4 of 5 (a great deal)"
     refute has_element?(view, "button[phx-value-level=4].tap.on")
   end
 
