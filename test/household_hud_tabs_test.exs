@@ -62,7 +62,9 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDTabsTest do
 
     assert render(view) =~ "Active state"
     assert render(view) =~ "Containment"
-    assert render(view) =~ "Yearning"
+    # The card's title, not the bare word: the nav bar carries a "Yearning"
+    # entry on every screen, so the bare word would pass on the bar alone.
+    assert render(view) =~ "Yearning — the goddess-focus indicator"
     refute render(view) =~ "The chorus — ask the house"
     refute render(view) =~ "Calls she has sent"
 
@@ -79,7 +81,7 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDTabsTest do
     assert house =~ "Pet layer — who may be warm"
     assert house =~ "Exit — always available"
     refute house =~ "Calls she has sent"
-    refute house =~ "Yearning"
+    refute house =~ "Yearning — the goddess-focus indicator"
 
     ask = render_click(view, "tab", %{"tab" => "ask"})
     assert ask =~ "The chorus — ask the house"
@@ -89,7 +91,7 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDTabsTest do
 
     now = render_click(view, "tab", %{"tab" => "now"})
     assert now =~ "Active state"
-    assert now =~ "Yearning"
+    assert now =~ "Yearning — the goddess-focus indicator"
     refute now =~ "The chorus"
   end
 

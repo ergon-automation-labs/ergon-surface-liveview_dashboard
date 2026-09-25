@@ -14,6 +14,11 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDEntryTest do
   # A ticket is 128 bits of lower-case hex behind `k_`, and this one is never
   # real: the stub hands it back, and nothing outside this file ever sees it.
   @ticket "k_" <> String.duplicate("ab12", 8)
+  # The shape to search for, not the bare prefix. The page and the log both carry
+  # random base64 — a CSRF token, a session blob — and `k_` turns up in one of
+  # those by chance in roughly one run in ten, so `refute html =~ "k_"` was a
+  # gate that failed for reasons having nothing to do with leaking a ticket.
+  @ticket_pattern ~r/k_[0-9a-f]{32}/
   @plain_url "http://www.example.com:30013"
 
   setup do
@@ -49,7 +54,7 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDEntryTest do
     # Nothing on the page before the tap: the ticket is minted at the moment of
     # the press and lives only in the redirect.
     refute html =~ @ticket
-    refute html =~ "k_"
+    refute html =~ @ticket_pattern
 
     stub_reply(minted())
 
@@ -120,6 +125,6 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDEntryTest do
       end)
 
     refute log =~ @ticket
-    refute log =~ "k_"
+    refute log =~ @ticket_pattern
   end
 end

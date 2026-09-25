@@ -1,25 +1,28 @@
 defmodule BotArmyDashboardLiveview.SelfReport do
   @moduledoc """
-  The maid's own numbers, tapped by her on her own screen.
+  The maid's own numbers: two screens, one card each, hers to tap.
 
   Two things are reported here and nowhere else: **yearning** (the goddess-focus
-  indicator) and a **body reading** (how much of something the body is showing).
-  Both are hers to say. Neither is measured, and neither is inferred by this
-  screen: a tap is a report, and the panel says so in the row it writes.
+  indicator, `/yearning-phone`) and a **body reading** (how much of something the
+  body is showing, `/body-phone`). Both are hers to say. Neither is measured, and
+  neither is inferred by these screens: a tap is a report, and the panel says so
+  in the row it writes.
 
-  ## Why here, and not on the household HUD
+  ## Why its own screens, and not the household HUD
 
-  The household HUD reads the house — what is holding, how hard the board is
-  set, what the pet layer is doing, where the exit is. It is a *view*. Putting
-  the input ladder on it made the reading screen and the reporting screen the
-  same screen, which is how a report becomes something a person does *for* a
-  screen rather than about herself. This block lives on the maid's own screen
-  (`/timer-phone`), next to the timer she already uses.
+  The household HUD reads the house — what is holding, how hard the board is set,
+  what the pet layer is doing, where the exit is. It is a *view*. Putting the
+  input ladders on it made the reading screen and the reporting screen the same
+  screen, which is how a report becomes something a person does *for* a screen
+  rather than about herself. So each ladder is its own page, reached from the
+  phone navigation bar the way fitness and gtd are, and the HUD keeps only the
+  two *reads*.
 
-  It is also deliberately **outside** the touch-carousel container on that
-  screen: that container emits a `tap` event for any touch that does not move,
-  and that event drives the timer. A tap on a point here must not also start a
-  session, so this block sits outside the hook.
+  They are deliberately **not** placed inside a `phx-hook="TouchCarousel"`
+  container (as `/timer-phone` is): that hook pushes a `tap` event for any touch
+  that does not move, and on a page like that the event drives something else. A
+  tap on a point must mean one thing only. `test/yearning_phone_test.exs` pins
+  that these screens carry no carousel hook at all.
 
   ## The rules a report obeys
 
@@ -33,15 +36,24 @@ defmodule BotArmyDashboardLiveview.SelfReport do
       4" are different claims, and only the second one is this screen's to make.
     * **A dead broker is not a refusal.** Nothing was recorded, and the sentence
       says so rather than implying the bot said no.
+
+  ## The seam a host page uses
+
+  A page is three lines of boilerplate (`start/1` on mount, `info/2` for the
+  read, `click/3` for a tap) plus `<.card which={...} report={...} tap={...} />`.
+  The rules above live here rather than in each page, so a third report would not
+  have to re-learn them.
   """
 
   use Phoenix.Component
 
   require Logger
 
+  alias BotArmyDashboardLiveview.BotRead
   alias BotArmyDashboardLiveview.Broker
   alias BotArmyDashboardLiveview.HouseholdHUDPayload, as: HUD
 
+  @panel_subject "wife_care.control_panel.state"
   @yearning_subject "wife_care.control_panel.record_goddess_proximity"
   @body_subject "wife_care.control_panel.record_body_reading"
   @request_timeout 3_000
@@ -51,6 +63,60 @@ defmodule BotArmyDashboardLiveview.SelfReport do
 
   @doc "The subject a body reading is reported on."
   def body_subject, do: @body_subject
+
+  # ── the seam a host page uses ───────────────────────────────────────────────
+
+  @doc """
+  Start the one read these screens need, and open with nothing on record.
+
+  The read is the panel state — the same reply the household HUD reads — because
+  both cards show the house's own reading of each number beside the ladder.
+  """
+  @spec start(Phoenix.LiveView.Socket.t()) :: Phoenix.LiveView.Socket.t()
+  def start(socket) do
+    BotRead.async(self(), :self_report, @panel_subject, %{}, timeout: @request_timeout)
+    assign(socket, report: nil, tap: nil)
+  end
+
+  @doc """
+  Take the read, and reconcile it with any tap that is waiting on it.
+
+  This runs for the opening read and for the re-read after a write; they are the
+  same read, and settling twice is idempotent.
+  """
+  @spec info(Phoenix.LiveView.Socket.t(), map() | nil) :: Phoenix.LiveView.Socket.t()
+  def info(socket, answer) do
+    report = HUD.build(answer, nil)
+
+    assign(socket, report: report, tap: settle(socket.assigns.tap, report))
+  end
+
+  @doc """
+  One tap, from the event to the sentence under the card.
+
+  `where` is `:yearning` or `{:body, kind}`. A refusal this screen owns never
+  reaches the bot; a sent write is always followed by a re-read, so the sentence
+  reports the reading rather than the acknowledgement.
+  """
+  @spec click(Phoenix.LiveView.Socket.t(), :yearning | {:body, String.t()}, term()) ::
+          Phoenix.LiveView.Socket.t()
+  def click(socket, where, raw) do
+    case plan(where, raw, socket.assigns[:report]) do
+      {:refused, tap} ->
+        assign(socket, tap: tap)
+
+      {:send, subject, payload, tap} ->
+        case write(subject, payload) do
+          {:ok, _data} -> socket |> assign(tap: tap) |> reread()
+          {:error, sentence} -> assign(socket, tap: Map.put(tap, :error, sentence))
+        end
+    end
+  end
+
+  defp reread(socket) do
+    BotRead.async(self(), :self_report, @panel_subject, %{}, timeout: @request_timeout)
+    socket
+  end
 
   # ── deciding what a tap means ───────────────────────────────────────────────
 
@@ -140,19 +206,20 @@ defmodule BotArmyDashboardLiveview.SelfReport do
   def class(%{error: _}), do: "unreported"
   def class(_tap), do: "dim"
 
-  # ── the two cards ───────────────────────────────────────────────────────────
+  # ── one card ────────────────────────────────────────────────────────────────
 
   @doc """
-  Both report cards, with their own styles and their own result lines.
+  One report card, with its own styles and its own result line.
 
-  `report` is the built panel payload (`HouseholdHUDPayload.build/2`); while it
-  is `nil` the block says the read has not landed rather than drawing an empty
-  scale.
+  `which` is `:yearning` or `:body`; each screen draws its own card only. `report`
+  is the built panel payload (`HouseholdHUDPayload.build/2`); while it is `nil`
+  the card says the read has not landed rather than drawing an empty ladder.
   """
+  attr(:which, :atom, required: true)
   attr(:report, :map, default: nil)
   attr(:tap, :map, default: nil)
 
-  def cards(assigns) do
+  def card(%{which: which} = assigns) when which in [:yearning, :body] do
     ~H"""
     <style>
       .report-card { background: #131a3a; border: 1px solid #222c56; border-radius: 10px; padding: 14px 16px; margin: 0 auto 14px; max-width: 900px; }
@@ -168,19 +235,17 @@ defmodule BotArmyDashboardLiveview.SelfReport do
       .tap-legend { color: #6f7db2; font-size: 12px; margin: 2px 0 0; }
     </style>
 
-    <%!-- Below the timer card, so it needs room for the fixed nav bar rather
-         than hiding its last line under it. --%>
-    <div style="padding-bottom: 78px">
-      <%= if @report do %>
-        <%= yearning_card(assigns) %>
-        <%= body_card(assigns) %>
-      <% else %>
-        <div class="report-card">
-          <div class="card-title">Your own numbers</div>
-          <p class="unreported">nothing from the panel yet — the two cards appear when the read lands</p>
-        </div>
+    <%= if @report do %>
+      <%= case @which do %>
+        <% :yearning -> %><%= yearning_card(assigns) %>
+        <% :body -> %><%= body_card(assigns) %>
       <% end %>
-    </div>
+    <% else %>
+      <div class="report-card">
+        <div class="card-title"><%= if @which == :yearning, do: "Yearning", else: "The body" %></div>
+        <p class="unreported">nothing from the panel yet — the card appears when the read lands</p>
+      </div>
+    <% end %>
     """
   end
 
@@ -258,9 +323,9 @@ defmodule BotArmyDashboardLiveview.SelfReport do
     """
   end
 
-  # The result line belongs to the card the tap was made in. Two cards are on
-  # screen at once, and a line under the wrong one is a lie about where the
-  # reading went.
+  # The result line belongs to the card the tap was made in. Each screen draws
+  # one card today, and the `where` still has to match: a line under the wrong
+  # card is a lie about where the reading went.
   attr(:tap, :map, default: nil)
   attr(:where, :atom, required: true)
 

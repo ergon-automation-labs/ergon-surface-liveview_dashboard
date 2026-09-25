@@ -4,15 +4,22 @@ defmodule BotArmyDashboardLiveview.PhoneNav do
   Provides quick access between all phone pages.
 
   The household HUD is first on purpose. It is the screen the maid lives on —
-  what the house is doing, where she is in it, and the two things only she can
-  report — and until this bar carried it the page had no way in except a URL
-  someone had to remember. A screen nobody can navigate to is not a screen.
+  what the house is doing, where she is in it, and what the house knows about her
+  — and until this bar carried it the page had no way in except a URL someone had
+  to remember. A screen nobody can navigate to is not a screen.
+
+  Yearning and body follow it because they are hers to say, and they are their
+  own screens rather than corners of the house's read: a report belongs on the
+  screen that is for reporting. They sit next to the house, ahead of the timer,
+  because the two things only she can report are closer to her than the work.
   """
 
   use Phoenix.Component
 
   @handhelds [
     {"/household-hud", "🏠", "House"},
+    {"/yearning-phone", "💗", "Yearning"},
+    {"/body-phone", "🫀", "Body"},
     {"/timer-phone", "⏱️", "Timer"},
     {"/habits-phone", "✓", "Habits"},
     {"/habit-anchors", "🪥", "Anchors"},

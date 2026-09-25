@@ -25,7 +25,7 @@ defmodule BotArmyDashboardLiveview.RoutesMountTest do
   @endpoint BotArmyDashboardLiveview.Endpoint
 
   @routes ~w(
-    / household-hud
+    / household-hud yearning-phone body-phone
     fitness-handheld gtd-handheld system-health-handheld energy-mood-handheld timer-handheld
     habit-anchors quest-status reflection
     timer-phone habits-phone quest-phone reflect-phone energy-mood-phone

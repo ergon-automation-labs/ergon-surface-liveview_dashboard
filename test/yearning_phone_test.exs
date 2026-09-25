@@ -1,4 +1,4 @@
-defmodule BotArmyDashboardLiveview.TimerPhoneYearningTest do
+defmodule BotArmyDashboardLiveview.YearningPhoneTest do
   # The write path swaps the broker transport for a stub and sets process-wide
   # application env, so this module is not async.
   use ExUnit.Case, async: false
@@ -31,9 +31,6 @@ defmodule BotArmyDashboardLiveview.TimerPhoneYearningTest do
     Jason.encode!(%{
       "ok" => true,
       "data" => %{
-        # The timer phone also reads its task list; one stub body answers
-        # every subject, so the panel reply carries an empty list for it.
-        "tasks" => [],
         "louiza" => %{
           "yearning" => %{
             "level" => level,
@@ -47,11 +44,11 @@ defmodule BotArmyDashboardLiveview.TimerPhoneYearningTest do
 
   defp stub_reply(reply), do: Application.put_env(@app, :broker_stub_reply, reply)
 
-  # A screen whose two reads have already answered, so a test starts from a
-  # settled card rather than from the "asking the house" state.
-  defp hud(level) do
+  # A screen whose read has already answered, so a test starts from a settled
+  # card rather than from the "asking the house" state.
+  defp page(level) do
     stub_reply(state_reply(level))
-    {:ok, view, _html} = live(build_conn(), "/timer-phone")
+    {:ok, view, _html} = live(build_conn(), "/yearning-phone")
     await(view, "#{level} of 5")
     view
   end
@@ -75,7 +72,7 @@ defmodule BotArmyDashboardLiveview.TimerPhoneYearningTest do
   defp tap_point(view, level), do: render_click(view, "record_yearning", %{"level" => level})
 
   test "the card offers the house's six points and nothing finer" do
-    html = render(hud(2))
+    html = render(page(2))
 
     for level <- 0..5 do
       assert html =~ ~s(phx-value-level="#{level}")
@@ -90,7 +87,7 @@ defmodule BotArmyDashboardLiveview.TimerPhoneYearningTest do
   end
 
   test "the reading that is highlighted is today's reading" do
-    view = hud(3)
+    view = page(3)
 
     assert has_element?(view, "button[phx-value-level=3].tap.on")
     refute has_element?(view, "button[phx-value-level=2].tap.on")
@@ -101,14 +98,14 @@ defmodule BotArmyDashboardLiveview.TimerPhoneYearningTest do
   # "no reading today".
   test "a reading from an earlier day is shown but not highlighted" do
     stub_reply(state_reply(4, false))
-    {:ok, view, _html} = live(build_conn(), "/timer-phone")
+    {:ok, view, _html} = live(build_conn(), "/yearning-phone")
     await(view, "Last reading on 2026-09-25")
 
     refute has_element?(view, "button.tap.on")
   end
 
   test "a tap logs the point, in the body the bot actually reads" do
-    view = hud(2)
+    view = page(2)
     stub_reply(state_reply(4))
 
     tap_point(view, "4")
@@ -121,7 +118,7 @@ defmodule BotArmyDashboardLiveview.TimerPhoneYearningTest do
   # house had agreed. After a tap the card reads the house again, and what it
   # paints is the answer.
   test "what is shown after a tap is the bot's reading, not the tap" do
-    view = hud(2)
+    view = page(2)
     stub_reply(state_reply(4))
 
     tap_point(view, "4")
@@ -135,7 +132,7 @@ defmodule BotArmyDashboardLiveview.TimerPhoneYearningTest do
   # taken but the reading that comes back is not the one sent, the card says
   # exactly that instead of rounding up to success.
   test "a tap the bot took but did not read back as is reported as such" do
-    view = hud(2)
+    view = page(2)
     # One body answers both calls: the write sees `ok: true` and is taken, and the
     # re-read that follows reports 3.
     stub_reply(state_reply(3))
@@ -150,7 +147,7 @@ defmodule BotArmyDashboardLiveview.TimerPhoneYearningTest do
   # A refusal is the bot's sentence, not this screen's paraphrase. The bot names
   # the range and the reason; a paraphrase loses the part the operator needs.
   test "a refusal is shown in the bot's own words and claims nothing" do
-    view = hud(2)
+    view = page(2)
 
     stub_reply(
       Jason.encode!(%{
@@ -171,7 +168,7 @@ defmodule BotArmyDashboardLiveview.TimerPhoneYearningTest do
   # sentence has to make unambiguous, and it has to leave a trace for the
   # operator: a button that quietly does nothing is not a diagnosis.
   test "an answer that never comes says nothing was recorded, and logs it" do
-    view = hud(2)
+    view = page(2)
     stub_reply({:error, :no_broker})
 
     log =
@@ -187,7 +184,7 @@ defmodule BotArmyDashboardLiveview.TimerPhoneYearningTest do
   # The screen owns this check because a bad point is a bad *request*, not a
   # reading the house should have to refuse. Nothing is sent.
   test "a point outside the six is refused before anything is sent" do
-    view = hud(2)
+    view = page(2)
     stub_reply(state_reply(2))
 
     tap_point(view, "9")
@@ -197,7 +194,7 @@ defmodule BotArmyDashboardLiveview.TimerPhoneYearningTest do
   end
 
   test "a tap that is not a number is refused the same way" do
-    view = hud(2)
+    view = page(2)
 
     tap_point(view, "four")
 

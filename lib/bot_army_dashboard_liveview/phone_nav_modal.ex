@@ -7,6 +7,8 @@ defmodule BotArmyDashboardLiveview.PhoneNavModal do
   use Phoenix.Component
 
   @handhelds [
+    {"/yearning-phone", "💗", "Yearning", "Her own number, never measured"},
+    {"/body-phone", "🫀", "Body", "Five channels, her own points"},
     {"/timer-phone", "⏱️", "Timer", "Focus sessions with task linking"},
     {"/habits-phone", "✓", "Habits", "Daily shame-free check-ins"},
     {"/quest-phone", "⚔️", "Quest", "Story progression tracker"},

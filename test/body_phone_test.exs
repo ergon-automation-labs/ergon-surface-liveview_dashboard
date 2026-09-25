@@ -1,4 +1,4 @@
-defmodule BotArmyDashboardLiveview.TimerPhoneBodyTest do
+defmodule BotArmyDashboardLiveview.BodyPhoneTest do
   # Same harness as the yearning card: the write path swaps the broker transport
   # for a stub and sets process-wide application env, so this module is not async.
   #
@@ -92,9 +92,6 @@ defmodule BotArmyDashboardLiveview.TimerPhoneBodyTest do
     Jason.encode!(%{
       "ok" => true,
       "data" => %{
-        # The timer phone also reads its task list; one stub body answers
-        # every subject, so the panel reply carries an empty list for it.
-        "tasks" => [],
         "body" => body
       }
     })
@@ -102,11 +99,11 @@ defmodule BotArmyDashboardLiveview.TimerPhoneBodyTest do
 
   defp stub_reply(reply), do: Application.put_env(@app, :broker_stub_reply, reply)
 
-  # A screen whose reads have already answered, so a test starts from a settled
+  # A screen whose read has already answered, so a test starts from a settled
   # card rather than from the "asking the house" state.
-  defp hud(reported, opts \\ []) do
+  defp page(reported, opts \\ []) do
     stub_reply(state_reply(reported, opts))
-    {:ok, view, _html} = live(build_conn(), "/timer-phone")
+    {:ok, view, _html} = live(build_conn(), "/body-phone")
     await(view, "The body")
     view
   end
@@ -135,7 +132,7 @@ defmodule BotArmyDashboardLiveview.TimerPhoneBodyTest do
   # ── the card ────────────────────────────────────────────────────────────────
 
   test "the card draws every channel the bot keeps, each with the six points" do
-    html = render(hud(%{"hands" => reading(3)}))
+    html = render(page(%{"hands" => reading(3)}))
 
     for kind <- @channels do
       assert html =~ ~s(phx-value-kind="#{kind}")
@@ -157,7 +154,7 @@ defmodule BotArmyDashboardLiveview.TimerPhoneBodyTest do
   # has added must appear without a surface release; one it has dropped must go.
   test "the channels drawn are the bot's list, not a list this screen keeps" do
     kinds = [%{"key" => "throat", "label" => "Throat", "detail" => "how tight it has gone"}]
-    html = render(hud(%{}, kinds: kinds))
+    html = render(page(%{}, kinds: kinds))
 
     assert html =~ ~s(phx-value-kind="throat")
     refute html =~ ~s(phx-value-kind="hands")
@@ -167,11 +164,10 @@ defmodule BotArmyDashboardLiveview.TimerPhoneBodyTest do
   # offering words the house no longer uses.
   test "the scale drawn is the bot's scale, not this screen's" do
     scale = [%{"level" => 0, "label" => "nothing"}, %{"level" => 5, "label" => "everything"}]
-    html = render(hud(%{}, scale: scale))
+    html = render(page(%{}, scale: scale))
 
-    # Scoped to the body card's own legend: the Yearning card draws the house
-    # scale on the same screen, so a bare `phx-value-level` search would pass on
-    # somebody else's buttons.
+    # Scoped to the card's own legend: a bare `phx-value-level` search would
+    # pass on the ladder above it.
     assert html =~ "The points: 0 nothing · 5 everything"
     refute html =~ "The points: 0 none"
   end
@@ -179,14 +175,14 @@ defmodule BotArmyDashboardLiveview.TimerPhoneBodyTest do
   # A channel nobody has read is not a channel at zero. The card says so in words,
   # and it does not highlight a point on that row.
   test "a channel with nothing on record reads not reported, never zero" do
-    view = hud(%{})
+    view = page(%{})
 
     assert render(view) =~ "not reported"
     refute has_element?(view, "button.tap.on")
   end
 
   test "the highlighted point is today's reading for that channel" do
-    view = hud(%{"hands" => reading(3), "pulse" => reading(1, "pulse")})
+    view = page(%{"hands" => reading(3), "pulse" => reading(1, "pulse")})
 
     assert has_element?(view, "button[phx-value-kind=hands][phx-value-level=3].tap.on")
     assert has_element?(view, "button[phx-value-kind=pulse][phx-value-level=1].tap.on")
@@ -197,7 +193,7 @@ defmodule BotArmyDashboardLiveview.TimerPhoneBodyTest do
   # A reading from another day is still a reading — it is shown with its number —
   # but it is not today's, so nothing on that row is painted as the current state.
   test "a reading from an earlier day is shown but not highlighted" do
-    view = hud(%{"hands" => reading(3, "hands", today?: false)})
+    view = page(%{"hands" => reading(3, "hands", today?: false)})
 
     assert render(view) =~ "a lot (3 of 5)"
     refute has_element?(view, "button[phx-value-kind=hands].tap.on")
@@ -206,7 +202,7 @@ defmodule BotArmyDashboardLiveview.TimerPhoneBodyTest do
   # Where a number came from is part of the number: a measurement must never be
   # dressed in the words of a finger press.
   test "the card carries the bot's own words for where the reading came from" do
-    view = hud(%{"pulse" => reading(2, "pulse", source_label: "measured")})
+    view = page(%{"pulse" => reading(2, "pulse", source_label: "measured")})
 
     assert render(view) =~ "measured"
     refute render(view) =~ "what she said"
@@ -215,7 +211,7 @@ defmodule BotArmyDashboardLiveview.TimerPhoneBodyTest do
   # ── the tap ─────────────────────────────────────────────────────────────────
 
   test "a tap logs the channel and the point, in the body the bot actually reads" do
-    view = hud(%{"hands" => reading(2)})
+    view = page(%{"hands" => reading(2)})
     stub_reply(state_reply(%{"hands" => reading(4)}))
 
     tap(view, "hands", "4")
@@ -233,7 +229,7 @@ defmodule BotArmyDashboardLiveview.TimerPhoneBodyTest do
   # house had agreed. After a tap the card reads the house again, and what it
   # paints is the answer.
   test "what is shown after a tap is the bot's reading, not the tap" do
-    view = hud(%{"hands" => reading(2)})
+    view = page(%{"hands" => reading(2)})
     stub_reply(state_reply(%{"hands" => reading(4)}))
 
     tap(view, "hands", "4")
@@ -246,7 +242,7 @@ defmodule BotArmyDashboardLiveview.TimerPhoneBodyTest do
   # but the reading that comes back is not the one sent, the card says exactly
   # that instead of rounding up to success.
   test "a tap the bot took but did not read back as is reported as such" do
-    view = hud(%{"hands" => reading(2)})
+    view = page(%{"hands" => reading(2)})
     # One body answers both calls: the write sees `ok: true` and is taken, and the
     # re-read that follows reports 3.
     stub_reply(state_reply(%{"hands" => reading(3)}))
@@ -258,11 +254,10 @@ defmodule BotArmyDashboardLiveview.TimerPhoneBodyTest do
     refute has_element?(view, "button[phx-value-kind=hands][phx-value-level=4].tap.on")
   end
 
-  # A tap on the body card must not report itself under the Yearning card. Two
-  # cards are on screen at once, and a line under the wrong one is a lie about
-  # where the reading went.
-  test "a body tap speaks once, on its own card" do
-    view = hud(%{"hands" => reading(2)})
+  # A body tap speaks in the body card's words and nowhere else: `4 of 5` with
+  # no channel named is the yearning sentence, and a body page must never say it.
+  test "a body tap speaks once, in the body card's words" do
+    view = page(%{"hands" => reading(2)})
     stub_reply(state_reply(%{"hands" => reading(4)}))
 
     tap(view, "hands", "4")
@@ -275,7 +270,7 @@ defmodule BotArmyDashboardLiveview.TimerPhoneBodyTest do
   # A refusal is the bot's sentence, not this screen's paraphrase. The bot names
   # the channels it keeps; a paraphrase loses the part the operator needs.
   test "a refusal is shown in the bot's own words and claims nothing" do
-    view = hud(%{})
+    view = page(%{})
 
     stub_reply(
       Jason.encode!(%{
@@ -296,7 +291,7 @@ defmodule BotArmyDashboardLiveview.TimerPhoneBodyTest do
   # sentence has to make unambiguous, and it has to leave a trace for the
   # operator: a button that quietly does nothing is not a diagnosis.
   test "an answer that never comes says nothing was recorded, and logs it" do
-    view = hud(%{})
+    view = page(%{})
     stub_reply({:error, :no_broker})
 
     log =
@@ -312,7 +307,7 @@ defmodule BotArmyDashboardLiveview.TimerPhoneBodyTest do
   # The screen owns this check because a bad point is a bad *request*, not a
   # reading the house should have to refuse. Nothing is sent.
   test "a point outside the six is refused before anything is sent" do
-    view = hud(%{})
+    view = page(%{})
 
     tap(view, "hands", "9")
 
@@ -323,7 +318,7 @@ defmodule BotArmyDashboardLiveview.TimerPhoneBodyTest do
   # A channel this screen never drew is a stale page, not a reading. Sending it
   # would put a word in the house's mouth.
   test "a channel that is not on the card is refused before anything is sent" do
-    view = hud(%{})
+    view = page(%{})
 
     tap(view, "toes", "3")
 

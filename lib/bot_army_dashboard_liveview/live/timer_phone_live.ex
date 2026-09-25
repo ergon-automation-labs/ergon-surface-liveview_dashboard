@@ -4,14 +4,9 @@ defmodule BotArmyDashboardLiveview.TimerPhoneLive do
   alias BotArmyDashboardLiveview.BotRead
   alias BotArmyDashboardLiveview.Broker
   alias Phoenix.PubSub
-  alias BotArmyDashboardLiveview.HouseholdHUDPayload, as: HUD
   alias BotArmyDashboardLiveview.PhoneNav
   alias BotArmyDashboardLiveview.PhoneNavModal
-  alias BotArmyDashboardLiveview.SelfReport
   alias BotArmyDashboardLiveview.SyncStatus
-
-  @panel_subject "wife_care.control_panel.state"
-  @request_timeout 3_000
 
   @impl true
   def mount(_params, _session, socket) do
@@ -43,12 +38,9 @@ defmodule BotArmyDashboardLiveview.TimerPhoneLive do
         show_nav_menu: false,
         search_query: "",
         sync_status: %{},
-        is_online: true,
-        report: nil,
-        tap: nil
+        is_online: true
       )
       |> fetch_tasks()
-      |> fetch_report()
       |> schedule_tick()
 
     {:ok, socket}
@@ -57,27 +49,6 @@ defmodule BotArmyDashboardLiveview.TimerPhoneLive do
   defp fetch_tasks(socket) do
     BotRead.async(self(), :tasks_loaded, "bridge.task.list", %{}, timeout: 5000)
     socket
-  end
-
-  # The maid's own screen, so it carries the two things that are hers to say:
-  # yearning and a body reading. Read here, written from here, and settled
-  # against the re-read (`SelfReport.settle/2`) — never against the write.
-  defp fetch_report(socket) do
-    BotRead.async(self(), :self_report, @panel_subject, %{}, timeout: @request_timeout)
-    socket
-  end
-
-  defp report_tap(socket, spec, raw) do
-    case SelfReport.plan(spec, raw, socket.assigns.report) do
-      {:refused, tap} ->
-        assign(socket, tap: tap)
-
-      {:send, subject, payload, tap} ->
-        case SelfReport.write(subject, payload) do
-          {:ok, _data} -> socket |> assign(tap: tap) |> fetch_report()
-          {:error, sentence} -> assign(socket, tap: Map.put(tap, :error, sentence))
-        end
-    end
   end
 
   defp schedule_tick(socket) do
@@ -91,17 +62,6 @@ defmodule BotArmyDashboardLiveview.TimerPhoneLive do
       {:ok, tasks} -> {:noreply, assign(socket, tasks: tasks, selected_task_index: 0)}
       :error -> {:noreply, BotRead.failed(socket, :unexpected_reply)}
     end
-  end
-
-  @impl true
-  def handle_info({:self_report, answer}, socket) do
-    report = HUD.build(answer, nil)
-
-    {:noreply,
-     assign(socket,
-       report: report,
-       tap: SelfReport.settle(socket.assigns.tap, report)
-     )}
   end
 
   @impl true
@@ -435,19 +395,6 @@ defmodule BotArmyDashboardLiveview.TimerPhoneLive do
      |> schedule_message_clear(3000)}
   end
 
-  # A tap on a point is the maid reporting on herself. The block that draws these
-  # sits outside the touch-carousel container, so a tap here cannot also reach
-  # the timer's own `tap` event.
-  @impl true
-  def handle_event("record_yearning", %{"level" => raw}, socket) do
-    {:noreply, report_tap(socket, :yearning, raw)}
-  end
-
-  @impl true
-  def handle_event("record_body_reading", %{"kind" => kind, "level" => raw}, socket) do
-    {:noreply, report_tap(socket, {:body, kind}, raw)}
-  end
-
   @impl true
   def handle_event("sync-queue-online", _params, socket) do
     {:noreply, assign(socket, is_online: true)}
@@ -627,8 +574,6 @@ defmodule BotArmyDashboardLiveview.TimerPhoneLive do
         <div class="message"><%= @message %></div>
       <% end %>
     </div>
-
-    <SelfReport.cards report={@report} tap={@tap} />
 
     <PhoneNav.nav current_route="/timer-phone" />
 
