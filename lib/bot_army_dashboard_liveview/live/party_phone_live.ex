@@ -65,6 +65,11 @@ defmodule BotArmyDashboardLiveview.PartyPhoneLive do
       timeout: @call_timeout
     )
 
+    # Whether a call is open, asked on the same subject the house screen asks it on so
+    # the two cannot disagree. The shelf's card is handed the answer, and a page that
+    # draws the shelf without ever asking is a page claiming a gate it never checked.
+    BotRead.async(self(), :open_call, HypnosisShelf.call_subject(), %{}, timeout: @call_timeout)
+
     {:ok,
      socket
      |> HypnosisShelf.start()
@@ -290,7 +295,9 @@ defmodule BotArmyDashboardLiveview.PartyPhoneLive do
           </div>
 
           <div class="card">
-            <div class="card-title">🌀 Her shelf  offered inside this window</div>
+            <%= if @open_call != :none do %>
+              <div class="card-title">🌀 Her shelf  offered inside this window</div>
+            <% end %>
             <HypnosisShelf.card
               shelf={@shelf}
               act={@act}

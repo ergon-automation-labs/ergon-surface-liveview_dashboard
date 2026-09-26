@@ -139,6 +139,50 @@ defmodule BotArmyDashboardLiveview.PartyPhoneTest do
     assert render(view) =~ "Review it"
   end
 
+  test "the page asks whether a call is open, on the house screen's own subject" do
+    Application.put_env(
+      @app,
+      :broker_stub_reply,
+      answers(%{@window_subject => window_answer(), @party_subject => party_answer()})
+    )
+
+    {:ok, view, _html} = live(build_conn(), "/party-phone")
+    settle(view)
+
+    # The shelf's card is handed this answer, so the question has to be asked: a page
+    # that draws the shelf without asking is claiming a gate it never checked.
+    assert_receive {:broker_stub_request, _conn, @call_subject, _payload, _opts}
+  end
+
+  test "a call that is not open takes the shelf off the window page" do
+    Application.put_env(
+      @app,
+      :broker_stub_reply,
+      answers(%{
+        @window_subject => window_answer(),
+        @party_subject => party_answer(),
+        @call_subject =>
+          Jason.encode!(%{
+            "ok" => true,
+            "data" => %{"louiza" => %{"demands" => %{"pending" => []}}}
+          })
+      })
+    )
+
+    {:ok, view, _html} = live(build_conn(), "/party-phone")
+    settle(view)
+    html = render(view)
+
+    # The window still stands — this is the shelf's condition, not the window's.
+    assert html =~ @scene
+    assert html =~ "gtd_bot"
+    # And the page does not claim to offer a shelf the bot said is not offered.
+    assert html =~ "Nothing is waiting right now"
+    refute html =~ "offered inside this window"
+    refute html =~ "Switch off"
+    refute html =~ "Take away"
+  end
+
   test "no window is open: the page says so and offers no shelf" do
     Application.put_env(
       @app,
