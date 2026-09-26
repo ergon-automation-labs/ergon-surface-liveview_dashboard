@@ -20,6 +20,7 @@ defmodule BotArmyDashboardLiveview.HypnosisShelfTest do
   @app :bot_army_dashboard_liveview
   @read "wife_care.control_panel.hypnosis"
   @write "wife_care.control_panel.hypnosis_phrase"
+  @call "wife_care.control_panel.state"
 
   @p1 "5f1a0f2e-1111-4000-8000-000000000001"
   @p2 "5f1a0f2e-1111-4000-8000-000000000002"
@@ -632,6 +633,45 @@ defmodule BotArmyDashboardLiveview.HypnosisShelfTest do
     assert HypnosisShelf.said_line(shelf, unnamed) =~ "does not say which phrase"
 
     assert HypnosisShelf.said_line(shelf, "not an event") =~ "cannot read"
+  end
+
+  # ── the window the shelf is offered in ──────────────────────────────────────
+
+  # The shelf is offered while a call is open, so the screen has to ask about the call.
+  # It asks on the subject the house screen already reads, so the two cannot disagree
+  # about whether one is open — the fact has one home.
+  test "the call question is asked on the subject the house screen already reads" do
+    assert HypnosisShelf.call_subject() == @call
+  end
+
+  # A call that has not been answered is still open. Anything else in the list shape the
+  # house sends — and a demand that *is* answered is simply absent from it — so a
+  # non-empty list is the whole test, and the screen reads no state of its own into it.
+  test "an unanswered call is open, and a reported empty list is nothing waiting" do
+    assert HypnosisShelf.open_call(%{
+             "louiza" => %{"demands" => %{"pending" => [%{"label" => "come here now"}]}}
+           }) == :open
+
+    assert HypnosisShelf.open_call(%{
+             "louiza" => %{"demands" => %{"pending" => [], "today_count" => 0}}
+           }) == :none
+  end
+
+  # The distinction the gate rests on: an answer that never mentioned calls is not a
+  # report of nothing waiting, and only a plain `:none` takes the shelf off the page.
+  test "an answer that never mentioned calls is not a report of nothing waiting" do
+    assert HypnosisShelf.open_call(%{"louiza" => %{"mood" => "quiet"}}) == :unreported
+    assert HypnosisShelf.open_call(%{}) == :unreported
+    assert HypnosisShelf.open_call(nil) == :unreported
+    assert HypnosisShelf.open_call([%{"louiza" => %{}}]) == :unreported
+    assert HypnosisShelf.open_call("not a panel") == :unreported
+
+    # A `demands` block that is not the list the house reads is not "nothing waiting"
+    # either: it is the bot saying something this screen cannot read as a list of calls.
+    assert HypnosisShelf.open_call(%{"louiza" => %{"demands" => %{"pending" => "yes"}}}) ==
+             :unreported
+
+    assert HypnosisShelf.open_call(%{"louiza" => %{"demands" => nil}}) == :unreported
   end
 
   test "a saying is not a count: the read that follows it is what the shelf reports" do

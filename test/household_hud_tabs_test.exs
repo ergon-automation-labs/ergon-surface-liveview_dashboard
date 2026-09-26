@@ -95,6 +95,54 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDTabsTest do
     refute now =~ "The chorus"
   end
 
+  # The shelf is not an entry in the nav bar: what she asked to hear is offered while a
+  # call is open, and the card that already draws that fact is where the offer belongs.
+  # The offer is drawn by the same list the card draws, so the two cannot disagree about
+  # whether a call is open.
+  test "a call that is still open is where the shelf is offered from" do
+    open =
+      Jason.encode!(%{
+        "ok" => true,
+        "data" => %{
+          "louiza" => %{
+            "demands" => %{
+              "today_count" => 1,
+              "pending" => [%{"category" => "proximity", "label" => "come here now"}]
+            }
+          }
+        }
+      })
+
+    Application.put_env(@app, :broker_stub_reply, open)
+    view = answered()
+
+    now = render(view)
+    refute now =~ "the shelf is offered here"
+
+    goddess = render_click(view, "tab", %{"tab" => "goddess"})
+    assert goddess =~ "come here now"
+    assert goddess =~ "A call is still open, so the shelf is offered here"
+    assert goddess =~ ~s(href="/hypnosis-phone")
+  end
+
+  # And the other half of it: a house that reports nothing waiting offers no shelf, with
+  # no link to a page that would refuse in its own words anyway.
+  test "a house with nothing waiting offers no shelf" do
+    empty =
+      Jason.encode!(%{
+        "ok" => true,
+        "data" => %{"louiza" => %{"demands" => %{"today_count" => 0, "pending" => []}}}
+      })
+
+    Application.put_env(@app, :broker_stub_reply, empty)
+    goddess = render_click(answered(), "tab", %{"tab" => "goddess"})
+
+    assert goddess =~ "Calls she has sent"
+    assert goddess =~ "nothing waiting"
+    refute goddess =~ "the shelf is offered here"
+    refute goddess =~ ~s(href="/hypnosis-phone")
+  end
+
   # Switching lenses must not go back to the bot. The stub records every question
   # it is asked, so a switch that asked again would show up here as a second read.
   test "a switch is a lens, not a second read" do

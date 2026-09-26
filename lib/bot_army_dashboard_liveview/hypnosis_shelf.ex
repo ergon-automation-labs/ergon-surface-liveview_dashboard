@@ -84,6 +84,13 @@ defmodule BotArmyDashboardLiveview.HypnosisShelf do
 
   @read_subject "wife_care.control_panel.hypnosis"
   @write_subject "wife_care.control_panel.hypnosis_phrase"
+
+  # The second question this screen asks, and the only reason it asks anything else: a
+  # phrase in the air is a moment, so the shelf is offered while there is a moment to
+  # offer it in — a call from her that is still unanswered. The subject is the panel
+  # state, which is where the house already keeps that fact and where the house screen
+  # reads it, so the two screens cannot disagree about whether a call is open.
+  @call_subject "wife_care.control_panel.state"
   @request_timeout 5_000
 
   # The voice this screen writes as. Not hers — see the module doc — and not the
@@ -96,6 +103,35 @@ defmodule BotArmyDashboardLiveview.HypnosisShelf do
 
   @doc "The subject the shelf is read on."
   def read_subject, do: @read_subject
+
+  @doc """
+  The subject the open-call question is asked on.
+  """
+  def call_subject, do: @call_subject
+
+  @doc """
+  Is a call open — or is that something the bot did not say?
+
+  Three answers, because the answer to this question is what decides whether the shelf is
+  drawn, and two of them are not the third:
+
+    * `:open` — the house has called and she has not answered yet, so the shelf has a
+      window to be offered in
+    * `:none` — the bot reported today's calls and nothing is waiting
+    * `:unreported` — the answer did not carry the fact at all. An answer that never
+      mentioned calls is not a report of nothing waiting, and reading it as one would
+      take a screen away on the strength of a question nobody asked.
+  """
+  @spec open_call(term()) :: :open | :none | :unreported
+  def open_call(answer) when is_map(answer) do
+    case get_in(answer, ["louiza", "demands", "pending"]) do
+      [] -> :none
+      pending when is_list(pending) -> :open
+      _other -> :unreported
+    end
+  end
+
+  def open_call(_answer), do: :unreported
 
   @doc "The subject a shelf verb is written on."
   def write_subject, do: @write_subject
@@ -816,6 +852,11 @@ defmodule BotArmyDashboardLiveview.HypnosisShelf do
   attr(:act, :map, default: nil)
   attr(:read_error, :string, default: nil)
   attr(:said, :string, default: nil)
+  # `HypnosisShelf.open_call/1`: the card draws no shelf while the bot has said, plainly,
+  # that nothing is waiting. Every other answer — a call open, an answer that never
+  # mentioned calls, a read still in flight — draws the shelf the screen actually read,
+  # because those are not reports of a closed window.
+  attr(:open_call, :atom, default: nil)
 
   def card(assigns) do
     ~H"""
@@ -844,72 +885,76 @@ defmodule BotArmyDashboardLiveview.HypnosisShelf do
       .shelf-section { font-size: 12px; letter-spacing: 1.2px; text-transform: uppercase; color: #6f7db2; margin: 16px 0 2px; }
     </style>
 
-    <%= if @read_error do %>
-      <div class="shelf-card">
-        <div class="card-title">Her shelf</div>
-        <p class="unreported">The shelf was not read — anything drawn here would be this screen guessing at what she asked to hear, and that is not a thing to guess at.</p>
-      </div>
-    <% else %>
-      <%= cond do %>
-        <% is_nil(@shelf) -> %>
-          <div class="shelf-card">
-            <div class="card-title">Her shelf</div>
-            <p class="unreported">nothing from the shelf yet — the card appears when the read lands</p>
-          </div>
-        <% @shelf.refused -> %>
-          <div class="shelf-card">
-            <div class="card-title">Her shelf</div>
-            <p class="unreported"><%= @shelf.refused %></p>
-            <p class="dim" style="font-size:12px;">No phrases are drawn: a shelf put together from a read that failed would be this screen inventing what she asked to hear.</p>
-          </div>
-        <% true -> %>
-          <div class="shelf-card">
-            <div class="card-title">Her shelf — what she has asked to hear  ·  tap to take something out of the air</div>
+    <%= cond do %>
+      <% @open_call == :none -> %>
+        <div class="shelf-card">
+          <div class="card-title">Her shelf</div>
+          <p class="unreported">Nothing is waiting right now, so the shelf is not offered here. What she asked to hear is a moment rather than a place: it appears while a call is open — the house has called her and she has not answered yet.</p>
+          <p class="dim" style="font-size:12px;">It comes back with the next call, and the page keeps reading the shelf underneath either way.</p>
+        </div>
+      <% @read_error -> %>
+        <div class="shelf-card">
+          <div class="card-title">Her shelf</div>
+          <p class="unreported">The shelf was not read — anything drawn here would be this screen guessing at what she asked to hear, and that is not a thing to guess at.</p>
+        </div>
+      <% is_nil(@shelf) -> %>
+        <div class="shelf-card">
+          <div class="card-title">Her shelf</div>
+          <p class="unreported">nothing from the shelf yet — the card appears when the read lands</p>
+        </div>
+      <% @shelf.refused -> %>
+        <div class="shelf-card">
+          <div class="card-title">Her shelf</div>
+          <p class="unreported"><%= @shelf.refused %></p>
+          <p class="dim" style="font-size:12px;">No phrases are drawn: a shelf put together from a read that failed would be this screen inventing what she asked to hear.</p>
+        </div>
+      <% true -> %>
+        <div class="shelf-card">
+          <div class="card-title">Her shelf — what she has asked to hear  ·  tap to take something out of the air</div>
 
-            <%= if @said do %>
-              <p class="shelf-said"><%= @said %></p>
+          <%= if @said do %>
+            <p class="shelf-said"><%= @said %></p>
+          <% end %>
+
+          <p class={narration_class(@shelf.narration)} style="margin:0 0 6px; font-size:12px;"><%= narration_word(@shelf.narration) %>: <%= narration_sentence(@shelf.narration) %></p>
+
+          <p class="shelf-legend">
+            <%= verb_word(:switch_off) %> takes a phrase out of the air, and <%= verb_word(:take_away) %> takes it off the shelf while keeping the record of it. Putting a phrase on the shelf, rewording one, and putting one back are hers: this screen is open to whoever is holding the phone, so it claims no voice of hers and offers none of those.
+          </p>
+
+          <p class="shelf-counts"><%= counts_line(@shelf) %></p>
+          <%= if tick_line(@shelf) != "" do %>
+            <p class="shelf-counts"><%= tick_line(@shelf) %></p>
+          <% end %>
+
+          <%= for phrase <- @shelf.phrases do %>
+            <.phrase_row phrase={phrase} />
+          <% end %>
+
+          <%= if @shelf.empty? do %>
+            <p class="dim empty-state">nothing is in the air — the shelf is empty. A phrase gets onto it in her own voice, which is not a voice this screen has.</p>
+          <% end %>
+
+          <%= if @shelf.put_away != [] do %>
+            <div class="shelf-section">Taken away</div>
+            <p class="dim" style="font-size:12px; margin:0 0 6px;">These were taken off the shelf, and only her voice can put one back — so there is no button here. A cadence on one of them is not in effect: the house only reads from phrases that are on the shelf.</p>
+            <%= for phrase <- @shelf.put_away do %>
+              <.history_row phrase={phrase} note="taken away" chip_class="chip away" />
             <% end %>
+          <% end %>
 
-            <p class={narration_class(@shelf.narration)} style="margin:0 0 6px; font-size:12px;"><%= narration_word(@shelf.narration) %>: <%= narration_sentence(@shelf.narration) %></p>
-
-            <p class="shelf-legend">
-              <%= verb_word(:switch_off) %> takes a phrase out of the air, and <%= verb_word(:take_away) %> takes it off the shelf while keeping the record of it. Putting a phrase on the shelf, rewording one, and putting one back are hers: this screen is open to whoever is holding the phone, so it claims no voice of hers and offers none of those.
-            </p>
-
-            <p class="shelf-counts"><%= counts_line(@shelf) %></p>
-            <%= if tick_line(@shelf) != "" do %>
-              <p class="shelf-counts"><%= tick_line(@shelf) %></p>
+          <%= if @shelf.rewritten != [] do %>
+            <div class="shelf-section">The wording these replaced</div>
+            <p class="dim" style="font-size:12px; margin:0 0 6px;">An earlier wording is kept rather than overwritten, so what she first asked to hear is still readable. A cadence on one of these belongs to the wording the house no longer reads from.</p>
+            <%= for phrase <- @shelf.rewritten do %>
+              <.history_row phrase={phrase} note="earlier wording" chip_class="chip past" />
             <% end %>
+          <% end %>
 
-            <%= for phrase <- @shelf.phrases do %>
-              <.phrase_row phrase={phrase} />
-            <% end %>
-
-            <%= if @shelf.empty? do %>
-              <p class="dim empty-state">nothing is in the air — the shelf is empty. A phrase gets onto it in her own voice, which is not a voice this screen has.</p>
-            <% end %>
-
-            <%= if @shelf.put_away != [] do %>
-              <div class="shelf-section">Taken away</div>
-              <p class="dim" style="font-size:12px; margin:0 0 6px;">These were taken off the shelf, and only her voice can put one back — so there is no button here. A cadence on one of them is not in effect: the house only reads from phrases that are on the shelf.</p>
-              <%= for phrase <- @shelf.put_away do %>
-                <.history_row phrase={phrase} note="taken away" chip_class="chip away" />
-              <% end %>
-            <% end %>
-
-            <%= if @shelf.rewritten != [] do %>
-              <div class="shelf-section">The wording these replaced</div>
-              <p class="dim" style="font-size:12px; margin:0 0 6px;">An earlier wording is kept rather than overwritten, so what she first asked to hear is still readable. A cadence on one of these belongs to the wording the house no longer reads from.</p>
-              <%= for phrase <- @shelf.rewritten do %>
-                <.history_row phrase={phrase} note="earlier wording" chip_class="chip past" />
-              <% end %>
-            <% end %>
-
-            <%= if @act do %>
-              <p class={class(@act)} style="margin-top:10px; font-size:12px;"><%= line(@act) %></p>
-            <% end %>
-          </div>
-      <% end %>
+          <%= if @act do %>
+            <p class={class(@act)} style="margin-top:10px; font-size:12px;"><%= line(@act) %></p>
+          <% end %>
+        </div>
     <% end %>
     """
   end

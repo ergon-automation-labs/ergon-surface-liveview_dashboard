@@ -15,7 +15,11 @@ defmodule BotArmyDashboardLiveview.ReadHooks do
   def on_mount(:default, _params, _session, socket) do
     socket =
       socket
+      # Both assigns, not just the message: a screen that names the read that failed
+      # reads the tag as well, and a view whose assigns are missing one of them takes
+      # the screen down on its first render rather than reporting anything.
       |> assign(:read_error, nil)
+      |> assign(:read_failed_tag, nil)
       |> attach_hook(:bot_read, :handle_info, fn
         {:read_started, tag}, socket -> {:halt, BotRead.started(socket, tag)}
         {:read_failed, tag, reason}, socket -> {:halt, BotRead.failed(socket, tag, reason)}

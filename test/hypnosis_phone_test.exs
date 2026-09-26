@@ -31,6 +31,7 @@ defmodule BotArmyDashboardLiveview.HypnosisPhoneTest do
 
   @read "wife_care.control_panel.hypnosis"
   @write "wife_care.control_panel.hypnosis_phrase"
+  @call "wife_care.control_panel.state"
 
   @p1 "5f1a0f2e-1111-4000-8000-000000000001"
   @p2 "5f1a0f2e-1111-4000-8000-000000000002"
@@ -112,14 +113,51 @@ defmodule BotArmyDashboardLiveview.HypnosisPhoneTest do
     })
   end
 
+  # What the bot says about her calls. `pending` is the row shape the house screen reads:
+  # a call that has not been answered is still open, and the shelf is offered while one is.
+  defp open_call_json do
+    Jason.encode!(%{
+      "ok" => true,
+      "data" => %{
+        "louiza" => %{
+          "demands" => %{
+            "today_count" => 1,
+            "pending" => [%{"label" => "come here now", "state" => "seen, not done"}],
+            "recent_fulfilled" => []
+          }
+        }
+      }
+    })
+  end
+
+  defp no_call_json do
+    Jason.encode!(%{
+      "ok" => true,
+      "data" => %{"louiza" => %{"demands" => %{"today_count" => 0, "pending" => []}}}
+    })
+  end
+
+  # A bot that answered the panel read without mentioning calls at all. That is not a
+  # report of nothing waiting, and the screen must not read it as one.
+  defp silent_call_json do
+    Jason.encode!(%{"ok" => true, "data" => %{"louiza" => %{"mood" => "quiet"}}})
+  end
+
   defp write_ok do
     Jason.encode!(%{"ok" => true, "data" => %{"phrase" => %{"id" => @p1}, "hypnosis" => %{}}})
   end
 
   defp stub(reply), do: Application.put_env(@app, :broker_stub_reply, reply)
 
+  # A call is open unless the test is about the gate: this file is about the shelf, and
+  # the shelf is offered while a call is open, so that is the ordinary state here. The
+  # gate's own tests pass `call:` to say something else.
   defp stub_read(phrases \\ [], opts \\ []) do
-    stub(%{@read => shelf_json(%{"phrases" => phrases}, opts), @write => write_ok()})
+    stub(%{
+      @read => shelf_json(%{"phrases" => phrases}, opts),
+      @write => write_ok(),
+      @call => Keyword.get(opts, :call, open_call_json())
+    })
   end
 
   # A shelf that changes because the verb landed — the only honest way to test a screen
@@ -135,6 +173,9 @@ defmodule BotArmyDashboardLiveview.HypnosisPhoneTest do
          @write ->
            Agent.update(agent, fn _state -> lands end)
            write_ok()
+
+         @call ->
+           open_call_json()
 
          @read ->
            case Agent.get(agent, & &1) do
@@ -204,10 +245,67 @@ defmodule BotArmyDashboardLiveview.HypnosisPhoneTest do
     assert html =~ "1 in the air · 1 off the air"
     # The narration is stated in the bot's terms.
     assert html =~ "no stop is in place — the house may speak about her."
-    # Its own page in the bar, and a tap cannot reach a second handler.
-    assert html =~ ~s(href="/hypnosis-phone")
-    assert html =~ ~s(class="nav-item active")
+    # Not an entry in the bar — the shelf is offered while a call is open, so the way in
+    # is the call card on the house screen — and a tap cannot reach a second handler.
+    refute html =~ ~s(href="/hypnosis-phone")
+    assert html =~ "A call is open, and this shelf is offered while one is."
     refute html =~ "TouchCarousel"
+  end
+
+  # ── the window the shelf is offered in ──────────────────────────────────────
+
+  # A phrase in the air is a moment rather than a place, so the shelf is offered while
+  # there is one. When the house says plainly that nothing is waiting, the page refuses
+  # in its own words rather than drawing a shelf with nothing to explain it.
+  test "a house with nothing waiting does not offer the shelf, and says why" do
+    html =
+      render(
+        page([phrase(id: @p1, on: true)],
+          call: no_call_json(),
+          settled: "Nothing is waiting right now"
+        )
+      )
+
+    assert html =~ "Nothing is waiting right now, so the shelf is not offered here."
+    assert html =~ "the house has called her and she has not answered yet"
+    # The shelf was read — the refusal is about the window, not about the read — and the
+    # phrase it holds is not drawn either way.
+    refute html =~ "what she has asked to hear"
+    refute html =~ @p1_text
+    refute html =~ "The shelf was not read"
+  end
+
+  # The other half of that rule. An answer that never mentioned calls is not a report of
+  # nothing waiting, and hiding the shelf on the strength of a question nobody answered
+  # would be this screen inventing the answer it wanted.
+  test "an answer that never mentioned calls is not a report of nothing waiting" do
+    html = render(page([phrase(id: @p1, on: true)], call: silent_call_json()))
+
+    assert html =~ "what she has asked to hear"
+    assert html =~ @p1_text
+    assert html =~ "The bot did not say whether a call is open"
+    assert html =~ "it is showing the shelf it read"
+    refute html =~ "Nothing is waiting right now"
+  end
+
+  # A question about a call that never came back is not an answer, and it is also not a
+  # failure of the shelf read: the shelf underneath arrived, so it may not be reported
+  # as unread by a card that claims nothing below it is a reading.
+  test "a call read that never came back does not report the shelf as unread" do
+    stub(%{
+      @read => shelf_json(%{"phrases" => [phrase(id: @p1, on: true)]}),
+      @call => {:error, :timeout}
+    })
+
+    {:ok, view, _html} = live(build_conn(), "/hypnosis-phone")
+    await(view, @p1_text)
+
+    html = render(view)
+    assert html =~ "what she has asked to hear"
+    assert html =~ @p1_text
+    assert html =~ "The question about an open call did not come back"
+    refute html =~ "The shelf was not read"
+    refute html =~ "Can't reach the bot"
   end
 
   # The reason the card does not offer three of the shelf's five verbs is part of the
@@ -476,6 +574,9 @@ defmodule BotArmyDashboardLiveview.HypnosisPhoneTest do
     stub(
       {:answers,
        fn
+         @call ->
+           open_call_json()
+
          @read ->
            shelf_json(%{"phrases" => [phrase(id: @p1, said_count: Agent.get(agent, & &1))]})
 

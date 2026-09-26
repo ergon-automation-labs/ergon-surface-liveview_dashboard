@@ -537,6 +537,12 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDLive do
               <span class="dim"><%= demand.state %></span>
             </div>
           <% end %>
+          <%= if is_list(@hud.demands.pending) and @hud.demands.pending != [] do %>
+            <p class="read-note" style="margin-top:8px;">
+              A call is still open, so the shelf is offered here —
+              <a href="/hypnosis-phone">open the shelf</a>.
+            </p>
+          <% end %>
           <%= if is_list(@hud.demands.recent_fulfilled) and @hud.demands.recent_fulfilled != [] do %>
             <p class="dim" style="margin-top:8px; font-size:12px;">
               Recently done: <%= Enum.map_join(@hud.demands.recent_fulfilled, " · ", &"#{&1.label} (#{&1.state})") %>
