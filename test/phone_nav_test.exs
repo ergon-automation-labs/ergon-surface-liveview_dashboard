@@ -34,8 +34,9 @@ defmodule BotArmyDashboardLiveview.PhoneNavTest do
   setup do
     Application.put_env(@app, :broker_transport, BrokerStub)
     Application.put_env(@app, :broker_stub_listener, self())
-    # An empty panel state still builds both cards: the house scale and the five
-    # channels are the bot's defaults, and every channel reads "not reported".
+    # An empty panel state still builds both cards: the house scale and the
+    # fallback channel list are this surface's, and every channel reads "not
+    # reported". A bot that answers with its own list replaces both.
     Application.put_env(@app, :broker_stub_reply, Jason.encode!(%{"ok" => true, "data" => %{}}))
 
     on_exit(fn ->
@@ -72,9 +73,9 @@ defmodule BotArmyDashboardLiveview.PhoneNavTest do
   test "each screen draws its own card, and not the other one" do
     yearning = render(page(@yearning_page, "Yearning — the goddess-focus indicator"))
     assert yearning =~ "never measured"
-    refute yearning =~ "The body — five channels"
+    refute yearning =~ "The body — 5 channels"
 
-    body = render(page(@body_page, "The body — five channels"))
+    body = render(page(@body_page, "The body — 5 channels"))
     refute body =~ "the goddess-focus indicator"
   end
 

@@ -341,6 +341,23 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDPayload do
   @spec house_scale() :: [map()]
   def house_scale, do: @house_scale
 
+  @doc """
+  How many channels there are, in words a card title can carry.
+
+  Read off the list rather than written down. This module draws whatever the bot
+  sent, so a number written beside that list is the one part that does not get
+  updated with it: both body cards said "five channels" while the bot had
+  started keeping a sixth. Both of them title themselves with this.
+  """
+  def channels_label(channels) when is_list(channels) do
+    case length(channels) do
+      1 -> "1 channel"
+      count -> "#{count} channels"
+    end
+  end
+
+  def channels_label(_channels), do: "the channels"
+
   @doc "The doc's ladder — structure, so it is always present."
   @spec ladder() :: [map()]
   def ladder, do: @ladder

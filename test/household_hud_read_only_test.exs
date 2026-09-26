@@ -92,12 +92,12 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDReadOnlyTest do
 
   # The read stays: the house's own numbers for both, which is what a view of the
   # house is for.
-  test "still reads both: the yearning indicator and the five channels" do
+  test "still reads both: the yearning indicator and the body channels" do
     html = render(hud())
 
     assert html =~ "Yearning Active"
     assert html =~ "3 of 5"
-    assert html =~ "The body — five channels"
+    assert html =~ "The body — 5 channels"
 
     for key <- ~w(arousal breathing hands pulse cage) do
       assert html =~ String.capitalize(key)

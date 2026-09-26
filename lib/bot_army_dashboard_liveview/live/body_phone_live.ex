@@ -2,7 +2,7 @@ defmodule BotArmyDashboardLiveview.BodyPhoneLive do
   @moduledoc """
   The body log, on a screen of its own.
 
-  Five channels — arousal, breathing, hands, pulse, cage — each on the house's
+  Each channel the bot keeps — listed by the bot, never here — on the house's
   six-point scale. A reading here is a report ("what she said"), never a
   measurement, and the row the bot writes says so: the channel list and the
   scale come from the bot, so this screen cannot offer a channel the bot would

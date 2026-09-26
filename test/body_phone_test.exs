@@ -158,6 +158,19 @@ defmodule BotArmyDashboardLiveview.BodyPhoneTest do
 
     assert html =~ ~s(phx-value-kind="throat")
     refute html =~ ~s(phx-value-kind="hands")
+    # And the count in the title follows the same list, in the singular.
+    assert html =~ "The body — 1 channel"
+  end
+
+  # The title counts the list it drew. It used to say "five channels" as a
+  # written-down number while the list beside it was the bot's, so a bot that
+  # added a channel got a title that was simply wrong.
+  test "the count in the card title is read off the list the card drew" do
+    html = render(page(%{}, kinds: Enum.take(bot_kinds(), 3)))
+
+    assert html =~ "The body — 3 channels"
+    assert html =~ ~s(phx-value-kind="hands")
+    refute html =~ ~s(phx-value-kind="pulse")
   end
 
   # Same rule for the scale: a bot that renames its points must not leave the card

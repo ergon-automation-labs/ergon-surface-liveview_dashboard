@@ -504,7 +504,7 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDLive do
     </div>
 
     <div class="card">
-      <div class="card-title">The body — five channels</div>
+      <div class="card-title">The body — <%= HUD.channels_label(@hud.body.channels) %></div>
       <%= for channel <- @hud.body.channels do %>
         <div class="row" style="margin-top:10px;">
           <span><%= channel.label %></span>

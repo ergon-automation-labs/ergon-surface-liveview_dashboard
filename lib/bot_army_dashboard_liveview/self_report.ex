@@ -290,7 +290,7 @@ defmodule BotArmyDashboardLiveview.SelfReport do
   defp body_card(assigns) do
     ~H"""
     <div class="report-card">
-      <div class="card-title">The body — five channels  ·  tap a point to log it</div>
+      <div class="card-title">The body — <%= HUD.channels_label(channels_of(@report)) %>  ·  tap a point to log it</div>
       <p class="tap-legend">The points: <%= Enum.map_join(@report.body.scale, " · ", &"#{&1.level} #{&1.word}") %></p>
       <%= for channel <- @report.body.channels do %>
         <div class="row" style="margin-top:10px;">
