@@ -50,13 +50,16 @@ defmodule BotArmyDashboardLiveview.PartyWindow do
   @request_timeout 5_000
 
   # The identity the window is read and written as. The bot's deployment is
-  # single-tenant and single-user: a session belongs to one `user_id` and this
-  # dashboard has no auth to learn a different one from, so the default is named
-  # once, here, and is overridable in config — rather than invented at each call
-  # site, which is how a screen ends up asking about a user that does not exist.
-  # Both are the runtime's `default_tenant_id/0`, which is the same UUID.
+  # single-tenant and this dashboard has no auth to learn a different tenant from,
+  # so the tenant is named once, here, and is overridable in config.
   @default_tenant_id "00000000-0000-0000-0000-000000000001"
-  @default_user_id "00000000-0000-0000-0000-000000000001"
+
+  # No user is named by default, and that is a fact about the fleet rather than a
+  # gap: the fleet's own way of opening a window (`rpg.session.start`) names no user
+  # either, so the domain resolves the session's owner to `nil`. Sending a user id
+  # that no session carries would make this screen answer *no window is open* while
+  # a window is open — an omission dressed as a reading. An operator may pin one with
+  # `config :bot_army_dashboard_liveview, :party_user_id`, and then it is named.
 
   # The voice a reply is filed as — see the module doc.
   @source "operator"
@@ -92,27 +95,37 @@ defmodule BotArmyDashboardLiveview.PartyWindow do
   def tenant_id,
     do: Application.get_env(:bot_army_dashboard_liveview, :party_tenant_id, @default_tenant_id)
 
-  @doc "The user whose window this is."
-  def user_id,
-    do: Application.get_env(:bot_army_dashboard_liveview, :party_user_id, @default_user_id)
+  @doc """
+  The user whose window this is, or `nil` to name none and let the bot resolve its
+  own default.
+  """
+  def user_id, do: Application.get_env(:bot_army_dashboard_liveview, :party_user_id)
 
   @doc "The body of the window question."
-  def context_payload, do: %{"tenant_id" => tenant_id(), "user_id" => user_id()}
+  def context_payload, do: identity()
 
   @doc "The body of the party question."
-  def state_payload(session_id),
-    do: %{"tenant_id" => tenant_id(), "session_id" => session_id}
+  def state_payload(session_id), do: Map.put(identity(), "session_id", session_id)
 
   @doc "The body of a reply."
   def write_payload(session_id, text) do
-    %{
-      "tenant_id" => tenant_id(),
-      "user_id" => user_id(),
+    Map.merge(identity(), %{
       "session_id" => session_id,
       "content" => text,
       "category" => @category,
       "source" => @source
-    }
+    })
+  end
+
+  # Named once, and only the parts that name something: a `"user_id" => nil` would
+  # look like an identity on the wire and be read as one downstream.
+  defp identity do
+    tenant = %{"tenant_id" => tenant_id()}
+
+    case user_id() do
+      id when is_binary(id) and id != "" -> Map.put(tenant, "user_id", id)
+      _ -> tenant
+    end
   end
 
   # ── the window ──────────────────────────────────────────────────────────────

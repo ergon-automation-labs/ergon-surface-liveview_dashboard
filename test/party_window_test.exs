@@ -165,11 +165,38 @@ defmodule BotArmyDashboardLiveview.PartyWindowTest do
   end
 
   describe "the bodies this screen sends" do
-    test "the window question carries the default identity" do
+    test "the window question names the tenant, and no user" do
+      # The fleet's own `rpg.session.start` names no user, so its sessions carry
+      # `user_id: nil`; naming a user here that no session carries would make this
+      # screen say "no window is open" while one is open.
+      assert PartyWindow.context_payload() == %{
+               "tenant_id" => "00000000-0000-0000-0000-000000000001"
+             }
+
+      refute Map.has_key?(PartyWindow.context_payload(), "user_id")
+      assert PartyWindow.user_id() == nil
+    end
+
+    test "a user is named once an operator pins one, and then it is on the wire" do
+      Application.put_env(@app, :party_user_id, "11111111-1111-1111-1111-111111111111")
+
+      on_exit(fn -> Application.delete_env(@app, :party_user_id) end)
+
       assert PartyWindow.context_payload() == %{
                "tenant_id" => "00000000-0000-0000-0000-000000000001",
-               "user_id" => "00000000-0000-0000-0000-000000000001"
+               "user_id" => "11111111-1111-1111-1111-111111111111"
              }
+
+      assert PartyWindow.write_payload(@session, "hello")["user_id"] ==
+               "11111111-1111-1111-1111-111111111111"
+    end
+
+    test "an empty pinned user id names nobody rather than naming nothing" do
+      Application.put_env(@app, :party_user_id, "")
+
+      on_exit(fn -> Application.delete_env(@app, :party_user_id) end)
+
+      refute Map.has_key?(PartyWindow.context_payload(), "user_id")
     end
 
     test "the identity is configurable, because the deployment is not this screen's to assume" do
