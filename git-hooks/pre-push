@@ -63,15 +63,35 @@ if [[ $remote_ref == "refs/heads/main" ]]; then
   }
   echo "✓ Tarball created: $RELEASE_NAME-$VERSION.tar.gz"
 
-  gh release create "v$VERSION" "$RELEASE_NAME-$VERSION.tar.gz" \
-    --repo "ergon-automation-labs/ergon-surface-liveview_dashboard" \
+  REPO="ergon-automation-labs/ergon-surface-liveview_dashboard"
+  ASSET="$RELEASE_NAME-$VERSION.tar.gz"
+
+  if ! gh release create "v$VERSION" "$ASSET" \
+    --repo "$REPO" \
     --title "Release v$VERSION" \
     --notes "Phoenix LiveView surface bot_army_dashboard_liveview v$VERSION. Deployed by Jenkins." \
-    --draft=false || {
-    echo "⚠️  Release already exists or GitHub publish failed"
-    echo "Continuing with push anyway..."
-  }
-  echo "✓ Release published to GitHub"
+    --draft=false; then
+    # "Already exists" is not the same as "published". A release whose asset
+    # upload failed is a release with no tarball, and the salt state resolves the
+    # version from `gh release list` and downloads that asset *by name*: it would
+    # find the new version, fail to download it, and leave the old version live
+    # while this hook printed a tick. Upload the asset explicitly, clobbering, so
+    # a half-created release is repaired rather than mistaken for a finished one.
+    if ! gh release upload "v$VERSION" "$ASSET" --repo "$REPO" --clobber; then
+      echo "❌ Could not publish v$VERSION: release create and asset upload both failed"
+      exit 1
+    fi
+    echo "ℹ️  v$VERSION already existed — its tarball is in place"
+  fi
+
+  # Prove it rather than announce it: the deploy downloads this exact asset name,
+  # so the asset's presence is what "published" means.
+  if ! gh release view "v$VERSION" --repo "$REPO" --json assets --jq '.assets[].name' \
+    | grep -qx "$ASSET"; then
+    echo "❌ v$VERSION has no $ASSET asset — a deploy would silently stay on the old version"
+    exit 1
+  fi
+  echo "✓ Release published to GitHub: v$VERSION (tarball verified present)"
 
   echo ""
   echo "✅ All checks passed, release built and published!"
