@@ -539,8 +539,8 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDLive do
           <% end %>
           <%= if is_list(@hud.demands.pending) and @hud.demands.pending != [] do %>
             <p class="read-note" style="margin-top:8px;">
-              A call is still open, so the shelf is offered here —
-              <a href="/hypnosis-phone">open the shelf</a>.
+              A call is still open, so the shelf is offered —
+              <a href="/party-phone">open the window it is offered in</a>.
             </p>
           <% end %>
           <%= if is_list(@hud.demands.recent_fulfilled) and @hud.demands.recent_fulfilled != [] do %>

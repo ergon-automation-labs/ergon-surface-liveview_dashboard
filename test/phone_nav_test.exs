@@ -11,7 +11,9 @@ defmodule BotArmyDashboardLiveview.PhoneNavTest do
     * both routes are in the bar, and each screen offers itself as its own entry;
     * the shelf is not in the bar: it is offered from the call card on the house
       screen while a call is open, because a phrase in the air is a moment and a
-      bar is on every page at once;
+      bar is on every page at once — and the card opens the window the shelf is
+      drawn inside, which is the one screen here she is *in* rather than reading
+      about herself from;
     * each screen carries **only its own** card and **only its own** write;
     * neither screen carries a `TouchCarousel` hook, so a tap on a point means
       one thing and cannot reach a second handler;
@@ -62,8 +64,13 @@ defmodule BotArmyDashboardLiveview.PhoneNavTest do
     refute {"/hypnosis-phone", "🌀", "Hypnosis"} in handhelds
     assert PhoneNav.get_emoji("/hypnosis-phone") == nil
 
+    # The window is the one screen here she is in rather than reading about herself
+    # from, and the shelf is drawn inside it.
+    assert {"/party-phone", "🎭", "Window"} in handhelds
+    assert PhoneNav.get_emoji("/party-phone") == "🎭"
+
     # One option each, not one page with modes.
-    assert length(handhelds) == 14
+    assert length(handhelds) == 15
     routes = Enum.map(handhelds, &elem(&1, 0))
     assert Enum.uniq(routes) == routes
   end

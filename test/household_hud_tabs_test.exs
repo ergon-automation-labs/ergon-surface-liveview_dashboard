@@ -121,8 +121,10 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDTabsTest do
 
     goddess = render_click(view, "tab", %{"tab" => "goddess"})
     assert goddess =~ "come here now"
-    assert goddess =~ "A call is still open, so the shelf is offered here"
-    assert goddess =~ ~s(href="/hypnosis-phone")
+    assert goddess =~ "A call is still open, so the shelf is offered"
+    # The card's own offer, not the nav bar's copy of the route: the bar carries the
+    # window on every page, and this pins that the *card* is what offers it.
+    assert goddess =~ "open the window it is offered in"
   end
 
   # And the other half of it: a house that reports nothing waiting offers no shelf, with
@@ -139,8 +141,10 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDTabsTest do
 
     assert goddess =~ "Calls she has sent"
     assert goddess =~ "nothing waiting"
-    refute goddess =~ "the shelf is offered here"
-    refute goddess =~ ~s(href="/hypnosis-phone")
+    refute goddess =~ "the shelf is offered"
+    # The window is in the nav bar on every page, so the *offer* is what has to be
+    # absent — a page-wide route refute would match the bar instead of the card.
+    refute goddess =~ "open the window it is offered in"
   end
 
   # Switching lenses must not go back to the bot. The stub records every question

@@ -7,6 +7,8 @@ defmodule BotArmyDashboardLiveview.PhoneNavModal do
   use Phoenix.Component
 
   @handhelds [
+    {"/household-hud", "🏠", "House", "What is waiting, and what she asked for"},
+    {"/party-phone", "🎭", "Window", "The window she is in with the party"},
     {"/yearning-phone", "💗", "Yearning", "Her own number, never measured"},
     {"/body-phone", "🫀", "Body", "Five channels, her own points"},
     {"/wardrobe-phone", "👗", "Wardrobe", "What is in it, and what is on her"},

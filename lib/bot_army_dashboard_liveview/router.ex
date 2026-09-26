@@ -27,6 +27,7 @@ defmodule BotArmyDashboardLiveview.Router do
     live_session :screens, on_mount: {BotArmyDashboardLiveview.ReadHooks, :default} do
       live("/", DashboardLive)
       live("/household-hud", HouseholdHUDLive)
+      live("/party-phone", PartyPhoneLive)
       live("/yearning-phone", YearningPhoneLive)
       live("/body-phone", BodyPhoneLive)
       live("/wardrobe-phone", WardrobePhoneLive)

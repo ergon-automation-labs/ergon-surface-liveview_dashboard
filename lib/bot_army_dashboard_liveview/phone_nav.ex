@@ -19,15 +19,20 @@ defmodule BotArmyDashboardLiveview.PhoneNav do
   The shelf is not on this bar, and that is a decision rather than an omission. It did
   sit here, labelled the way someone would look for it; what she asked to hear is a
   moment rather than a place, though, and a bar that is on every page at once offers it
-  in the middle of every other thing she is doing. The way in is the call card on the
-  house screen, and it is drawn only while a call is open — so the entry follows the
-  fact the house already reports, which a static bar cannot do.
+  in the middle of every other thing she is doing. The shelf is drawn inside the window
+  — the party screen — which is where the moments are, and the way in is the call card
+  on the house screen, drawn only while a call is open, so the entry follows the fact
+  the house already reports rather than a static bar.
+
+  The window is second because it is the only screen here she is *in* rather than
+  reading about herself from: what gathered, who joined, and what has been said.
   """
 
   use Phoenix.Component
 
   @handhelds [
     {"/household-hud", "🏠", "House"},
+    {"/party-phone", "🎭", "Window"},
     {"/yearning-phone", "💗", "Yearning"},
     {"/body-phone", "🫀", "Body"},
     {"/wardrobe-phone", "👗", "Wardrobe"},
