@@ -227,7 +227,11 @@ defmodule BotArmyDashboardLiveview.NATSBridge do
     subjects = [
       "events.gtd.task.>",
       "events.gtd.decomposition.>",
-      "system.health.>"
+      "system.health.>",
+      # A saying the house made of its own accord, or one someone asked for. The event
+      # carries ids and times only — never her words — so the shelf screen names the
+      # phrase off the read it already has and re-reads.
+      "events.wife_care.hypnosis.>"
     ]
 
     Logger.debug("[NATSBridge] Starting subscriptions to #{Enum.count(subjects)} subjects")
@@ -265,6 +269,9 @@ defmodule BotArmyDashboardLiveview.NATSBridge do
 
       String.starts_with?(subject, "bot_army.registry.presence") ->
         broadcast_presence_event(subject, event)
+
+      String.starts_with?(subject, "events.wife_care.hypnosis.") ->
+        broadcast_hypnosis_event(subject, event)
 
       true ->
         :ok
@@ -304,6 +311,18 @@ defmodule BotArmyDashboardLiveview.NATSBridge do
       )
 
     Logger.debug("[NATSBridge] Broadcast to dashboard:health result: #{inspect(result)}")
+    result
+  end
+
+  defp broadcast_hypnosis_event(subject, event) do
+    result =
+      PubSub.broadcast(
+        BotArmyDashboardLiveview.PubSub,
+        "dashboard:hypnosis",
+        {:hypnosis_event, subject, event}
+      )
+
+    Logger.debug("[NATSBridge] Broadcast to dashboard:hypnosis result: #{inspect(result)}")
     result
   end
 

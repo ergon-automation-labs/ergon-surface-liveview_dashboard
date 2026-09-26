@@ -16,9 +16,16 @@ defmodule BotArmyDashboardLiveview.HypnosisPhoneLive do
   truth of the sentence after it, the bot's own words for a refusal, and the difference
   between a dead broker and the shelf saying no — lives in
   `BotArmyDashboardLiveview.HypnosisShelf`.
+
+  It is also a witness to the house saying a phrase of its own accord: the bridge hands it
+  `events.wife_care.hypnosis.said` on `dashboard:hypnosis`, the saying is named off the
+  shelf this screen has read — the event has no words in it — and the shelf is re-read so
+  the counts under the card are the read that followed the saying.
   """
 
   use Phoenix.LiveView
+
+  alias Phoenix.PubSub
 
   import BotArmyDashboardLiveview.ReadError
 
@@ -26,10 +33,20 @@ defmodule BotArmyDashboardLiveview.HypnosisPhoneLive do
   alias BotArmyDashboardLiveview.PhoneNav
 
   @impl true
-  def mount(_params, _session, socket), do: {:ok, HypnosisShelf.start(socket)}
+  def mount(_params, _session, socket) do
+    :ok = PubSub.subscribe(BotArmyDashboardLiveview.PubSub, "dashboard:hypnosis")
+
+    {:ok, HypnosisShelf.start(socket)}
+  end
 
   @impl true
   def handle_info({:hypnosis, answer}, socket), do: {:noreply, HypnosisShelf.info(socket, answer)}
+
+  # The bridge's broadcast for a saying. The event says which phrase and when, and never
+  # what was said, so the sentence is named off the shelf this screen has already read.
+  @impl true
+  def handle_info({:hypnosis_event, _subject, event}, socket),
+    do: {:noreply, HypnosisShelf.said(socket, event)}
 
   @impl true
   def handle_event("act", %{"verb" => "switch_off", "id" => id}, socket),
@@ -59,7 +76,7 @@ defmodule BotArmyDashboardLiveview.HypnosisPhoneLive do
     <div class="handheld-container with-nav hypnosis-phone">
       <div class="phone-card">
         <div class="view-title">🌀 Her shelf</div>
-        <HypnosisShelf.card shelf={@shelf} act={@act} read_error={@read_error} />
+        <HypnosisShelf.card shelf={@shelf} act={@act} read_error={@read_error} said={@said} />
       </div>
     </div>
 

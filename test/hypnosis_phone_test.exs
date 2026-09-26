@@ -57,7 +57,7 @@ defmodule BotArmyDashboardLiveview.HypnosisPhoneTest do
   defp phrase(opts \\ []) do
     on = Keyword.get(opts, :on, true)
 
-    %{
+    phrase = %{
       "id" => Keyword.get(opts, :id, @p1),
       "key" => "worth",
       "text" => Keyword.get(opts, :text, @p1_text),
@@ -72,6 +72,22 @@ defmodule BotArmyDashboardLiveview.HypnosisPhoneTest do
       "removed?" => false,
       "authored_by" => "subject"
     }
+
+    Map.merge(phrase, delivery_keys(opts))
+  end
+
+  # A delivery fact is merged in only where a test names it, so a phrase the bot sent
+  # nothing about stays a phrase with no `said_count` — absent is not a zero.
+  @delivery_keys %{
+    repeat: "repeat",
+    repeat_label: "repeat_label",
+    said_count: "said_count",
+    last_said_at: "last_said_at",
+    due?: "due?"
+  }
+
+  defp delivery_keys(opts) do
+    for {opt, key} <- @delivery_keys, Keyword.has_key?(opts, opt), into: %{}, do: {key, opts[opt]}
   end
 
   # The envelope the bot actually sends, because the read path decodes it and unwraps the
@@ -405,5 +421,120 @@ defmodule BotArmyDashboardLiveview.HypnosisPhoneTest do
 
     assert log =~ "[HypnosisShelf] a write answered nothing: the broker is not reachable"
     refute render(view) =~ "the shelf reads back"
+  end
+
+  # ── the saying, and the cadence ─────────────────────────────────────────────
+
+  test "how the house reads is drawn from the read's own numbers" do
+    delivery = %{
+      "cadence_minutes" => %{"daily" => 1320, "twice_daily" => 660},
+      "tick_minutes" => 10,
+      "one_per_tick" => true
+    }
+
+    # The `delivery` block is the read's own statement of how the house reads, so it rides
+    # in the reply beside the phrases rather than being known by the screen.
+    stub(
+      shelf_json(%{
+        "phrases" => [
+          phrase(
+            id: @p1,
+            repeat: "daily",
+            repeat_label: "Once a day",
+            said_count: 2,
+            last_said_at: "2026-09-26T11:00:00Z",
+            due?: false
+          )
+        ],
+        "delivery" => delivery
+      })
+    )
+
+    {:ok, view, _html} = live(build_conn(), "/hypnosis-phone")
+    await(view, "the house looks every 10 minutes")
+
+    html = render(view)
+
+    assert html =~ "the house looks every 10 minutes"
+    assert html =~ "at most one phrase per look"
+    assert html =~ "Once a day"
+    assert html =~ "said 2 times"
+    assert html =~ "not due yet"
+    # The floor intervals are the bot's, in the bot's own numbers: 1320 minutes is drawn as
+    # 22 hours because that is what the read said, and never rounded to a day this screen
+    # remembers.
+    assert html =~ "not again for 22 hours"
+    assert html =~ "not again for 11 hours"
+    refute html =~ "24 hours"
+  end
+
+  # A saying is not a count. The line under the title is the saying; the number beside the
+  # phrase is the read that follows it, and nothing here adds one to the other.
+  test "a saying is drawn as a line, and the count under it is the read's" do
+    {:ok, agent} = Agent.start_link(fn -> 3 end)
+
+    stub(
+      {:answers,
+       fn
+         @read ->
+           shelf_json(%{"phrases" => [phrase(id: @p1, said_count: Agent.get(agent, & &1))]})
+
+         @write ->
+           write_ok()
+       end}
+    )
+
+    {:ok, view, _html} = live(build_conn(), "/hypnosis-phone")
+    await(view, "said 3 times")
+
+    # The count changes behind the screen before the saying arrives, so the only way the
+    # page can show 4 is by re-reading: a screen that drew the saying as a count could
+    # only ever show 3 or 4 by arithmetic, and this one does neither.
+    Agent.update(agent, fn _count -> 4 end)
+
+    :ok =
+      Phoenix.PubSub.broadcast(
+        BotArmyDashboardLiveview.PubSub,
+        "dashboard:hypnosis",
+        {:hypnosis_event, "events.wife_care.hypnosis.said",
+         %{
+           "payload" => %{
+             "phrase_id" => @p1,
+             "source" => "tick",
+             "said_at" => "2026-09-26T12:00:00Z"
+           }
+         }}
+      )
+
+    await(view, "said 4 times")
+
+    html = render(view)
+
+    assert html =~ "the house just said #{@p1_text} of its own accord, on the tick."
+    assert html =~ "said 4 times"
+  end
+
+  test "a saying by hand is named by the role that said it, never a pronoun" do
+    stub_read([phrase(id: @p1)], [])
+
+    {:ok, view, _html} = live(build_conn(), "/hypnosis-phone")
+    await(view, @p1_text)
+
+    :ok =
+      Phoenix.PubSub.broadcast(
+        BotArmyDashboardLiveview.PubSub,
+        "dashboard:hypnosis",
+        {:hypnosis_event, "events.wife_care.hypnosis.said",
+         %{"payload" => %{"phrase_id" => @p1, "source" => "hand", "by" => "operator"}}}
+      )
+
+    await(view, "by hand, as the operator")
+
+    html = render(view)
+
+    assert html =~ "by hand, as the operator"
+    # Two "she"s are in this story — the goddess and the maid — so a bare pronoun here
+    # would name neither of them.
+    refute html =~ "by hand, as she"
   end
 end

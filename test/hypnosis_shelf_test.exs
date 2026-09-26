@@ -45,7 +45,7 @@ defmodule BotArmyDashboardLiveview.HypnosisShelfTest do
   defp phrase(opts) do
     on = Keyword.get(opts, :on, true)
 
-    %{
+    phrase = %{
       "id" => Keyword.get(opts, :id, @p1),
       "key" => "worth",
       "text" => Keyword.get(opts, :text, "you are worth the trouble"),
@@ -62,6 +62,23 @@ defmodule BotArmyDashboardLiveview.HypnosisShelfTest do
       "supersedes_id" => nil,
       "added_at" => "2026-09-25T10:00:00Z"
     }
+
+    Map.merge(phrase, delivery_keys(opts))
+  end
+
+  # The delivery facts are merged in only where a test names them, so that "the bot sent
+  # no `said_count`" stays a phrase without one — absent is not a zero, and a helper that
+  # filled the key in with `nil` would be testing a shape the bot never sends.
+  @delivery_keys %{
+    repeat: "repeat",
+    repeat_label: "repeat_label",
+    said_count: "said_count",
+    last_said_at: "last_said_at",
+    due?: "due?"
+  }
+
+  defp delivery_keys(opts) do
+    for {opt, key} <- @delivery_keys, Keyword.has_key?(opts, opt), into: %{}, do: {key, opts[opt]}
   end
 
   defp shelf_reply(opts) do
@@ -80,6 +97,14 @@ defmodule BotArmyDashboardLiveview.HypnosisShelfTest do
   end
 
   defp built(opts \\ []), do: shelf_reply(opts) |> HypnosisShelf.build()
+
+  # One phrase, as the screen holds it: the raw reply row goes through `build/1` and comes
+  # back the way `row_view/1` made it. The readers below take that row, not the bot's raw
+  # map — a test that handed them the raw map would be testing a shape the screen never
+  # passes them.
+  defp row(opts) do
+    built(phrases: [phrase(opts)]).phrases |> hd()
+  end
 
   # ── the seam ────────────────────────────────────────────────────────────────
 
@@ -116,7 +141,7 @@ defmodule BotArmyDashboardLiveview.HypnosisShelfTest do
     assert Enum.map(shelf.rewritten, & &1.text) == ["you are worth it"]
     # The counts are the screen's own count of the rows it is drawing, so a list and its
     # number can never disagree.
-    assert shelf.counts == %{on: 1, off: 1, away: 1, reworded: 1}
+    assert shelf.counts == %{on: 1, off: 1, away: 1, reworded: 1, cadenced: 0}
     refute shelf.empty?
   end
 
@@ -124,7 +149,7 @@ defmodule BotArmyDashboardLiveview.HypnosisShelfTest do
     shelf = built(put_away: [phrase(id: @p3, on: false)])
 
     assert shelf.empty?
-    assert shelf.counts == %{on: 0, off: 0, away: 1, reworded: 0}
+    assert shelf.counts == %{on: 0, off: 0, away: 1, reworded: 0, cadenced: 0}
     assert HypnosisShelf.counts_line(shelf) =~ "0 in the air"
     assert HypnosisShelf.counts_line(shelf) =~ "1 taken away"
   end
@@ -424,5 +449,212 @@ defmodule BotArmyDashboardLiveview.HypnosisShelfTest do
   test "an error line is not styled like a reading" do
     assert HypnosisShelf.class(%{error: "nothing was sent"}) == "unreported"
     assert HypnosisShelf.class(%{confirmed?: true}) == "dim"
+  end
+
+  # ── the cadence, and what has been said ─────────────────────────────────────
+
+  test "a phrase on a cadence is counted, and a phrase off the air is not" do
+    shelf =
+      built(
+        phrases: [
+          phrase(id: @p1, repeat: "daily"),
+          phrase(id: @p2, repeat: "twice_daily"),
+          # A cadence on a phrase that is off the air is not one the house reads from, so
+          # it is not counted as one the house says of its own accord.
+          phrase(id: @p3, on: false, repeat: "daily")
+        ]
+      )
+
+    assert shelf.counts == %{on: 2, off: 1, away: 0, reworded: 0, cadenced: 2}
+    assert HypnosisShelf.counts_line(shelf) =~ "2 the house says on its own"
+  end
+
+  test "the cadence is spoken in the bot's own label, and never restated" do
+    assert HypnosisShelf.cadence_line(row(repeat: "daily", repeat_label: "Once a day")) ==
+             "Once a day"
+
+    # A key with no label beside it is shown as the key it is: decoding it here would put
+    # this screen's words where the bot sent none.
+    assert HypnosisShelf.cadence_line(row(repeat: "daily")) ==
+             "sent as daily, without the bot's words for it"
+
+    assert HypnosisShelf.cadence_line(row([])) ==
+             "the bot did not say whether this one repeats"
+  end
+
+  test "a missing count is unstated, and a zero count is a count" do
+    assert HypnosisShelf.heard_line(row(said_count: 0)) == "never said yet"
+    assert HypnosisShelf.heard_line(row(said_count: 1)) == "said once"
+    assert HypnosisShelf.heard_line(row(said_count: 7)) == "said 7 times"
+
+    # This helper sends no `said_count` at all: absent is not a zero, and is not drawn as
+    # one either.
+    refute HypnosisShelf.heard_line(row([])) =~ "said"
+    refute HypnosisShelf.heard_line(row([])) =~ "never"
+  end
+
+  test "a due phrase that is off the air is not drawn as due" do
+    assert HypnosisShelf.heard_line(row(due?: true)) =~ "due now"
+
+    line = HypnosisShelf.heard_line(row(due?: true, on: false))
+
+    assert line =~ "off the air"
+    refute line =~ "due now"
+  end
+
+  test "the last time is rendered as felt time, never as a timestamp" do
+    line =
+      HypnosisShelf.heard_line(row(last_said_at: DateTime.utc_now() |> DateTime.to_iso8601()))
+
+    assert line =~ "the last time was now"
+    refute line =~ "T"
+  end
+
+  test "a phrase's line is its cadence and its history, and an unread one says neither" do
+    line =
+      HypnosisShelf.delivery_line(
+        row(
+          said_count: 3,
+          last_said_at: DateTime.utc_now() |> DateTime.to_iso8601(),
+          repeat_label: "Once a day",
+          due?: false
+        )
+      )
+
+    assert line =~ "Once a day"
+    assert line =~ "said 3 times"
+    assert line =~ "not due yet"
+
+    # A row the bot sent no delivery facts for — an earlier wording, a taken-away phrase —
+    # still has its cadence said, because that much is about the row rather than the house.
+    away = row(repeat_label: "Once a day", on: false)
+    assert HypnosisShelf.delivery_line(away) == "Once a day"
+  end
+
+  test "how the house reads is the read's numbers, never this screen's" do
+    shelf =
+      built(
+        block: %{
+          "delivery" => %{
+            "cadence_minutes" => %{"daily" => 1200, "twice_daily" => 600},
+            "tick_minutes" => 10,
+            "one_per_tick" => true
+          }
+        }
+      )
+
+    line = HypnosisShelf.tick_line(shelf)
+
+    assert line =~ "the house looks every 10 minutes"
+    assert line =~ "at most one phrase per look"
+    assert line =~ "once a day means not again for 20 hours"
+    assert line =~ "twice a day means not again for 10 hours"
+    # The one place the interval numbers live is `HypnosisDelivery.floor_minutes/1`; a
+    # restatement here would be a second copy of the rule, and one of the two would drift.
+    refute line =~ "24"
+  end
+
+  test "a read that carried no delivery numbers claims none" do
+    shelf = built(phrases: [phrase([])])
+
+    assert shelf.delivery == nil
+    assert HypnosisShelf.tick_line(shelf) == ""
+  end
+
+  test "a delivery block with nothing usable in it is unstated, not a default cadence" do
+    shelf =
+      built(
+        block: %{"delivery" => %{"tick_minutes" => "ten", "cadence_minutes" => %{"daily" => 0}}}
+      )
+
+    assert shelf.delivery == %{cadence_minutes: nil, tick_minutes: nil, one_per_tick: nil}
+    assert HypnosisShelf.tick_line(shelf) == ""
+  end
+
+  test "a cadence that is not a whole number of hours is said in minutes" do
+    shelf =
+      built(
+        block: %{
+          "delivery" => %{
+            "cadence_minutes" => %{"daily" => 90},
+            "tick_minutes" => 5,
+            "one_per_tick" => false
+          }
+        }
+      )
+
+    line = HypnosisShelf.tick_line(shelf)
+
+    assert line =~ "once a day means not again for 90 minutes"
+    # `one_per_tick: false` is not rendered as "at most one per look": that sentence would
+    # be a claim the read did not make.
+    refute line =~ "at most one"
+  end
+
+  # ── the saying ──────────────────────────────────────────────────────────────
+
+  test "a saying is named off the shelf, because the event has no words in it" do
+    shelf = built(phrases: [phrase(id: @p1, text: "you are worth the trouble")])
+
+    event = %{
+      "event" => "wife_care.hypnosis.said",
+      "payload" => %{"phrase_id" => @p1, "source" => "tick", "said_at" => "2026-09-26T12:00:00Z"}
+    }
+
+    assert HypnosisShelf.said_line(shelf, event) ==
+             "the house just said you are worth the trouble of its own accord, on the tick."
+  end
+
+  test "a saying by hand names the role the voice was, never a pronoun" do
+    shelf = built(phrases: [phrase(id: @p1, text: "the house notices")])
+
+    for {by, role} <- [
+          {"subject", "the maid"},
+          {"louiza", "her voice"},
+          {"operator", "the operator"}
+        ] do
+      event = %{"payload" => %{"phrase_id" => @p1, "source" => "hand", "by" => by}}
+
+      assert HypnosisShelf.said_line(shelf, event) =~ " by hand, as #{role}"
+    end
+  end
+
+  test "a saying this screen cannot name is said to be exactly that" do
+    shelf = built(phrases: [phrase(id: @p1)])
+
+    unmatched = %{"payload" => %{"phrase_id" => @p2, "source" => "tick"}}
+    assert HypnosisShelf.said_line(shelf, unmatched) =~ "cannot name off the shelf"
+
+    # No shelf read yet: nothing can be named from a shelf this screen has not read.
+    assert HypnosisShelf.said_line(nil, unmatched) =~ "cannot name off the shelf"
+
+    unnamed = %{"payload" => %{"source" => "tick"}}
+    assert HypnosisShelf.said_line(shelf, unnamed) =~ "does not say which phrase"
+
+    assert HypnosisShelf.said_line(shelf, "not an event") =~ "cannot read"
+  end
+
+  test "a saying is not a count: the read that follows it is what the shelf reports" do
+    stub(Jason.encode!(shelf_reply(phrases: [phrase(id: @p1, said_count: 4)])))
+
+    shelf = built(phrases: [phrase(id: @p1, text: "you are worth the trouble")])
+    socket = %Phoenix.LiveView.Socket{assigns: %{__changed__: %{}, shelf: shelf, act: nil}}
+    event = %{"payload" => %{"phrase_id" => @p1, "source" => "tick"}}
+
+    after_saying = HypnosisShelf.said(socket, event)
+
+    assert after_saying.assigns.said =~ "the house just said you are worth the trouble"
+
+    # `said/2` asks for the read; the answer arrives later as a message, exactly as it does
+    # on the screen, and the count under the phrase is that read's 4 — not the saying plus
+    # three, which is the arithmetic this screen has no business doing.
+    assert_receive {:read_started, :hypnosis}
+    assert_receive {:hypnosis, answer}
+
+    assert Enum.map(
+             HypnosisShelf.info(after_saying, answer).assigns.shelf.phrases,
+             & &1.said_count
+           ) ==
+             [4]
   end
 end
