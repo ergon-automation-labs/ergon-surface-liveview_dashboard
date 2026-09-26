@@ -90,6 +90,65 @@ defmodule BotArmyDashboardLiveview.PartyWindowTest do
       assert window.character == nil
     end
 
+    test "the story so far is carried, oldest first, naming who spoke" do
+      assert {:open_window, window} =
+               PartyWindow.window(
+                 answer(%{
+                   "carry_history" => [
+                     %{
+                       "content" => "Hi!",
+                       "source" => "operator",
+                       "session_id" => "earlier-window",
+                       "at" => "2026-09-26T21:32:40"
+                     },
+                     %{"content" => "the GM closed the door", "source" => "gm"}
+                   ]
+                 })
+               )
+
+      assert PartyWindow.history(window) == [
+               %{text: "Hi!", who: "the operator"},
+               %{text: "the GM closed the door", who: "the GM"}
+             ]
+    end
+
+    test "a carry the bot looked at and found empty is a reading, not an unreported one" do
+      assert {:open_window, window} = PartyWindow.window(answer(%{"carry_history" => []}))
+
+      assert PartyWindow.history(window) == []
+    end
+
+    test "a carry that was not reported does not read as nothing came before" do
+      # Three ways to get here: the bot could not read it (nil), the bot does not know
+      # the field (key absent), or this is not a window at all. All three are "the bot
+      # did not say", and none of them is "nothing came before".
+      for carried <- [%{"carry_history" => nil}, %{}] do
+        assert {:open_window, window} = PartyWindow.window(answer(carried))
+        assert PartyWindow.history(window) == nil
+      end
+
+      assert PartyWindow.history(nil) == nil
+      assert PartyWindow.history(%{facts: ["a turn"]}) == nil
+    end
+
+    test "a carried row without a line is not drawn as a turn, and an unnamed source is named" do
+      assert {:open_window, window} =
+               PartyWindow.window(
+                 answer(%{
+                   "carry_history" => [
+                     %{"content" => "kept"},
+                     %{"content" => "from someone unnamed", "source" => nil},
+                     %{"source" => "operator"}
+                   ]
+                 })
+               )
+
+      assert PartyWindow.history(window) == [
+               %{text: "kept", who: "someone the bot did not name"},
+               %{text: "from someone unnamed", who: "someone the bot did not name"}
+             ]
+    end
+
     test "no active session is a definite nothing, said in this screen's words" do
       assert {:no_window, sentence} =
                PartyWindow.window(%{"ok" => false, "error" => ":no_active_session"})
@@ -169,8 +228,11 @@ defmodule BotArmyDashboardLiveview.PartyWindowTest do
       # The fleet's own `rpg.session.start` names no user, so its sessions carry
       # `user_id: nil`; naming a user here that no session carries would make this
       # screen say "no window is open" while one is open.
+      # The window question also asks for the story so far — the identity is what this
+      # test is about, and the carry rides along on every window read.
       assert PartyWindow.context_payload() == %{
-               "tenant_id" => "00000000-0000-0000-0000-000000000001"
+               "tenant_id" => "00000000-0000-0000-0000-000000000001",
+               "carry_history" => true
              }
 
       refute Map.has_key?(PartyWindow.context_payload(), "user_id")
@@ -184,7 +246,8 @@ defmodule BotArmyDashboardLiveview.PartyWindowTest do
 
       assert PartyWindow.context_payload() == %{
                "tenant_id" => "00000000-0000-0000-0000-000000000001",
-               "user_id" => "11111111-1111-1111-1111-111111111111"
+               "user_id" => "11111111-1111-1111-1111-111111111111",
+               "carry_history" => true
              }
 
       assert PartyWindow.write_payload(@session, "hello")["user_id"] ==
@@ -210,7 +273,8 @@ defmodule BotArmyDashboardLiveview.PartyWindowTest do
 
       assert PartyWindow.context_payload() == %{
                "tenant_id" => "22222222-2222-2222-2222-222222222222",
-               "user_id" => "11111111-1111-1111-1111-111111111111"
+               "user_id" => "11111111-1111-1111-1111-111111111111",
+               "carry_history" => true
              }
     end
 

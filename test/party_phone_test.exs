@@ -71,6 +71,24 @@ defmodule BotArmyDashboardLiveview.PartyPhoneTest do
     })
   end
 
+  # The window answer with a story so far on it. `carry` is what the bot carried: a
+  # list of turns from earlier windows, `[]` for a bot that looked and found none, or
+  # `nil` for the field present but unreadable.
+  defp window_answer_with(carry) do
+    Jason.encode!(%{
+      "ok" => true,
+      "data" => %{
+        "session_id" => @session,
+        "session_status" => "active",
+        "scene_description" => @scene,
+        "scene_facts" => :persistent_term.get(@turns_key, []),
+        "carry_history" => carry,
+        "theme" => %{"setting" => "cyberpunk", "tone" => "gritty"},
+        "character" => %{"name" => "the maid", "class" => "maid", "level" => 3}
+      }
+    })
+  end
+
   defp party_answer do
     Jason.encode!(%{
       "ok" => true,
@@ -118,6 +136,79 @@ defmodule BotArmyDashboardLiveview.PartyPhoneTest do
   defp settle(view) do
     :sys.get_state(view.pid)
     :ok
+  end
+
+  test "the window question asks for the story so far, so the answer can carry it" do
+    Application.put_env(
+      @app,
+      :broker_stub_reply,
+      answers(%{@window_subject => window_answer(), @party_subject => party_answer()})
+    )
+
+    {:ok, view, _html} = live(build_conn(), "/party-phone")
+    settle(view)
+
+    assert_receive {:broker_stub_request, _conn, @window_subject, payload, _opts},
+                   500
+
+    assert Jason.decode!(payload)["carry_history"] == true
+  end
+
+  test "a window with a story so far draws the earlier turns, naming who spoke" do
+    Application.put_env(
+      @app,
+      :broker_stub_reply,
+      answers(%{
+        @window_subject =>
+          window_answer_with([
+            %{"content" => "Hi!", "source" => "operator", "session_id" => "earlier-window"},
+            %{"content" => "the GM closed the door", "source" => "gm"}
+          ]),
+        @party_subject => party_answer()
+      })
+    )
+
+    {:ok, view, _html} = live(build_conn(), "/party-phone")
+    settle(view)
+    html = render(view)
+
+    assert html =~ "Previously in this story"
+    assert html =~ "Hi!"
+    assert html =~ "the operator"
+    assert html =~ "the GM closed the door"
+    assert html =~ "the GM"
+    assert html =~ "carried from the windows before this one"
+  end
+
+  test "a bot that looked and found nothing before says so, as a reading" do
+    Application.put_env(
+      @app,
+      :broker_stub_reply,
+      answers(%{@window_subject => window_answer_with([]), @party_subject => party_answer()})
+    )
+
+    {:ok, view, _html} = live(build_conn(), "/party-phone")
+    settle(view)
+
+    assert render(view) =~ "Nothing came before this window"
+    refute render(view) =~ "The bot did not report what came before"
+  end
+
+  test "a story so far that was not reported is not drawn as nothing came before" do
+    Application.put_env(
+      @app,
+      :broker_stub_reply,
+      answers(%{@window_subject => window_answer(), @party_subject => party_answer()})
+    )
+
+    {:ok, view, _html} = live(build_conn(), "/party-phone")
+    settle(view)
+    html = render(view)
+
+    assert html =~ "The bot did not report what came before this window."
+    # The lie this pins: a question nobody answered is not a report that nothing
+    # came before, and the screen must not say the second one.
+    refute html =~ "Nothing came before this window"
   end
 
   test "an open window draws the scene, the party, the turns, and the shelf inside it" do

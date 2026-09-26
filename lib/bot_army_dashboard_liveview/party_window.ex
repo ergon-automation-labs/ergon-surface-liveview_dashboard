@@ -32,6 +32,22 @@ defmodule BotArmyDashboardLiveview.PartyWindow do
   refusal — a store that answered something unexpected, a reply this screen cannot
   read — is `:unreported`, carrying the bot's own word where there is one.
 
+  ## The story so far
+
+  Every window used to open cold. `rpg.session.start` always creates a new session —
+  it never picks up an open one — and the turns were only ever read per session, so a
+  new window opened on *nothing has been said in this window yet* while the last
+  conversation sat right there in the previous one. The fix belongs to the domain, not
+  to this screen: the window question now carries the story so far — the newest turns
+  of this identity's *other* windows, oldest first, each with who spoke it.
+
+  That read has three outcomes here, like every other read on this screen, and they
+  are not interchangeable: the bot carried the earlier turns (a list, oldest first),
+  the bot looked and nothing came before (`[]`), or the bot did not report it
+  (`nil` — the field absent, or the carry unreadable). *Nothing came before* is a
+  reading; *the bot did not say* is not, and this module never renders the second as
+  the first.
+
   ## What a turn is, and who spoke it
 
   `scene_facts` arrives newest first (the bot sorts by `created_at desc` and takes
@@ -101,8 +117,14 @@ defmodule BotArmyDashboardLiveview.PartyWindow do
   """
   def user_id, do: Application.get_env(:bot_army_dashboard_liveview, :party_user_id)
 
-  @doc "The body of the window question."
-  def context_payload, do: identity()
+  @doc """
+  The body of the window question, asking for the story so far.
+
+  Opt-in on the wire, so the consumers that do not want it are untouched — and a bot
+  that does not know the field ignores it, which is why an answer without it is
+  unreported rather than empty.
+  """
+  def context_payload, do: Map.put(identity(), "carry_history", true)
 
   @doc "The body of the party question."
   def state_payload(session_id), do: Map.put(identity(), "session_id", session_id)
@@ -148,7 +170,8 @@ defmodule BotArmyDashboardLiveview.PartyWindow do
        scene: binary_or_nil(answer["scene_description"]),
        facts: facts(answer["scene_facts"]),
        theme: theme(answer["theme"]),
-       character: character(answer["character"])
+       character: character(answer["character"]),
+       carry: carry(answer)
      }}
   end
 
@@ -210,6 +233,18 @@ defmodule BotArmyDashboardLiveview.PartyWindow do
   @spec turns(map()) :: [String.t()] | nil
   def turns(%{facts: facts}) when is_list(facts), do: Enum.reverse(facts)
   def turns(_window), do: nil
+
+  @doc """
+  The turns of the windows before this one, oldest first — or `nil` when the bot did
+  not report them.
+
+  An empty list means the bot looked and nothing came before; `nil` means the bot did
+  not say, and the screen says that instead of *nothing came before*, which would be
+  this screen's invention.
+  """
+  @spec history(map() | term()) :: [map()] | nil
+  def history(%{carry: rows}) when is_list(rows), do: rows
+  def history(_window), do: nil
 
   # ── a reply ─────────────────────────────────────────────────────────────────
 
@@ -366,6 +401,27 @@ defmodule BotArmyDashboardLiveview.PartyWindow do
   # "the bot did not say" are different sentences and the screen says which one it is.
   defp facts(list) when is_list(list), do: Enum.filter(list, &is_binary/1)
   defp facts(_other), do: nil
+
+  # The story so far, as the answer carried it. A window that was never reported, a
+  # carry this bot could not read (`nil`) and a bot that does not know the field all
+  # come back `nil` here, and the screen says the one true sentence for all three.
+  defp carry(%{"carry_history" => rows}) when is_list(rows),
+    do: rows |> Enum.map(&carry_row/1) |> Enum.reject(&is_nil/1)
+
+  defp carry(_answer), do: nil
+
+  # A row without a line is not a turn, and is not drawn as one.
+  defp carry_row(%{"content" => text} = row) when is_binary(text),
+    do: %{text: text, who: who(row["source"])}
+
+  defp carry_row(_row), do: nil
+
+  # Who spoke, naming the role. Both the operator and the maid are *she*, so a bare
+  # pronoun in this spot would be a sentence with two possible subjects (§28).
+  defp who(@source), do: "the operator"
+  defp who("gm"), do: "the GM"
+  defp who(other) when is_binary(other) and other != "", do: other
+  defp who(_other), do: "someone the bot did not name"
 
   defp binary_or_nil(value) when is_binary(value), do: value
   defp binary_or_nil(_value), do: nil

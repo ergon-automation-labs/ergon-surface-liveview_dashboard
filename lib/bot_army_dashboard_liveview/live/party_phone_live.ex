@@ -26,6 +26,19 @@ defmodule BotArmyDashboardLiveview.PartyPhoneLive do
   with no window open there is nothing to offer the shelf inside of, and this page
   says that rather than drawing a shelf on an empty page.
 
+  ## A window opens with the story so far
+
+  Every window used to open cold, because the domain only ever read turns per session
+  and `rpg.session.start` always begins a new one. The bot now carries the earlier
+  turns on the same window question (`carry_history`), and this screen draws them
+  above the window's own turns — *previously in this story* — so walking into a new
+  conversation is not walking into a blank page.
+
+  The carry has its own three answers (`PartyWindow.history/1`): the turns that came
+  before, `[]` for a bot that looked and found none, and `nil` for a bot that did not
+  report them. The card draws all three differently, because *nothing came before* is
+  a reading the bot made and *the bot did not say* is not.
+
   ## A reply is confirmed by the window, not by the write
 
   Saying something into the window is a write, and it is the only write on this
@@ -252,6 +265,25 @@ defmodule BotArmyDashboardLiveview.PartyPhoneLive do
                 <% else %>
                   <p class="dim">Reading who is in the window…</p>
                 <% end %>
+            <% end %>
+          </div>
+
+          <div class="card">
+            <div class="card-title">🗝 Previously in this story  what came before this window</div>
+            <%= case PartyWindow.history(@window) do %>
+              <% nil -> %>
+                <p class="unreported">The bot did not report what came before this window.</p>
+              <% [] -> %>
+                <p class="unreported">Nothing came before this window — the story starts here.</p>
+              <% rows -> %>
+                <%= for row <- rows do %>
+                  <p class="dim" style="margin:0 0 6px; font-size:12px;">
+                    <span class="carry-who"><%= row.who %></span>: <%= row.text %>
+                  </p>
+                <% end %>
+                <p class="read-note" style="margin:6px 0 0; font-size:11px;">
+                  carried from the windows before this one
+                </p>
             <% end %>
           </div>
 
