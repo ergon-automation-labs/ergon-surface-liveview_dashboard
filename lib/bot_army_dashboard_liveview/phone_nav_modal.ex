@@ -15,6 +15,8 @@ defmodule BotArmyDashboardLiveview.PhoneNavModal do
     {"/habits-phone", "✓", "Habits", "Daily shame-free check-ins"},
     {"/quest-phone", "⚔️", "Quest", "Story progression tracker"},
     {"/reflect-phone", "📝", "Reflect", "Post-work narrative capture"},
+    {"/hypnosis-phone", "🌀", "Hypnosis",
+     "What she asked to hear, and two ways to take it out of the air"},
     {"/energy-mood-phone", "🌡️", "Energy", "Energy & mood context"},
     {"/fitness-phone", "💪", "Fitness", "Workout logging"},
     {"/gtd-phone", "📋", "GTD", "Projects & tasks"},

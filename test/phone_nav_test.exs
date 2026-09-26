@@ -54,9 +54,10 @@ defmodule BotArmyDashboardLiveview.PhoneNavTest do
     assert {@yearning_page, "💗", "Yearning"} in handhelds
     assert {@body_page, "🫀", "Body"} in handhelds
     assert {@devotion_page, "🕯️", "Devotion"} in handhelds
+    assert {"/hypnosis-phone", "🌀", "Hypnosis"} in handhelds
 
     # One option each, not one page with modes.
-    assert length(handhelds) == 14
+    assert length(handhelds) == 15
     routes = Enum.map(handhelds, &elem(&1, 0))
     assert Enum.uniq(routes) == routes
   end

@@ -15,6 +15,12 @@ defmodule BotArmyDashboardLiveview.PhoneNav do
 
   The wardrobe follows the body for a plainer reason: what she is wearing is the
   one thing the house kept changing and the handheld had no way to touch at all.
+
+  The shelf follows reflect for the same kind of reason, one step further in: the bot
+  has held what she asked to hear since the day it was built, the panel could read it,
+  and the screen she carries could neither see it nor take a phrase out of the air. It
+  is labelled with the word someone would look for — the domain calls it a shelf, and
+  nothing on this bar was called hypnosis.
   """
 
   use Phoenix.Component
@@ -30,6 +36,7 @@ defmodule BotArmyDashboardLiveview.PhoneNav do
     {"/habit-anchors", "🪥", "Anchors"},
     {"/quest-phone", "⚔️", "Quest"},
     {"/reflect-phone", "📝", "Reflect"},
+    {"/hypnosis-phone", "🌀", "Hypnosis"},
     {"/energy-mood-phone", "🌡️", "Energy"},
     {"/fitness-phone", "💪", "Fitness"},
     {"/gtd-phone", "📋", "GTD"},

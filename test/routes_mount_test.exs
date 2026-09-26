@@ -28,7 +28,7 @@ defmodule BotArmyDashboardLiveview.RoutesMountTest do
     / household-hud yearning-phone body-phone wardrobe-phone devotion-phone
     fitness-handheld gtd-handheld system-health-handheld energy-mood-handheld timer-handheld
     habit-anchors quest-status reflection
-    timer-phone habits-phone quest-phone reflect-phone energy-mood-phone
+    timer-phone habits-phone quest-phone reflect-phone hypnosis-phone energy-mood-phone
     fitness-phone system-health-phone gtd-phone session-history-phone
   )
 
