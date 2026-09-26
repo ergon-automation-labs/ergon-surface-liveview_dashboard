@@ -15,6 +15,10 @@ defmodule BotArmyDashboardLiveview.BrokerStub do
     * a map — the reply body per subject, so a screen that asks two questions
       can be answered differently on each (a subject the map does not name is
       answered with `"{}"`)
+    * `{:answers, fun}` — a function of the subject, for a read that has to
+      answer *differently over time*, which is the only honest way to test a
+      screen that re-reads after a write. What it returns is resolved like any
+      other value here, so it can return a body, a map, or an error.
     * `{:error, reason}`
     * `{:exit, reason}` — to exercise the exit paths
     * `{:raise, message}` — to prove a bug is not mistaken for a dead bot
@@ -35,13 +39,20 @@ defmodule BotArmyDashboardLiveview.BrokerStub do
   end
 
   defp resolve(replies, subject) when is_map(replies) do
-    answer(Map.get(replies, subject, "{}"))
+    answer(Map.get(replies, subject, "{}"), subject)
   end
 
-  defp resolve(reply, _subject), do: answer(reply)
+  defp resolve(reply, subject), do: answer(reply, subject)
 
-  defp answer({:exit, reason}), do: exit(reason)
-  defp answer({:raise, message}), do: raise(message)
-  defp answer({:error, reason}), do: {:error, reason}
-  defp answer(body) when is_binary(body), do: {:ok, %{body: body}}
+  defp answer({:exit, reason}, _subject), do: exit(reason)
+  defp answer({:raise, message}, _subject), do: raise(message)
+  defp answer({:error, reason}, _subject), do: {:error, reason}
+
+  # A screen that re-reads after a write has to see the wardrobe change, and the
+  # change is what the re-read is for. The function gets the subject and returns
+  # whatever the stored reply would have been.
+  defp answer({:answers, fun}, subject) when is_function(fun, 1),
+    do: answer(fun.(subject), subject)
+
+  defp answer(body, _subject) when is_binary(body), do: {:ok, %{body: body}}
 end

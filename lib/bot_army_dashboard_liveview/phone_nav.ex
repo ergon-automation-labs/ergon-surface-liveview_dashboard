@@ -12,6 +12,9 @@ defmodule BotArmyDashboardLiveview.PhoneNav do
   own screens rather than corners of the house's read: a report belongs on the
   screen that is for reporting. They sit next to the house, ahead of the timer,
   because the two things only she can report are closer to her than the work.
+
+  The wardrobe follows the body for a plainer reason: what she is wearing is the
+  one thing the house kept changing and the handheld had no way to touch at all.
   """
 
   use Phoenix.Component
@@ -20,6 +23,7 @@ defmodule BotArmyDashboardLiveview.PhoneNav do
     {"/household-hud", "🏠", "House"},
     {"/yearning-phone", "💗", "Yearning"},
     {"/body-phone", "🫀", "Body"},
+    {"/wardrobe-phone", "👗", "Wardrobe"},
     {"/devotion-phone", "🕯️", "Devotion"},
     {"/timer-phone", "⏱️", "Timer"},
     {"/habits-phone", "✓", "Habits"},
