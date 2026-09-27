@@ -19,7 +19,12 @@ defmodule BotArmyDashboardLiveview.PartyPhoneLive do
   ## The shelf lives here now
 
   A phrase in the air is a moment, and this is where the moments are — so the shelf
-  is drawn **inside the window** rather than on a page of its own. A call being open
+  is drawn **inside the window** rather than on a page of its own. That page was not
+  deleted quietly: `/hypnosis-phone` was the shelf with no window around it, nothing
+  linked to it but the long-press menu, and a second screen asking the same two
+  questions is a second answer that can disagree. It is retired, and the path
+  redirects here carrying `moved=shelf` so a bookmark lands on the shelf's new home
+  with a sentence saying so rather than on a 404. A call being open
   is still the shelf's own condition (`HypnosisShelf.open_call/1`: `:open`, `:none`,
   `:unreported`, three answers and not two), and it is asked on the same subject the
   house screen asks, so the two cannot disagree. What the window adds is the place:
@@ -67,7 +72,7 @@ defmodule BotArmyDashboardLiveview.PartyPhoneLive do
   @call_timeout 3_000
 
   @impl true
-  def mount(_params, _session, socket) do
+  def mount(params, _session, socket) do
     :ok = PubSub.subscribe(BotArmyDashboardLiveview.PubSub, "dashboard:hypnosis")
 
     BotRead.async(
@@ -91,7 +96,8 @@ defmodule BotArmyDashboardLiveview.PartyPhoneLive do
      |> assign(window_sentence: nil)
      |> assign(party: nil)
      |> assign(reply: nil)
-     |> assign(draft: "")}
+     |> assign(draft: "")
+     |> assign(moved: moved_from(params))}
   end
 
   # The window answered. A window opens the party read, which is the only dependent
@@ -221,6 +227,13 @@ defmodule BotArmyDashboardLiveview.PartyPhoneLive do
 
   defp empty_reply, do: "There is nothing to say — an empty reply is not a turn."
 
+  # A bookmark to a retired screen arrives here with `moved=shelf` on it, and the sentence
+  # is only drawn when it was really asked for: a redirect that lands somewhere
+  # unexplained is a slightly nicer 404, and one that explains itself to everyone is noise
+  # on the screen she actually uses.
+  defp moved_from(%{"moved" => "shelf"}), do: true
+  defp moved_from(_params), do: false
+
   @impl true
   def render(assigns) do
     ~H"""
@@ -231,6 +244,15 @@ defmodule BotArmyDashboardLiveview.PartyPhoneLive do
     <div class="handheld-container with-nav party-phone">
       <div class="phone-card">
         <div class="view-title">🎭 The window</div>
+
+        <%= if @moved do %>
+          <div class="card">
+            <p class="dim" style="margin:0; font-size:12px;">
+              Her shelf moved into the window — a phrase in the air is a moment, and this
+              is where the moments are.
+            </p>
+          </div>
+        <% end %>
 
         <%= if @window do %>
           <div class="card">

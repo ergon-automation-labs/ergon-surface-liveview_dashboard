@@ -26,6 +26,7 @@ defmodule BotArmyDashboardLiveview.PhoneNavTest do
 
   alias BotArmyDashboardLiveview.BrokerStub
   alias BotArmyDashboardLiveview.PhoneNav
+  alias BotArmyDashboardLiveview.PhoneNavModal
 
   @endpoint BotArmyDashboardLiveview.Endpoint
   @app :bot_army_dashboard_liveview
@@ -71,6 +72,30 @@ defmodule BotArmyDashboardLiveview.PhoneNavTest do
 
     # One option each, not one page with modes.
     assert length(handhelds) == 15
+    routes = Enum.map(handhelds, &elem(&1, 0))
+    assert Enum.uniq(routes) == routes
+  end
+
+  test "the long-press menu lists no screen that is retired" do
+    handhelds = PhoneNavModal.all_handhelds()
+
+    # The shelf's page was reachable from this menu and nowhere else. It is a redirect to
+    # the window now, so a menu that still listed it would offer a screen that is not
+    # there — and the shelf would have two homes again, which is the thing retiring it
+    # settled.
+    refute Enum.any?(handhelds, fn {route, _emoji, _label, _hint} ->
+             route == "/hypnosis-phone"
+           end)
+
+    # And the menu is where the shelf is announced instead: it is drawn inside the window,
+    # so the window's own line has to say so or the shelf is nowhere she would look.
+    assert {_route, "🎭", "Window", hint} =
+             Enum.find(handhelds, fn {route, _emoji, _label, _hint} ->
+               route == "/party-phone"
+             end)
+
+    assert hint =~ "shelf"
+
     routes = Enum.map(handhelds, &elem(&1, 0))
     assert Enum.uniq(routes) == routes
   end

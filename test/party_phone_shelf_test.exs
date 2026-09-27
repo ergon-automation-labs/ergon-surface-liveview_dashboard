@@ -1,7 +1,13 @@
-defmodule BotArmyDashboardLiveview.HypnosisPhoneTest do
+defmodule BotArmyDashboardLiveview.PartyPhoneShelfTest do
   @moduledoc """
-  The shelf screen: what it reads, what a tap sends, and what the sentence after a tap
-  is allowed to claim.
+  Her shelf **inside the window**: what the card draws, what a tap sends, and what the
+  sentence after a tap is allowed to claim.
+
+  This was the shelf screen's own test file. The shelf's page of its own is retired —
+  `/hypnosis-phone` is a redirect to the window now — so the same pins live here, on the
+  screen that draws the card. Nothing about the assertions changed except where they
+  happen: the card has to be drawn inside an open window, so every page in here stubs
+  the window question and the party question as well as the shelf's two.
 
   The live shelf is empty (nothing has been put on it yet), so the stub is the only thing
   that can put a page in front of this test at all. It is shaped like the live reply —
@@ -14,6 +20,10 @@ defmodule BotArmyDashboardLiveview.HypnosisPhoneTest do
   the sentence: every confirmation in here comes from a re-read the stub changed during
   the write, because a confirmation that came from the write's own ok is exactly the
   claim that can be wrong.
+
+  The one thing that could not come along is the shelf page's own identity — that it
+  opened on the shelf and said what it was for. That is `PartyPhoneTest`'s now, because
+  the screen it was said about is the window.
   """
 
   # The reads swap the broker transport for a stub and set process-wide application env,
@@ -29,9 +39,14 @@ defmodule BotArmyDashboardLiveview.HypnosisPhoneTest do
   @endpoint BotArmyDashboardLiveview.Endpoint
   @app :bot_army_dashboard_liveview
 
+  @window "rpg.session.gather_context"
+  @party "rpg.session.state"
   @read "wife_care.control_panel.hypnosis"
   @write "wife_care.control_panel.hypnosis_phrase"
   @call "wife_care.control_panel.state"
+
+  @session "e291bf79-1111-4000-8000-000000000001"
+  @char "c1a0f2e0-2222-4000-8000-000000000001"
 
   @p1 "5f1a0f2e-1111-4000-8000-000000000001"
   @p2 "5f1a0f2e-1111-4000-8000-000000000002"
@@ -147,6 +162,30 @@ defmodule BotArmyDashboardLiveview.HypnosisPhoneTest do
     Jason.encode!(%{"ok" => true, "data" => %{"phrase" => %{"id" => @p1}, "hypnosis" => %{}}})
   end
 
+  # The shelf is drawn inside an open window, so the window question and the party question
+  # are part of every page here. The window's own answers are pinned in `PartyPhoneTest`;
+  # this file only needs them to be true enough that the window renders.
+  defp window_json do
+    Jason.encode!(%{
+      "ok" => true,
+      "data" => %{
+        "session_id" => @session,
+        "session_status" => "active",
+        "scene_description" => "Neon-drenched alleyway under a flickering ad.",
+        "scene_facts" => [],
+        "theme" => %{"setting" => "cyberpunk", "tone" => "gritty"},
+        "character" => %{"name" => "the maid", "class" => "maid", "level" => 3}
+      }
+    })
+  end
+
+  defp party_json do
+    Jason.encode!(%{
+      "ok" => true,
+      "data" => %{"id" => @session, "character_ids" => %{@char => "gtd_bot"}}
+    })
+  end
+
   defp stub(reply), do: Application.put_env(@app, :broker_stub_reply, reply)
 
   # A call is open unless the test is about the gate: this file is about the shelf, and
@@ -154,6 +193,8 @@ defmodule BotArmyDashboardLiveview.HypnosisPhoneTest do
   # gate's own tests pass `call:` to say something else.
   defp stub_read(phrases \\ [], opts \\ []) do
     stub(%{
+      @window => Keyword.get(opts, :window, window_json()),
+      @party => party_json(),
       @read => shelf_json(%{"phrases" => phrases}, opts),
       @write => write_ok(),
       @call => Keyword.get(opts, :call, open_call_json())
@@ -176,6 +217,12 @@ defmodule BotArmyDashboardLiveview.HypnosisPhoneTest do
 
          @call ->
            open_call_json()
+
+         @window ->
+           window_json()
+
+         @party ->
+           party_json()
 
          @read ->
            case Agent.get(agent, & &1) do
@@ -202,7 +249,7 @@ defmodule BotArmyDashboardLiveview.HypnosisPhoneTest do
   # test never starts from the "nothing from the shelf yet" state.
   defp page(phrases \\ [], opts \\ []) do
     stub_read(phrases, opts)
-    {:ok, view, _html} = live(build_conn(), "/hypnosis-phone")
+    {:ok, view, _html} = live(build_conn(), "/party-phone")
     await(view, Keyword.get(opts, :settled, @p1_text))
     view
   end
@@ -230,28 +277,6 @@ defmodule BotArmyDashboardLiveview.HypnosisPhoneTest do
     html |> String.split(needle) |> length() |> Kernel.-(1)
   end
 
-  # ── the read ───────────────────────────────────────────────────────────────
-
-  test "the screen opens on the shelf itself, and says what it is for" do
-    html = render(page([phrase(id: @p1, on: true), phrase(id: @p2, on: false, text: @p2_text)]))
-
-    assert html =~ "🌀 Her shelf"
-    assert html =~ "what she has asked to hear"
-    assert html =~ @p1_text
-    assert html =~ @p2_text
-    # The bot's own labels, not this screen's opinion of the phrase.
-    assert html =~ "Her worth"
-    assert html =~ "said when she is low"
-    assert html =~ "1 in the air · 1 off the air"
-    # The narration is stated in the bot's terms.
-    assert html =~ "no stop is in place — the house may speak about her."
-    # Not an entry in the bar — the shelf is offered while a call is open, so the way in
-    # is the call card on the house screen — and a tap cannot reach a second handler.
-    refute html =~ ~s(href="/hypnosis-phone")
-    assert html =~ "A call is open, and this shelf is offered while one is."
-    refute html =~ "TouchCarousel"
-  end
-
   # ── the window the shelf is offered in ──────────────────────────────────────
 
   # A phrase in the air is a moment rather than a place, so the shelf is offered while
@@ -262,14 +287,13 @@ defmodule BotArmyDashboardLiveview.HypnosisPhoneTest do
       render(
         page([phrase(id: @p1, on: true)],
           call: no_call_json(),
-          settled: "Nothing is waiting right now"
+          settled: "Neon-drenched"
         )
       )
 
-    assert html =~ "Nothing is waiting right now, so the shelf is not offered here."
-    assert html =~ "the house has called her and she has not answered yet"
-    # The shelf was read — the refusal is about the window, not about the read — and the
-    # phrase it holds is not drawn either way.
+    # The window still stands — this is the shelf's condition, not the window's.
+    assert html =~ "The window"
+    # And the phrase the shelf holds is not drawn, because no shelf is offered here.
     refute html =~ "what she has asked to hear"
     refute html =~ @p1_text
     refute html =~ "The shelf was not read"
@@ -293,11 +317,13 @@ defmodule BotArmyDashboardLiveview.HypnosisPhoneTest do
   # as unread by a card that claims nothing below it is a reading.
   test "a call read that never came back does not report the shelf as unread" do
     stub(%{
+      @window => window_json(),
+      @party => party_json(),
       @read => shelf_json(%{"phrases" => [phrase(id: @p1, on: true)]}),
       @call => {:error, :timeout}
     })
 
-    {:ok, view, _html} = live(build_conn(), "/hypnosis-phone")
+    {:ok, view, _html} = live(build_conn(), "/party-phone")
     await(view, @p1_text)
 
     html = render(view)
@@ -307,6 +333,8 @@ defmodule BotArmyDashboardLiveview.HypnosisPhoneTest do
     refute html =~ "The shelf was not read"
     refute html =~ "Can't reach the bot"
   end
+
+  # ── the card ────────────────────────────────────────────────────────────────
 
   # The reason the card does not offer three of the shelf's five verbs is part of the
   # card, not a footnote somewhere else: a screen that silently offers fewer verbs than
@@ -340,7 +368,7 @@ defmodule BotArmyDashboardLiveview.HypnosisPhoneTest do
   # the card must not offer a button there.
   test "the away list and the earlier wording are drawn without buttons" do
     stub_read([], put_away: [phrase(id: @p3, text: @p3_text, on: false)])
-    {:ok, view, _html} = live(build_conn(), "/hypnosis-phone")
+    {:ok, view, _html} = live(build_conn(), "/party-phone")
     await(view, @p3_text)
 
     html = render(view)
@@ -352,8 +380,14 @@ defmodule BotArmyDashboardLiveview.HypnosisPhoneTest do
   end
 
   test "a failed read is the read error, and not an empty shelf" do
-    stub({:error, :no_broker})
-    {:ok, view, _html} = live(build_conn(), "/hypnosis-phone")
+    stub(%{
+      @window => window_json(),
+      @party => party_json(),
+      @read => {:error, :no_broker},
+      @call => open_call_json()
+    })
+
+    {:ok, view, _html} = live(build_conn(), "/party-phone")
 
     await(view, "the bot is not reachable right now")
 
@@ -365,8 +399,14 @@ defmodule BotArmyDashboardLiveview.HypnosisPhoneTest do
   end
 
   test "an answer that is not a shelf refuses the card rather than drawing an empty one" do
-    stub(%{@read => Jason.encode!(%{"ok" => true, "data" => %{"hypnosis" => "nope"}})})
-    {:ok, view, _html} = live(build_conn(), "/hypnosis-phone")
+    stub(%{
+      @window => window_json(),
+      @party => party_json(),
+      @read => Jason.encode!(%{"ok" => true, "data" => %{"hypnosis" => "nope"}}),
+      @call => open_call_json()
+    })
+
+    {:ok, view, _html} = live(build_conn(), "/party-phone")
 
     await(view, "the bot answered with a shelf this screen cannot read")
 
@@ -379,8 +419,14 @@ defmodule BotArmyDashboardLiveview.HypnosisPhoneTest do
   # The bot answers a store failure this way, and it arrives as a *successful* read: the
   # one shape that would be read as "she has asked to hear nothing".
   test "the bot refusing the read is a refusal, not an empty shelf" do
-    stub(%{@read => Jason.encode!(%{"ok" => false, "error" => "the store is not reachable"})})
-    {:ok, view, _html} = live(build_conn(), "/hypnosis-phone")
+    stub(%{
+      @window => window_json(),
+      @party => party_json(),
+      @read => Jason.encode!(%{"ok" => false, "error" => "the store is not reachable"}),
+      @call => open_call_json()
+    })
+
+    {:ok, view, _html} = live(build_conn(), "/party-phone")
 
     await(view, "the store is not reachable")
 
@@ -404,7 +450,7 @@ defmodule BotArmyDashboardLiveview.HypnosisPhoneTest do
 
   test "switching a phrase off is written as the operator, and confirmed by the read back" do
     stub_verb_lands(:off)
-    {:ok, view, _html} = live(build_conn(), "/hypnosis-phone")
+    {:ok, view, _html} = live(build_conn(), "/party-phone")
     await(view, @p1_text)
 
     render_click(view, "act", %{"verb" => "switch_off", "id" => @p1})
@@ -424,7 +470,7 @@ defmodule BotArmyDashboardLiveview.HypnosisPhoneTest do
 
   test "taking a phrase away is written as the operator, and confirmed by the away list" do
     stub_verb_lands(:away)
-    {:ok, view, _html} = live(build_conn(), "/hypnosis-phone")
+    {:ok, view, _html} = live(build_conn(), "/party-phone")
     await(view, @p1_text)
 
     render_click(view, "act", %{"verb" => "take_away", "id" => @p1})
@@ -446,7 +492,7 @@ defmodule BotArmyDashboardLiveview.HypnosisPhoneTest do
   # shelf still holds.
   test "a write the shelf did not take says what the shelf still holds" do
     stub_verb_lands(:unchanged)
-    {:ok, view, _html} = live(build_conn(), "/hypnosis-phone")
+    {:ok, view, _html} = live(build_conn(), "/party-phone")
     await(view, @p1_text)
 
     render_click(view, "act", %{"verb" => "switch_off", "id" => @p1})
@@ -487,11 +533,14 @@ defmodule BotArmyDashboardLiveview.HypnosisPhoneTest do
   # The bot's refusals name the phrase, and this screen does not improve on them.
   test "a refusal from the bot keeps the bot's own sentence" do
     stub(%{
+      @window => window_json(),
+      @party => party_json(),
       @read => shelf_json(%{"phrases" => [phrase(id: @p1, on: true)]}),
+      @call => open_call_json(),
       @write => Jason.encode!(%{"ok" => false, "error" => "that phrase is not on her shelf"})
     })
 
-    {:ok, view, _html} = live(build_conn(), "/hypnosis-phone")
+    {:ok, view, _html} = live(build_conn(), "/party-phone")
     await(view, @p1_text)
 
     render_click(view, "act", %{"verb" => "take_away", "id" => @p1})
@@ -504,11 +553,14 @@ defmodule BotArmyDashboardLiveview.HypnosisPhoneTest do
   # pretending the bot said no.
   test "a broker that never carried the write says nothing was recorded" do
     stub(%{
+      @window => window_json(),
+      @party => party_json(),
       @read => shelf_json(%{"phrases" => [phrase(id: @p1, on: true)]}),
+      @call => open_call_json(),
       @write => {:error, :no_broker}
     })
 
-    {:ok, view, _html} = live(build_conn(), "/hypnosis-phone")
+    {:ok, view, _html} = live(build_conn(), "/party-phone")
     await(view, @p1_text)
 
     log =
@@ -532,23 +584,27 @@ defmodule BotArmyDashboardLiveview.HypnosisPhoneTest do
 
     # The `delivery` block is the read's own statement of how the house reads, so it rides
     # in the reply beside the phrases rather than being known by the screen.
-    stub(
-      shelf_json(%{
-        "phrases" => [
-          phrase(
-            id: @p1,
-            repeat: "daily",
-            repeat_label: "Once a day",
-            said_count: 2,
-            last_said_at: "2026-09-26T11:00:00Z",
-            due?: false
-          )
-        ],
-        "delivery" => delivery
-      })
-    )
+    stub(%{
+      @window => window_json(),
+      @party => party_json(),
+      @read =>
+        shelf_json(%{
+          "phrases" => [
+            phrase(
+              id: @p1,
+              repeat: "daily",
+              repeat_label: "Once a day",
+              said_count: 2,
+              last_said_at: "2026-09-26T11:00:00Z",
+              due?: false
+            )
+          ],
+          "delivery" => delivery
+        }),
+      @call => open_call_json()
+    })
 
-    {:ok, view, _html} = live(build_conn(), "/hypnosis-phone")
+    {:ok, view, _html} = live(build_conn(), "/party-phone")
     await(view, "the house looks every 10 minutes")
 
     html = render(view)
@@ -577,6 +633,12 @@ defmodule BotArmyDashboardLiveview.HypnosisPhoneTest do
          @call ->
            open_call_json()
 
+         @window ->
+           window_json()
+
+         @party ->
+           party_json()
+
          @read ->
            shelf_json(%{"phrases" => [phrase(id: @p1, said_count: Agent.get(agent, & &1))]})
 
@@ -585,7 +647,7 @@ defmodule BotArmyDashboardLiveview.HypnosisPhoneTest do
        end}
     )
 
-    {:ok, view, _html} = live(build_conn(), "/hypnosis-phone")
+    {:ok, view, _html} = live(build_conn(), "/party-phone")
     await(view, "said 3 times")
 
     # The count changes behind the screen before the saying arrives, so the only way the
@@ -618,7 +680,7 @@ defmodule BotArmyDashboardLiveview.HypnosisPhoneTest do
   test "a saying by hand is named by the role that said it, never a pronoun" do
     stub_read([phrase(id: @p1)], [])
 
-    {:ok, view, _html} = live(build_conn(), "/hypnosis-phone")
+    {:ok, view, _html} = live(build_conn(), "/party-phone")
     await(view, @p1_text)
 
     :ok =

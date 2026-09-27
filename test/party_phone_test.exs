@@ -438,4 +438,40 @@ defmodule BotArmyDashboardLiveview.PartyPhoneTest do
     refute_receive {:broker_stub_request, _, @write_subject, _, _}
     refute render(view) =~ "Send this?"
   end
+
+  # The shelf's own page was retired and its path redirects here. A redirect that lands
+  # somewhere unexplained is a slightly nicer 404, so the window says what moved — but
+  # only to the person who followed the old path. A line about a screen she never used is
+  # noise on the screen she does.
+  test "a bookmark to the retired shelf page lands here, and says what moved" do
+    Application.put_env(
+      @app,
+      :broker_stub_reply,
+      answers(%{@window_subject => window_answer(), @party_subject => party_answer()})
+    )
+
+    {:ok, view, _html} = live(build_conn(), "/party-phone?moved=shelf")
+    settle(view)
+    html = render(view)
+
+    assert html =~ "Her shelf moved into the window"
+    # And the window it landed on is still the window, with the shelf drawn inside it.
+    assert html =~ @scene
+    assert html =~ "Her shelf"
+  end
+
+  test "the window does not explain the move to someone who did not follow it" do
+    Application.put_env(
+      @app,
+      :broker_stub_reply,
+      answers(%{@window_subject => window_answer(), @party_subject => party_answer()})
+    )
+
+    {:ok, view, _html} = live(build_conn(), "/party-phone")
+    settle(view)
+    html = render(view)
+
+    refute html =~ "Her shelf moved into the window"
+    assert html =~ "Her shelf"
+  end
 end

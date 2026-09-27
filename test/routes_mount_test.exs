@@ -28,7 +28,7 @@ defmodule BotArmyDashboardLiveview.RoutesMountTest do
     / household-hud yearning-phone body-phone wardrobe-phone devotion-phone
     fitness-handheld gtd-handheld system-health-handheld energy-mood-handheld timer-handheld
     habit-anchors quest-status reflection
-    timer-phone habits-phone quest-phone reflect-phone hypnosis-phone party-phone energy-mood-phone
+    timer-phone habits-phone quest-phone reflect-phone party-phone energy-mood-phone
     fitness-phone system-health-phone gtd-phone session-history-phone
   )
 
@@ -37,5 +37,27 @@ defmodule BotArmyDashboardLiveview.RoutesMountTest do
       assert {:ok, _view, html} = live(build_conn(), unquote(route))
       assert html =~ "<html"
     end
+  end
+
+  # The shelf's page is retired, and a retired path still has to answer. A 404 would turn
+  # "the shelf is in the window now" into "you typed it wrong" — on a phone, from a home
+  # screen icon that was added when the page was real.
+  test "a retired screen's path sends the bookmark to where the screen went" do
+    conn = get(build_conn(), "/hypnosis-phone")
+    assert conn.status == 302
+    assert Plug.Conn.get_resp_header(conn, "location") == ["/party-phone?moved=shelf"]
+
+    # A trailing slash is the same path, and a bookmark may carry one.
+    assert get(build_conn(), "/hypnosis-phone/").status == 302
+  end
+
+  # The plug only answers for the paths it knows. Everything else is a 404, which is not a
+  # screen either — but it is not a lie about one.
+  test "a path the retirement map does not know is not answered with a move" do
+    assert BotArmyDashboardLiveview.Retired.moved_to("/quest-status") == nil
+
+    conn = get(build_conn(), "/not-a-screen")
+    assert conn.status == 404
+    assert Plug.Conn.get_resp_header(conn, "location") == []
   end
 end

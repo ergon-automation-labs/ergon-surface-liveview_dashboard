@@ -44,12 +44,17 @@ defmodule BotArmyDashboardLiveview.Router do
       live("/habits-phone", HabitsPhoneLive)
       live("/quest-phone", QuestPhoneLive)
       live("/reflect-phone", ReflectPhoneLive)
-      live("/hypnosis-phone", HypnosisPhoneLive)
       live("/energy-mood-phone", EnergyMoodPhoneLive)
       live("/fitness-phone", FitnessPhoneLive)
       live("/system-health-phone", SystemHealthPhoneLive)
       live("/gtd-phone", GtdPhoneLive)
       live("/session-history-phone", SessionHistoryPhoneLive)
     end
+
+    # The shelf's own page is retired: it is drawn inside the window now, and it was
+    # never on the bar. What is left of it is where it went — see
+    # `BotArmyDashboardLiveview.Retired`, which answers a bookmark with the move rather
+    # than a 404. It is not in `live_session` because there is no screen here.
+    get("/hypnosis-phone", Retired, [])
   end
 end

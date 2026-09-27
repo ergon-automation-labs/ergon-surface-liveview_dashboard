@@ -8,7 +8,8 @@ defmodule BotArmyDashboardLiveview.PhoneNavModal do
 
   @handhelds [
     {"/household-hud", "🏠", "House", "What is waiting, and what she asked for"},
-    {"/party-phone", "🎭", "Window", "The window she is in with the party"},
+    {"/party-phone", "🎭", "Window",
+     "The window she is in with the party, and the shelf inside it"},
     {"/yearning-phone", "💗", "Yearning", "Her own number, never measured"},
     {"/body-phone", "🫀", "Body", "Five channels, her own points"},
     {"/wardrobe-phone", "👗", "Wardrobe", "What is in it, and what is on her"},
@@ -17,8 +18,6 @@ defmodule BotArmyDashboardLiveview.PhoneNavModal do
     {"/habits-phone", "✓", "Habits", "Daily shame-free check-ins"},
     {"/quest-phone", "⚔️", "Quest", "Story progression tracker"},
     {"/reflect-phone", "📝", "Reflect", "Post-work narrative capture"},
-    {"/hypnosis-phone", "🌀", "Hypnosis",
-     "What she asked to hear, and two ways to take it out of the air"},
     {"/energy-mood-phone", "🌡️", "Energy", "Energy & mood context"},
     {"/fitness-phone", "💪", "Fitness", "Workout logging"},
     {"/gtd-phone", "📋", "GTD", "Projects & tasks"},
