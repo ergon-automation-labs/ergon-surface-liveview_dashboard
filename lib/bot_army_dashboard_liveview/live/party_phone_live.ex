@@ -188,6 +188,13 @@ defmodule BotArmyDashboardLiveview.PartyPhoneLive do
   end
 
   @impl true
+  def handle_event("act", %{"verb" => "say", "id" => id}, socket),
+    do: {:noreply, HypnosisShelf.click(socket, :say, id)}
+
+  def handle_event("act", %{"verb" => "say"}, socket),
+    do: {:noreply, HypnosisShelf.click(socket, :say, nil)}
+
+  @impl true
   def handle_event("act", %{"verb" => "switch_off", "id" => id}, socket),
     do: {:noreply, HypnosisShelf.click(socket, :switch_off, id)}
 

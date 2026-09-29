@@ -43,6 +43,7 @@ defmodule BotArmyDashboardLiveview.PartyPhoneShelfTest do
   @party "rpg.session.state"
   @read "wife_care.control_panel.hypnosis"
   @write "wife_care.control_panel.hypnosis_phrase"
+  @say "wife_care.control_panel.hypnosis_say"
   @call "wife_care.control_panel.state"
 
   @session "e291bf79-1111-4000-8000-000000000001"
@@ -197,6 +198,7 @@ defmodule BotArmyDashboardLiveview.PartyPhoneShelfTest do
       @party => party_json(),
       @read => shelf_json(%{"phrases" => phrases}, opts),
       @write => write_ok(),
+      @say => write_ok(),
       @call => Keyword.get(opts, :call, open_call_json())
     })
   end
@@ -212,6 +214,10 @@ defmodule BotArmyDashboardLiveview.PartyPhoneShelfTest do
       {:answers,
        fn
          @write ->
+           Agent.update(agent, fn _state -> lands end)
+           write_ok()
+
+         @say ->
            Agent.update(agent, fn _state -> lands end)
            write_ok()
 
@@ -241,6 +247,37 @@ defmodule BotArmyDashboardLiveview.PartyPhoneShelfTest do
              :unchanged ->
                shelf_json(%{"phrases" => [phrase(id: @p1, on: true)]})
            end
+       end}
+    )
+  end
+
+  # A saying has no state to move to — it leaves the phrase where it was and moves the
+  # row's own count — so the count is what the write changes here, and the re-read is what
+  # shows it. The before-picture is a real count of zero, not an absent key: a screen that
+  # cannot tell those two apart would confirm a saying it never saw.
+  defp stub_say_lands do
+    {:ok, agent} = Agent.start_link(fn -> 0 end)
+
+    stub(
+      {:answers,
+       fn
+         @say ->
+           Agent.update(agent, fn count -> count + 1 end)
+           write_ok()
+
+         @call ->
+           open_call_json()
+
+         @window ->
+           window_json()
+
+         @party ->
+           party_json()
+
+         @read ->
+           shelf_json(%{
+             "phrases" => [phrase(id: @p1, on: true, said_count: Agent.get(agent, & &1))]
+           })
        end}
     )
   end
@@ -344,6 +381,7 @@ defmodule BotArmyDashboardLiveview.PartyPhoneShelfTest do
 
     assert html =~ "Switch off"
     assert html =~ "Take away"
+    assert html =~ "Say now"
     assert html =~ "putting one back are hers"
     assert html =~ "claims no voice of hers"
   end
@@ -352,16 +390,21 @@ defmodule BotArmyDashboardLiveview.PartyPhoneShelfTest do
     html = render(page([phrase(id: @p2, on: false, text: @p2_text)], settled: @p2_text))
 
     assert html =~ "off the air"
-    assert html =~ "it is off the air — only she can put it back in, so there is no switch here."
+
+    assert html =~
+             "it is off the air — only she can put it back in, so there is no switch here and nothing to say."
+
     assert count_of(html, ~s(phx-value-verb="switch_off")) == 0
+    assert count_of(html, ~s(phx-value-verb="say")) == 0
     assert count_of(html, ~s(phx-value-verb="take_away")) == 1
   end
 
-  test "a phrase that is in the air carries both reductions" do
+  test "a phrase that is in the air carries both reductions, and may be said" do
     html = render(page([phrase(id: @p1, on: true)]))
 
     assert count_of(html, ~s(phx-value-verb="switch_off")) == 1
     assert count_of(html, ~s(phx-value-verb="take_away")) == 1
+    assert count_of(html, ~s(phx-value-verb="say")) == 1
   end
 
   # The two history lists are drawn read-only: only her voice can put a phrase back, so
@@ -488,6 +531,36 @@ defmodule BotArmyDashboardLiveview.PartyPhoneShelfTest do
     assert render(view) =~ "Taken away"
   end
 
+  # A saying is the one verb here that changes nothing about the shelf, so what confirms it
+  # is the count the bot keeps for the row — moved on by the saying, read back by the same
+  # read as everything else on this card.
+  test "saying a phrase now is written as the operator, and confirmed by the count moving on" do
+    stub_say_lands()
+    {:ok, view, _html} = live(build_conn(), "/party-phone")
+    await(view, @p1_text)
+
+    render_click(view, "act", %{"verb" => "say", "id" => @p1})
+
+    assert_received {:broker_stub_request, _conn, @say, body, _opts}
+    assert Jason.decode!(body) == %{"id" => @p1, "actor" => "operator"}
+
+    await(view, "and the saying is on the record")
+    assert render(view) =~ "the shelf reads back #{@p1_text}, and the saying is on the record"
+    # The saying did not take the phrase off the air or off the shelf: the card is unchanged.
+    assert render(view) =~ @p1_text
+  end
+
+  test "a saying the shelf does not show back is not confirmed, and says so" do
+    stub_verb_lands(:unchanged)
+    {:ok, view, _html} = live(build_conn(), "/party-phone")
+    await(view, @p1_text)
+
+    render_click(view, "act", %{"verb" => "say", "id" => @p1})
+
+    await(view, "cannot confirm")
+    assert render(view) =~ "cannot confirm"
+  end
+
   # A write the shelf did not take is not a confirmation: the sentence reports what the
   # shelf still holds.
   test "a write the shelf did not take says what the shelf still holds" do
@@ -518,7 +591,18 @@ defmodule BotArmyDashboardLiveview.PartyPhoneShelfTest do
     render_click(view, "act", %{"verb" => "reword", "id" => @p1})
 
     refute_received {:broker_stub_request, _conn, @write, _body, _opts}
-    assert render(view) =~ "not one of the two things this screen does"
+    assert render(view) =~ "not one of the three things this screen does"
+  end
+
+  test "a saying on a phrase that is off the air never reaches the bot" do
+    stub_read([phrase(id: @p2, on: false, text: @p2_text)])
+    {:ok, view, _html} = live(build_conn(), "/party-phone")
+    await(view, @p2_text)
+
+    render_click(view, "act", %{"verb" => "say", "id" => @p2})
+
+    refute_received {:broker_stub_request, _conn, @say, _body, _opts}
+    assert render(view) =~ "the house is not saying it, so nothing was said"
   end
 
   test "a tap with no phrase on it is refused, and sends nothing" do

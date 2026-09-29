@@ -20,6 +20,7 @@ defmodule BotArmyDashboardLiveview.HypnosisShelfTest do
   @app :bot_army_dashboard_liveview
   @read "wife_care.control_panel.hypnosis"
   @write "wife_care.control_panel.hypnosis_phrase"
+  @say "wife_care.control_panel.hypnosis_say"
   @call "wife_care.control_panel.state"
 
   @p1 "5f1a0f2e-1111-4000-8000-000000000001"
@@ -112,6 +113,9 @@ defmodule BotArmyDashboardLiveview.HypnosisShelfTest do
   test "the screen reads and writes the subjects the bot serves, as the operator" do
     assert HypnosisShelf.read_subject() == @read
     assert HypnosisShelf.write_subject() == @write
+    # A saying is a different verb on a different subject: posting `say` to the phrase
+    # subject would be asking a handler that has never heard of it.
+    assert HypnosisShelf.say_subject() == @say
     # Not `subject`: this dashboard proves nothing about who is holding the phone, and
     # her voice is the one it must not forge.
     assert HypnosisShelf.actor() == "operator"
@@ -309,7 +313,119 @@ defmodule BotArmyDashboardLiveview.HypnosisShelfTest do
     assert failed =~ "could not be read"
 
     assert {:refused, %{error: foreign}} = HypnosisShelf.plan(:reword, @p1, shelf)
-    assert foreign == "that is not one of the two things this screen does — nothing was sent"
+    assert foreign == "that is not one of the three things this screen does — nothing was sent"
+  end
+
+  # ── the saying ──────────────────────────────────────────────────────────────
+
+  test "a saying is planned for a phrase in the air, as the operator" do
+    on = built(phrases: [phrase(id: @p1, on: true, said_count: 3)])
+
+    assert {:send, payload, act} = HypnosisShelf.plan(:say, @p1, on)
+
+    assert payload == %{"id" => @p1, "actor" => "operator"}
+    assert act.verb == :say
+    assert act.text == "you are worth the trouble"
+    # The act carries the shelf as it read before the tap: a saying has to be confirmed
+    # against what moved, and only the before-picture can say what moved.
+    assert act.said_count == 3
+  end
+
+  test "a saying is refused for a phrase off the air, in the saying's own words" do
+    off = built(phrases: [phrase(id: @p2, on: false)])
+
+    assert {:refused, %{verb: :say, id: @p2, error: sentence}} =
+             HypnosisShelf.plan(:say, @p2, off)
+
+    assert sentence =~ "the house is not saying it, so nothing was said"
+  end
+
+  test "a saying with no phrase, and a saying on an unread shelf, are the shelf's own refusals" do
+    shelf = built(phrases: [phrase(id: @p1, on: true)])
+
+    assert {:refused, %{error: no_phrase}} = HypnosisShelf.plan(:say, nil, shelf)
+    assert no_phrase =~ "no phrase on it"
+
+    assert {:refused, %{error: unread}} = HypnosisShelf.plan(:say, @p1, nil)
+    assert unread =~ "has not been read yet"
+  end
+
+  test "a saying is confirmed by the row's own count moving on" do
+    act = %{
+      verb: :say,
+      id: @p1,
+      text: "you are worth the trouble",
+      said_count: 2,
+      last_said_at: nil
+    }
+
+    settled =
+      HypnosisShelf.settle(act, built(phrases: [phrase(id: @p1, on: true, said_count: 3)]))
+
+    assert settled.confirmed? == true
+    assert HypnosisShelf.line(settled) =~ "and the saying is on the record"
+    assert HypnosisShelf.line(settled) =~ "never the words"
+  end
+
+  test "a saying the shelf does not show is not confirmed, and the sentence says which fact that is" do
+    act = %{
+      verb: :say,
+      id: @p1,
+      text: "you are worth the trouble",
+      said_count: 2,
+      last_said_at: nil
+    }
+
+    settled =
+      HypnosisShelf.settle(act, built(phrases: [phrase(id: @p1, on: true, said_count: 2)]))
+
+    assert settled.confirmed? == false
+    assert HypnosisShelf.line(settled) =~ "cannot confirm"
+  end
+
+  # The bot sends the count or it does not. Where it sent neither a count nor a stamp, this
+  # screen has nothing to compare and says that rather than reading a nil as a zero.
+  test "a saying with no count and no stamp is not confirmed by a guess" do
+    act = %{
+      verb: :say,
+      id: @p1,
+      text: "you are worth the trouble",
+      said_count: nil,
+      last_said_at: nil
+    }
+
+    settled = HypnosisShelf.settle(act, built(phrases: [phrase(id: @p1, on: true)]))
+
+    assert settled.confirmed? == false
+    assert HypnosisShelf.line(settled) =~ "cannot confirm"
+  end
+
+  # The fallback: a bot that sends no count but does send the stamp, and the stamp is not
+  # the one the tap read.
+  test "a saying is confirmed by the stamp where the bot sent no count" do
+    act = %{
+      verb: :say,
+      id: @p1,
+      text: "you are worth the trouble",
+      said_count: nil,
+      last_said_at: "2026-09-25T10:00:00Z"
+    }
+
+    read =
+      built(phrases: [phrase(id: @p1, on: true, last_said_at: "2026-09-29T09:00:00Z")])
+
+    assert HypnosisShelf.settle(act, read).confirmed? == true
+  end
+
+  test "a saying is written on the saying's own subject, never the phrase subject" do
+    Application.put_env(@app, :broker_stub_listener, self())
+    stub(Jason.encode!(%{"ok" => true, "data" => %{}}))
+
+    assert {:ok, _data} = HypnosisShelf.write(:say, %{"id" => @p1, "actor" => "operator"})
+
+    assert_received {:broker_stub_request, _conn, @say, body, _opts}
+    assert Jason.decode!(body) == %{"id" => @p1, "actor" => "operator"}
+    refute_received {:broker_stub_request, _conn, @write, _body, _opts}
   end
 
   # ── the write ───────────────────────────────────────────────────────────────

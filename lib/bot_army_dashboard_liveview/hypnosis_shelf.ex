@@ -1,7 +1,7 @@
 defmodule BotArmyDashboardLiveview.HypnosisShelf do
   @moduledoc """
-  Her shelf on the handheld: the phrases she has asked to hear, and the two
-  reductions this screen is allowed to make.
+  Her shelf on the handheld: the phrases she has asked to hear, the two
+  reductions this screen is allowed to make, and the one saying it may record.
 
   `wife_care.control_panel.hypnosis` has answered with the whole shelf for a while —
   the phrases that are in the air, the ones she took away, the earlier wording of the
@@ -9,22 +9,29 @@ defmodule BotArmyDashboardLiveview.HypnosisShelf do
   `wife_care.control_panel.hypnosis_phrase` writes one verb at a time. Nothing drew
   it: the shelf had a floor and no door.
 
-  ## Only two of the five verbs, and why
+  ## Three of the five verbs, and why
 
   The shelf's rule is asymmetric on purpose: **anyone may take a phrase out of the
-  air; only she may put one in.** So this screen offers the two reductions:
+  air; only she may put one in.** So this screen offers the two reductions, and the one
+  verb that is not a change to the shelf at all:
 
     * **Switch off** — `{"action": "switch", "id": id, "state": "off"}`, which takes a
       phrase out of the air without taking it off the shelf.
     * **Take away** — `{"action": "remove", "id": id}`, which retires the row and keeps
       it, so what she heard survives and putting it back is exact.
+    * **Say now** — `{"id": id, "actor": "operator"}` on
+      `wife_care.control_panel.hypnosis_say`, which records one saying of a phrase the
+      house is already reading from. A saying is a moment and not an authorship, so the
+      bot takes any of its voices for this one; what comes back is the same phrase with
+      its count moved on, and the event the bot publishes carries the phrase's id and
+      never the words.
 
   `add`, `reword` and `restore` all require `"actor": "subject"` — her voice — and this
   dashboard is open, so it proves nothing about who is holding the phone. A screen that
   claimed her would be forging the one voice it must not: the write would land under her
   name and look like something she asked for. So the card says which verbs it is not
   offering and why, and the writes it does make claim `"actor": "operator"` — a voice
-  that may take a phrase out of the air and put nothing in.
+  that may take a phrase out of the air, put nothing in, and say what is already there.
 
   A phrase that is already off is drawn without a switch, because switching off what is
   already off is not a reduction, it is a no-op — and the card says the only way back is
@@ -57,8 +64,9 @@ defmodule BotArmyDashboardLiveview.HypnosisShelf do
 
   A confirmation is not "the write returned ok". It is "the shelf read the same phrase
   back with the state the verb was for": for a switch off, that phrase is now off the
-  air; for a take away, it is on the shelf's away list. Anything less says what the
-  shelf actually holds, which is the only thing this screen knows.
+  air; for a take away, it is on the shelf's away list; for a saying, the row's own count
+  has moved on past the count the tap read. Anything less says what the shelf actually
+  holds, which is the only thing this screen knows.
 
   ## What this screen says about a saying
 
@@ -72,6 +80,10 @@ defmodule BotArmyDashboardLiveview.HypnosisShelf do
   event is the one thing the event deliberately does not carry, so this screen does not
   guess at it — and it does not add the saying to any count of its own either, for the
   same reason.
+
+  Say now is the same event from the other end: the tap records one saying through the
+  bot, the bot publishes it, and the count this screen confirms the tap with is again the
+  read that followed rather than the write's acknowledgement.
   """
 
   use Phoenix.Component
@@ -84,6 +96,13 @@ defmodule BotArmyDashboardLiveview.HypnosisShelf do
 
   @read_subject "wife_care.control_panel.hypnosis"
   @write_subject "wife_care.control_panel.hypnosis_phrase"
+
+  # A saying is not a change to the shelf, so it is neither the same verb nor the same
+  # subject: `hypnosis_phrase` writes one of `add`/`reword`/`restore`/`switch`/`remove`
+  # onto a row, while `hypnosis_say` records one saying of a row the house already reads
+  # from. Posting `say` to the phrase subject would be asking a handler that has never
+  # heard of it.
+  @say_subject "wife_care.control_panel.hypnosis_say"
 
   # The second question this screen asks, and the only reason it asks anything else: a
   # phrase in the air is a moment, so the shelf is offered while there is a moment to
@@ -99,7 +118,7 @@ defmodule BotArmyDashboardLiveview.HypnosisShelf do
   # this is the one of those that claims nothing about what she asked to hear.
   @actor "operator"
 
-  @verbs [:switch_off, :take_away]
+  @verbs [:switch_off, :take_away, :say]
 
   @doc "The subject the shelf is read on."
   def read_subject, do: @read_subject
@@ -135,6 +154,9 @@ defmodule BotArmyDashboardLiveview.HypnosisShelf do
 
   @doc "The subject a shelf verb is written on."
   def write_subject, do: @write_subject
+
+  @doc "The subject a saying is written on — a different verb, and a different subject."
+  def say_subject, do: @say_subject
 
   @doc "The voice this screen writes as — it may take a phrase out of the air and put nothing in."
   def actor, do: @actor
@@ -233,7 +255,7 @@ defmodule BotArmyDashboardLiveview.HypnosisShelf do
   @doc """
   One tap, from the event to the sentence under the card.
 
-  `verb` is `:switch_off` or `:take_away`, and `id` is the phrase the card drew. A tap
+  `verb` is `:switch_off`, `:take_away` or `:say`, and `id` is the phrase the card drew. A tap
   this screen can route nowhere never reaches the bot; a sent write is always followed
   by a re-read, so the sentence reports the reading, not the acknowledgement.
   """
@@ -244,7 +266,7 @@ defmodule BotArmyDashboardLiveview.HypnosisShelf do
         assign(socket, act: act)
 
       {:send, payload, act} ->
-        case write(payload) do
+        case write(verb, payload) do
           {:ok, _data} -> socket |> assign(act: act) |> reread()
           {:error, sentence} -> assign(socket, act: Map.put(act, :error, sentence))
         end
@@ -278,7 +300,7 @@ defmodule BotArmyDashboardLiveview.HypnosisShelf do
      %{
        verb: nil,
        id: id,
-       error: "that is not one of the two things this screen does — nothing was sent"
+       error: "that is not one of the three things this screen does — nothing was sent"
      }}
   end
 
@@ -301,7 +323,7 @@ defmodule BotArmyDashboardLiveview.HypnosisShelf do
         if applies?(verb, row) do
           {:ok, row}
         else
-          {:refused, "that phrase is already off the air — nothing was sent"}
+          {:refused, not_applies(verb)}
         end
 
       :error ->
@@ -310,16 +332,38 @@ defmodule BotArmyDashboardLiveview.HypnosisShelf do
     end
   end
 
-  # Switching off something already off is not a reduction. Taking a phrase away always
-  # applies: anyone may, and the row it retires may be on or off.
+  # Switching off something already off is not a reduction, and a phrase the house is not
+  # reading from is not one it can be asked to say. Taking a phrase away always applies:
+  # anyone may, and the row it retires may be on or off.
   defp applies?(:switch_off, row), do: Map.get(row, :on) == true
+  defp applies?(:say, row), do: Map.get(row, :on) == true
   defp applies?(:take_away, _row), do: true
+
+  # Refusing says what the tap cannot do, and the two are different facts: a phrase that
+  # is already off could not be switched off again, while a phrase off the air could not
+  # be said at all.
+  defp not_applies(:say),
+    do: "that phrase is off the air — the house is not saying it, so nothing was said"
+
+  defp not_applies(_verb), do: "that phrase is already off the air — nothing was sent"
 
   defp payload(:switch_off, id) do
     %{"action" => "switch", "id" => id, "state" => "off", "actor" => @actor}
   end
 
   defp payload(:take_away, id), do: %{"action" => "remove", "id" => id, "actor" => @actor}
+
+  # No `action` here: `hypnosis_say` takes the one verb it is named for, and the id is the
+  # whole of what it needs. The screen sends no reason — the operator's own note belongs
+  # to whoever typed it, and there is no box for one on this card.
+  defp payload(:say, id), do: %{"id" => id, "actor" => @actor}
+
+  @doc """
+  Send one shelf verb, on the subject that verb is written on.
+  """
+  @spec write(atom(), map()) :: {:ok, map()} | {:error, String.t()}
+  def write(:say, payload), do: request(@say_subject, payload)
+  def write(_verb, payload), do: request(@write_subject, payload)
 
   @doc """
   Send one shelf verb. The body is the payload itself, plus the sentence the write line
@@ -330,8 +374,10 @@ defmodule BotArmyDashboardLiveview.HypnosisShelf do
   place for it to be wrong.
   """
   @spec write(map()) :: {:ok, map()} | {:error, String.t()}
-  def write(payload) do
-    case Broker.request(@write_subject, Jason.encode!(payload), timeout: @request_timeout) do
+  def write(payload), do: request(@write_subject, payload)
+
+  defp request(subject, payload) do
+    case Broker.request(subject, Jason.encode!(payload), timeout: @request_timeout) do
       {:ok, %{body: body}} -> decode_write(body)
       other -> {:error, write_trouble(other)}
     end
@@ -351,8 +397,8 @@ defmodule BotArmyDashboardLiveview.HypnosisShelf do
   # news about the shelf, not about that write.
   def settle(%{error: _error} = act, _shelf), do: act
 
-  def settle(%{id: id, verb: verb} = act, shelf) do
-    if read_back?(verb, id, shelf) do
+  def settle(%{id: id, verb: _} = act, shelf) do
+    if read_back?(act, shelf) do
       Map.put(act, :confirmed?, true)
     else
       act |> Map.put(:confirmed?, false) |> Map.put(:reading, describe(id, shelf))
@@ -364,19 +410,41 @@ defmodule BotArmyDashboardLiveview.HypnosisShelf do
   # The phrase came back with the state the verb was for. A phrase that is gone from the
   # shelf is not a switch off, and a phrase that is not on the away list was not taken
   # away, whatever this screen sent.
-  defp read_back?(:switch_off, id, shelf) do
+  defp read_back?(%{verb: :switch_off, id: id}, shelf) do
     case find_live(id, shelf) do
       {:ok, row} -> Map.get(row, :on) == false
       :error -> false
     end
   end
 
-  defp read_back?(:take_away, id, shelf) do
+  defp read_back?(%{verb: :take_away, id: id}, shelf) do
     case find_away(id, shelf) do
       {:ok, _row} -> true
       :error -> false
     end
   end
+
+  # A saying leaves the phrase where it was and moves its own count on, so the count is
+  # what confirms it: a number, and no clock to compare across two machines. The last-said
+  # stamp is the fallback where the bot sent no count; where it sent neither before nor
+  # after, this screen cannot confirm the saying and says that rather than rounding to
+  # either answer.
+  defp read_back?(%{verb: :say} = act, shelf) do
+    case find_live(act.id, shelf) do
+      {:ok, row} -> said_again?(act, row)
+      :error -> false
+    end
+  end
+
+  defp said_again?(%{said_count: before_count}, %{said_count: after_count})
+       when is_integer(before_count) and is_integer(after_count),
+       do: after_count > before_count
+
+  defp said_again?(%{last_said_at: before_stamp}, %{last_said_at: after_stamp})
+       when is_binary(before_stamp) and is_binary(after_stamp),
+       do: after_stamp != before_stamp
+
+  defp said_again?(_act, _row), do: false
 
   @doc "The sentence under the card that owns this act."
   def line(%{error: error}), do: error
@@ -388,6 +456,14 @@ defmodule BotArmyDashboardLiveview.HypnosisShelf do
   def line(%{confirmed?: true, verb: :take_away} = act),
     do:
       "the shelf reads back #{act.text}, taken away — the record of it survives, and only her voice can put it back."
+
+  def line(%{confirmed?: true, verb: :say} = act),
+    do:
+      "the shelf reads back #{act.text}, and the saying is on the record — the bot publishes which phrase, never the words."
+
+  def line(%{verb: :say, reading: reading}),
+    do:
+      "the shelf reads back #{reading}, and shows no saying past the one this tap read — so this screen cannot confirm that one was said."
 
   def line(%{reading: reading}),
     do: "sent — the shelf reads back #{reading}; showing what the shelf says."
@@ -611,6 +687,17 @@ defmodule BotArmyDashboardLiveview.HypnosisShelf do
 
   defp find_away(_id, _shelf), do: :error
 
+  # The saying's own before-picture rides on the act, because a saying is confirmed by
+  # what moved, not by what the bot said it did.
+  defp act(:say, row),
+    do: %{
+      verb: :say,
+      id: row.id,
+      text: row.text,
+      said_count: row.said_count,
+      last_said_at: row.last_said_at
+    }
+
   defp act(verb, row), do: %{verb: verb, id: row.id, text: row.text}
 
   # What the shelf actually says about the phrase this act named. The three cases are
@@ -674,6 +761,7 @@ defmodule BotArmyDashboardLiveview.HypnosisShelf do
   @doc "The verb in the words the button carries."
   def verb_word(:switch_off), do: "Switch off"
   def verb_word(:take_away), do: "Take away"
+  def verb_word(:say), do: "Say now"
 
   @doc "Whether the phrase is in the air, in one word."
   def phrase_word(%{on: true}), do: "in the air"
@@ -919,7 +1007,7 @@ defmodule BotArmyDashboardLiveview.HypnosisShelf do
           <p class={narration_class(@shelf.narration)} style="margin:0 0 6px; font-size:12px;"><%= narration_word(@shelf.narration) %>: <%= narration_sentence(@shelf.narration) %></p>
 
           <p class="shelf-legend">
-            <%= verb_word(:switch_off) %> takes a phrase out of the air, and <%= verb_word(:take_away) %> takes it off the shelf while keeping the record of it. Putting a phrase on the shelf, rewording one, and putting one back are hers: this screen is open to whoever is holding the phone, so it claims no voice of hers and offers none of those.
+            <%= verb_word(:say) %> records one saying of a phrase the house is already reading from, and a saying is a moment rather than an authorship. <%= verb_word(:switch_off) %> takes a phrase out of the air, and <%= verb_word(:take_away) %> takes it off the shelf while keeping the record of it. Putting a phrase on the shelf, rewording one, and putting one back are hers: this screen is open to whoever is holding the phone, so it claims no voice of hers and offers none of those.
           </p>
 
           <p class="shelf-counts"><%= counts_line(@shelf) %></p>
@@ -977,6 +1065,16 @@ defmodule BotArmyDashboardLiveview.HypnosisShelf do
         <%= if @phrase.on do %>
           <button
             type="button"
+            class="say"
+            phx-click="act"
+            phx-value-verb="say"
+            phx-value-id={@phrase.id}
+            phx-disable-with="Saying…"
+            title={"say this now — records one saying, and the event carries the phrase and never the words"}
+            aria-label={"Say now: #{@phrase.text}"}
+          ><%= verb_word(:say) %></button>
+          <button
+            type="button"
             phx-click="act"
             phx-value-verb="switch_off"
             phx-value-id={@phrase.id}
@@ -997,7 +1095,7 @@ defmodule BotArmyDashboardLiveview.HypnosisShelf do
         ><%= verb_word(:take_away) %></button>
       </div>
       <%= if not @phrase.on do %>
-        <p class="dim" style="margin:6px 0 0; font-size:12px;">it is off the air — only she can put it back in, so there is no switch here.</p>
+        <p class="dim" style="margin:6px 0 0; font-size:12px;">it is off the air — only she can put it back in, so there is no switch here and nothing to say.</p>
       <% end %>
     </div>
     """
