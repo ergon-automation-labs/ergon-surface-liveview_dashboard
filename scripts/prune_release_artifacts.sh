@@ -207,7 +207,9 @@ if [ "$DO_BUILD" -eq 1 ]; then
   done
 
   if [ "${#REL_DIRS[@]}" -eq 0 ]; then
-    : # never built here yet — nothing to prune, not an error
+    # Never built here yet — say so rather than staying quiet, so a reader of
+    # the hook log can tell "nothing to prune" from "the prune did not run".
+    echo "🧹 build tree: no release directory under _build/prod/rel yet — nothing to prune"
   else
     if [ -n "$REL_NAME" ]; then
       REL="$REPO/_build/prod/rel/$REL_NAME"
@@ -215,7 +217,20 @@ if [ "$DO_BUILD" -eq 1 ]; then
     elif [ "${#REL_DIRS[@]}" -eq 1 ]; then
       REL="${REL_DIRS[0]}"
     else
-      die "more than one release directory under _build/prod/rel (${REL_DIRS[*]}) — pass --rel NAME"
+      # One _build can hold more than one app's release: a repo that also
+      # builds a sibling surface, or one that was seeded from another repo's
+      # tree. Pick the directory that actually holds THIS app's code instead of
+      # refusing to work at all — refusing was correct while the choice was
+      # ambiguous, but the app name resolves it.
+      OURS=()
+      for d in "${REL_DIRS[@]}"; do
+        ls "$d"/lib/"$APP"-[0-9]* >/dev/null 2>&1 && OURS+=("$d")
+      done
+      if [ "${#OURS[@]}" -eq 1 ]; then
+        REL="${OURS[0]}"
+      else
+        die "release directory for $APP is ambiguous under _build/prod/rel (candidates: ${REL_DIRS[*]}) — pass --rel NAME"
+      fi
     fi
 
     CURRENT=""

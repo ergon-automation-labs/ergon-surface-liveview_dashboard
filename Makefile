@@ -18,7 +18,7 @@ help:
 	@echo "  make docker-down  - Stop containers (docker-compose down)"
 	@echo ""
 	@echo "Release (normally via git pre-push):"
-	@echo "  make release         - Prune stale build artifacts, then build OTP release"
+	@echo "  make release         - Build OTP release, then drop the stale copies it leaves behind"
 	@echo "  make publish-release - Build, tarball, and publish to GitHub"
 	@echo "  make prune-releases  - Show stale release artifacts (APPLY=1 to delete)"
 	@echo ""
@@ -43,8 +43,8 @@ clean:
 	mix clean
 
 release:
-	@scripts/prune_release_artifacts.sh --build-tree --apply
 	MIX_ENV=prod mix release --overwrite
+	@scripts/prune_release_artifacts.sh --build-tree --apply
 	@echo "✓ Release built in _build/prod/rel/"
 
 publish-release: release
@@ -57,7 +57,10 @@ publish-release: release
 
 # `mix release --overwrite` never clears the release dir, so every past version
 # stays behind and rides into the next tarball. Dry run by default; APPLY=1 acts.
-# The pre-push hook calls the same script (prune before build, archives after publish).
+# The pre-push hook calls the same script (build tree after the build, archives
+# after the asset is published). Keep the build-tree prune AFTER the build: it
+# keeps the version just built, so running it first would leave that version AND
+# the new one in the release directory.
 prune-releases:
 	@scripts/prune_release_artifacts.sh $(if $(APPLY),--apply,)
 	@echo ""

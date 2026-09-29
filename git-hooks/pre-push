@@ -41,16 +41,25 @@ if [[ $remote_ref == "refs/heads/main" ]]; then
   mix credo --strict 2>/dev/null || true
 
   echo ""
-  echo "🧹 Pruning stale release artifacts (so this build ships one app copy, not every past one)..."
-  ./scripts/prune_release_artifacts.sh --build-tree --apply || \
-    echo "⚠️  build-tree prune skipped — carrying on (the tarball will carry stale copies)"
-
-  echo ""
   echo "📦 Building OTP release..."
   MIX_ENV=prod mix release --overwrite || {
     echo "❌ Release build failed - push aborted"
     exit 1
   }
+
+  # Now that the build is done, the release directory should hold the version we
+  # just built and nothing else. `mix release --overwrite` rewrites the current
+  # version but never removes older ones, so without this every past version
+  # rides along and the tarball below grows without bound.
+  #
+  # Order matters: run this BEFORE the tar and AFTER the build. Before the build
+  # it would keep the version being replaced, the build would add the new one,
+  # and the artifact would carry two copies — the assertion below would fail on
+  # every version bump.
+  echo ""
+  echo "🧹 Pruning stale release artifacts (so this build ships one app copy, not every past one)..."
+  ./scripts/prune_release_artifacts.sh --build-tree --apply || \
+    echo "⚠️  build-tree prune skipped — the assertion below will catch a stale artifact"
 
   echo ""
   echo "🚀 Publishing release to GitHub..."
