@@ -22,6 +22,12 @@
 #   * --build-tree, BEFORE `mix release`  → the artifact ships one app copy
 #   * --archives,   AFTER a verified publish → GitHub holds the asset now
 #
+# The archive half covers TWO piles, because this repo grows both:
+#   * <repo>/<app>-<ver>.tar.gz        — what the pre-push hook tars for GitHub
+#   * <repo>/_build/prod/<app>-<ver>.tar.gz — what `mix release` writes itself
+#     when mix.exs declares `steps: [:assemble, :tar]` (the dashboard's does;
+#     measured: 64 tarballs, 710 MB, inside _build/prod)
+#
 # WHAT IT WILL NEVER TOUCH
 # ------------------------
 #   * published GitHub releases (this script never calls `gh`)
@@ -37,7 +43,8 @@
 #   --build-tree           prune _build/prod/rel only
 #   --archives             prune root tarballs only
 #   --keep-build N         versions kept in the build tree (default 1)
-#   --keep-archives N      tarballs kept at the repo root (default 3)
+#   --keep-archives N      tarballs kept per pile (default 3): the repo root
+#                          and _build/prod are pruned separately
 #   --rel NAME             release directory under _build/prod/rel (default: the
 #                          only one there; pass it if the tree holds several)
 #   --repo DIR             repo root (default: the script's parent directory)
@@ -158,6 +165,13 @@ human_kb() {
   }'
 }
 
+dir_label() {
+  case "$1" in
+    "$REPO") echo "the repo root" ;;
+    *) echo "${1#"$REPO"/}" ;;
+  esac
+}
+
 # List what would go, delete it if asked, and report both. Every path to be
 # removed must sit inside $REPO and match the strict version shape above.
 prune_paths() {
@@ -253,41 +267,53 @@ if [ "$DO_BUILD" -eq 1 ]; then
   fi
 fi
 
-# ── the archives at the repo root ───────────────────────────────────────────
-if [ "$DO_ARCHIVES" -eq 1 ]; then
-  ARCHIVE_RE="^$APP-[0-9]+\.[0-9]+\.[0-9]+\.tar\.gz$"
+# ── the archives ────────────────────────────────────────────────────────────
+APP_ARCHIVE_RE="^$APP-[0-9]+\.[0-9]+\.[0-9]+\.tar\.gz$"
 
-  VERSIONS=()
-  for f in "$APP"-[0-9]*.[0-9]*.[0-9]*.tar.gz; do
+# One pile of tarballs for this app in one directory: keep the newest
+# --keep-archives, remove the rest. Safe to call on a directory that has none.
+prune_archives_in() {
+  local dir="$1"
+  [ -d "$dir" ] || return 0
+
+  local -a versions=()
+  local -a doomed=()
+  local f v doomed_kb keep_arch newest
+
+  for f in "$dir/$APP"-[0-9]*.[0-9]*.[0-9]*.tar.gz; do
     [ -f "$f" ] || continue
-    basename "$f" | grep -qE "$ARCHIVE_RE" || continue
-    VERSIONS+=("$(basename "$f" | sed "s/^$APP-//; s/\.tar\.gz$//")")
+    basename "$f" | grep -qE "$APP_ARCHIVE_RE" || continue
+    versions+=("$(basename "$f" | sed "s/^$APP-//; s/\.tar\.gz$//")")
   done
 
-  if [ "${#VERSIONS[@]}" -eq 0 ]; then
-    echo "🧹 archives: none for $APP"
-  else
-    CURRENT_ARCHIVE="$(printf '%s\n' "${VERSIONS[@]}" | sort_versions_desc | head -1)"
-    KEEP_ARCH="$(kept_versions "$KEEP_ARCHIVES" "$CURRENT_ARCHIVE" "${VERSIONS[@]}")"
-
-    DOOMED=()
-    DOOMED_KB=0
-    for v in "${VERSIONS[@]}"; do
-      echo "$KEEP_ARCH" | grep -qx "$v" && continue
-      f="$REPO/$APP-$v.tar.gz"
-      DOOMED+=("$f")
-      # KiB, to match the build-tree total
-      DOOMED_KB=$((DOOMED_KB + ($(bytes_of_file "$f") + 1023) / 1024))
-    done
-
-    echo "🧹 archives at $REPO/ (${#VERSIONS[@]} for $APP)"
-    echo "    keeping: $(echo "$KEEP_ARCH" | tr '\n' ' ')"
-    if [ "${#DOOMED[@]}" -eq 0 ]; then
-      echo "  nothing to remove"
-    else
-      prune_paths "archives" "$DOOMED_KB" "${#DOOMED[@]} tarballs" "${DOOMED[@]}"
-    fi
+  if [ "${#versions[@]}" -eq 0 ]; then
+    echo "🧹 archives in $(dir_label "$dir"): none for $APP"
+    return 0
   fi
+
+  newest="$(printf '%s\n' "${versions[@]}" | sort_versions_desc | head -1)"
+  keep_arch="$(kept_versions "$KEEP_ARCHIVES" "$newest" "${versions[@]}")"
+
+  doomed_kb=0
+  for v in "${versions[@]}"; do
+    echo "$keep_arch" | grep -qx "$v" && continue
+    f="$dir/$APP-$v.tar.gz"
+    doomed+=("$f")
+    doomed_kb=$((doomed_kb + ($(bytes_of_file "$f") + 1023) / 1024))
+  done
+
+  echo "🧹 archives in $(dir_label "$dir") (${#versions[@]} for $APP)"
+  echo "    keeping: $(echo "$keep_arch" | tr '\n' ' ')"
+  if [ "${#doomed[@]}" -eq 0 ]; then
+    echo "  nothing to remove"
+  else
+    prune_paths "archives" "$doomed_kb" "${#doomed[@]} tarballs" "${doomed[@]}"
+  fi
+}
+
+if [ "$DO_ARCHIVES" -eq 1 ]; then
+  prune_archives_in "$REPO"
+  prune_archives_in "$REPO/_build/prod"
 fi
 
 if [ "$APPLY" -eq 0 ]; then
