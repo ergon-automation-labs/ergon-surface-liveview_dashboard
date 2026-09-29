@@ -104,6 +104,21 @@ cd "$REPO"
 APP="$(grep -oE 'app:[[:space:]]*:[a-z0-9_]+' mix.exs 2>/dev/null | head -1 | sed 's/.*://')"
 [ -n "$APP" ] || die "could not read 'app:' from $REPO/mix.exs"
 
+# A tarball is not always named after the app. `global_surface_liveview`'s app
+# is `global_surface`, but every tarball it publishes is
+# `global_surface_liveview-*.tar.gz` — the release directory's name. Matching on
+# the app name alone left 31 tarballs (half a gigabyte) on that repo's disk
+# while reporting success. Both names are this repo's artifacts, so both count.
+# Best effort here: the build tree may not exist yet, and the build-tree section
+# below resolves the same thing strictly when it needs to act.
+REL_NAME_GUESS=""
+for d in "$REPO"/_build/prod/rel/*/; do
+  [ -d "${d}releases" ] || continue
+  ls "${d}lib/$APP"-[0-9]* >/dev/null 2>&1 || continue
+  REL_NAME_GUESS="$(basename "${d%/}")"
+  break
+done
+
 # Version strings only, and only this app's. Deps in lib/ (asn1-5.3.4.2,
 # phoenix-1.7.23) and non-version entries (COOKIE, start_erl.data) never match.
 VERSION_RE='^[0-9]+\.[0-9]+\.[0-9]+$'
@@ -174,6 +189,19 @@ dir_label() {
 
 # List what would go, delete it if asked, and report both. Every path to be
 # removed must sit inside $REPO and match the strict version shape above.
+# A build artifact that git TRACKS is not ours to delete: removing it would be
+# a commit, not a cleanup (ergon_surface_hud_elixir tracks 28 release tarballs,
+# so the first sweep deleted two version-controlled files). Refuse those and say
+# so — a silent skip would look like the file did not match.
+tracked_by_git() { # tracked_by_git <path>
+  command -v git >/dev/null 2>&1 || return 1
+  git -C "$REPO" ls-files --error-unmatch -- "$1" >/dev/null 2>&1
+}
+
+tracked_skip_note() { # tracked_skip_note <path>
+  echo "    ⚠️  keeping ${1#"$REPO"/} — git tracks it, so removing it would be a commit"
+}
+
 prune_paths() {
   local label="$1" freed_kb="$2" shown=0 total="$3"
   shift 3
@@ -259,6 +287,7 @@ if [ "$DO_BUILD" -eq 1 ]; then
       v="$(basename "$p" | sed "s/^$APP-//")"
       echo "$v" | grep -qE "$VERSION_RE" || continue
       echo "$KEEP_LIST" | grep -qx "$v" && continue
+      if tracked_by_git "$p"; then tracked_skip_note "$p"; continue; fi
       DOOMED+=("$p")
       DOOMED_KB=$((DOOMED_KB + $(kb_of "$p")))
     done
@@ -268,6 +297,7 @@ if [ "$DO_BUILD" -eq 1 ]; then
       v="$(basename "$p")"
       echo "$v" | grep -qE "$VERSION_RE" || continue
       echo "$KEEP_LIST" | grep -qx "$v" && continue
+      if tracked_by_git "$p"; then tracked_skip_note "$p"; continue; fi
       DOOMED+=("$p")
       DOOMED_KB=$((DOOMED_KB + $(kb_of "$p")))
     done
@@ -283,7 +313,29 @@ if [ "$DO_BUILD" -eq 1 ]; then
 fi
 
 # ── the archives ────────────────────────────────────────────────────────────
-APP_ARCHIVE_RE="^$APP-[0-9]+\.[0-9]+\.[0-9]+\.tar\.gz$"
+ARCHIVE_NAMES=("$APP")
+for n in "$REL_NAME_GUESS" "${REL_NAME:-}"; do
+  [ -n "$n" ] || continue
+  printf '%s\n' "${ARCHIVE_NAMES[@]}" | grep -qx "$n" && continue
+  ARCHIVE_NAMES+=("$n")
+done
+archive_name_label() { printf '%s' "${ARCHIVE_NAMES[*]}"; }
+
+# The version in a tarball's name, or nothing if the name is not one of this
+# repo's artifacts (a sibling surface's tarball, a hand-made test tarball).
+archive_version() { # archive_version <basename>
+  local b="$1" n v
+  for n in "${ARCHIVE_NAMES[@]}"; do
+    case "$b" in
+      "$n"-[0-9]*.[0-9]*.[0-9]*.tar.gz)
+        v="${b#"$n"-}"
+        v="${v%.tar.gz}"
+        echo "$v" | grep -qE "$VERSION_RE" && { echo "$v"; return 0; }
+        ;;
+    esac
+  done
+  return 1
+}
 
 # One pile of tarballs for this app in one directory: keep the newest
 # --keep-archives, remove the rest. Safe to call on a directory that has none.
@@ -295,14 +347,14 @@ prune_archives_in() {
   local -a doomed=()
   local f v doomed_kb keep_arch newest
 
-  for f in "$dir/$APP"-[0-9]*.[0-9]*.[0-9]*.tar.gz; do
+  for f in "$dir"/*.tar.gz; do
     [ -f "$f" ] || continue
-    basename "$f" | grep -qE "$APP_ARCHIVE_RE" || continue
-    versions+=("$(basename "$f" | sed "s/^$APP-//; s/\.tar\.gz$//")")
+    v="$(archive_version "$(basename "$f")")" || continue
+    versions+=("$v")
   done
 
   if [ "${#versions[@]}" -eq 0 ]; then
-    echo "🧹 archives in $(dir_label "$dir"): none for $APP"
+    echo "🧹 archives in $(dir_label "$dir"): none for $(archive_name_label)"
     return 0
   fi
 
@@ -310,14 +362,16 @@ prune_archives_in() {
   keep_arch="$(kept_versions "$KEEP_ARCHIVES" "$newest" "${versions[@]}")"
 
   doomed_kb=0
-  for v in "${versions[@]}"; do
+  for f in "$dir"/*.tar.gz; do
+    [ -f "$f" ] || continue
+    v="$(archive_version "$(basename "$f")")" || continue
     echo "$keep_arch" | grep -qx "$v" && continue
-    f="$dir/$APP-$v.tar.gz"
+    if tracked_by_git "$f"; then tracked_skip_note "$f"; continue; fi
     doomed+=("$f")
     doomed_kb=$((doomed_kb + ($(bytes_of_file "$f") + 1023) / 1024))
   done
 
-  echo "🧹 archives in $(dir_label "$dir") (${#versions[@]} for $APP)"
+  echo "🧹 archives in $(dir_label "$dir") (${#versions[@]} for $(archive_name_label))"
   echo "    keeping: $(echo "$keep_arch" | tr '\n' ' ')"
   if [ "${#doomed[@]}" -eq 0 ]; then
     echo "  nothing to remove"

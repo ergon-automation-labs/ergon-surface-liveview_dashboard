@@ -105,6 +105,27 @@ fake_repo "$TMP/e" 0.1.0 0.1.0
 check "keeps it" "0.1.0" "$(surviving_archives "$TMP/e")"
 
 echo ""
+echo "tarballs named after the release directory, not the app:"
+# global_surface's app is `global_surface` but its tarballs are
+# `global_surface_liveview-*.tar.gz`. Matching the app name alone left 31
+# tarballs (half a gigabyte) on disk while reporting success.
+rm -rf "$TMP/i"; mkdir -p "$TMP/i"
+{ echo 'defmodule Fake.MixProject do'
+  echo '  def project, do: [app: :fake_surface, version: "9.9.9"]'
+  echo 'end'; } > "$TMP/i/mix.exs"
+mkdir -p "$TMP/i/_build/prod/rel/fake_surface_web/lib/fake_surface-0.1.0/ebin" \
+         "$TMP/i/_build/prod/rel/fake_surface_web/releases/0.1.0"
+: > "$TMP/i/_build/prod/rel/fake_surface_web/lib/fake_surface-0.1.0/ebin/x.beam"
+printf '15.2.7.5 0.1.0\n' > "$TMP/i/_build/prod/rel/fake_surface_web/releases/start_erl.data"
+for v in 0.1.0 0.1.1 0.1.2 0.1.3; do : > "$TMP/i/fake_surface_web-$v.tar.gz"; done
+: > "$TMP/i/some_other_surface-0.9.9.tar.gz"
+"$SCRIPT" --repo "$TMP/i" --archives --apply >/dev/null 2>&1
+check "sweeps the release-directory name too" "0.1.1 0.1.2 0.1.3" \
+  "$(ls "$TMP/i"/*.tar.gz | sed 's|.*/||;s|\.tar\.gz$||;s|^fake_surface_web-||' | grep -v some_other | sort | tr '\n' ' ' | sed 's/ $//')"
+check "leaves another app's tarball alone" "yes" \
+  "$([ -f "$TMP/i/some_other_surface-0.9.9.tar.gz" ] && echo yes || echo no)"
+
+echo ""
 echo "two release directories in one _build:"
 fake_repo "$TMP/f" 0.1.0 0.1.0
 mkdir -p "$TMP/f/_build/prod/rel/other_surface/lib/other_surface-0.5.0/ebin" \
@@ -115,6 +136,26 @@ mkdir -p "$TMP/f/_build/prod/rel/other_surface/lib/other_surface-0.5.0/ebin" \
 check "picks the directory holding this app" "0.1.0" "$(surviving_lib_versions "$TMP/f")"
 check "leaves the other app alone" "yes" \
   "$([ -d "$TMP/f/_build/prod/rel/other_surface/releases/0.5.0" ] && echo yes || echo no)"
+
+echo ""
+echo "a file git tracks is never deleted:"
+# ergon_surface_hud_elixir tracks its release tarballs; the first sweep deleted
+# two of them, which is a commit, not a cleanup. Five tarballs, keep three, so
+# two are doomed: one tracked (stays), one untracked (goes).
+rm -rf "$TMP/j"; mkdir -p "$TMP/j"
+{ echo 'defmodule Fake.MixProject do'
+  echo '  def project, do: [app: :fake_surface, version: "9.9.9"]'
+  echo 'end'; } > "$TMP/j/mix.exs"
+for v in 0.1.0 0.1.1 0.1.2 0.1.3 0.1.4; do : > "$TMP/j/fake_surface-$v.tar.gz"; done
+( cd "$TMP/j" && git init -q . && git add fake_surface-0.1.0.tar.gz && \
+  git -c user.email=t@t -c user.name=t commit -qm tarball ) >/dev/null 2>&1
+"$SCRIPT" --repo "$TMP/j" --archives --apply > "$TMP/j/out.txt" 2>&1
+check "a tracked stale tarball survives" "yes" \
+  "$([ -f "$TMP/j/fake_surface-0.1.0.tar.gz" ] && echo yes || echo no)"
+check "and the sweep says why" "yes" \
+  "$(grep -q 'git tracks it' "$TMP/j/out.txt" && echo yes || echo no)"
+check "an untracked stale tarball still goes" "0.1.0 0.1.2 0.1.3 0.1.4" \
+  "$(ls "$TMP/j"/fake_surface-*.tar.gz | sed 's|.*/fake_surface-||;s|\.tar\.gz$||' | sort | tr '\n' ' ' | sed 's/ $//')"
 
 echo ""
 echo "safety:"
