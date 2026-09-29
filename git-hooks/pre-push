@@ -41,6 +41,11 @@ if [[ $remote_ref == "refs/heads/main" ]]; then
   mix credo --strict 2>/dev/null || true
 
   echo ""
+  echo "🧹 Pruning stale release artifacts (so this build ships one app copy, not every past one)..."
+  ./scripts/prune_release_artifacts.sh --build-tree --apply || \
+    echo "⚠️  build-tree prune skipped — carrying on (the tarball will carry stale copies)"
+
+  echo ""
   echo "📦 Building OTP release..."
   MIX_ENV=prod mix release --overwrite || {
     echo "❌ Release build failed - push aborted"
@@ -62,6 +67,22 @@ if [[ $remote_ref == "refs/heads/main" ]]; then
     exit 1
   }
   echo "✓ Tarball created: $RELEASE_NAME-$VERSION.tar.gz"
+
+  # The artifact should carry exactly one copy of the app. If it carries more,
+  # the prune above stopped working (or someone built without it) and this
+  # release would ship every previous version of the app inside it. Fail here,
+  # before publishing, while the fix is one command.
+  COPIES=$(tar -tzf "$RELEASE_NAME-$VERSION.tar.gz" \
+    | sed -n "s|^$RELEASE_NAME/lib/\($RELEASE_NAME-[0-9.]*\)/.*$|\1|p" \
+    | sort -u | wc -l | tr -d ' ')
+  if [ "$COPIES" != "1" ]; then
+    echo "❌ the tarball carries $COPIES copies of $RELEASE_NAME — expected 1."
+    echo "   Stale release dirs are back. Fix with:"
+    echo "     scripts/prune_release_artifacts.sh --build-tree --apply"
+    echo "   then re-run the push (nothing has been published)."
+    exit 1
+  fi
+  echo "✓ Tarball carries exactly one copy of the app"
 
   REPO="ergon-automation-labs/ergon-surface-liveview_dashboard"
   ASSET="$RELEASE_NAME-$VERSION.tar.gz"
@@ -92,6 +113,14 @@ if [[ $remote_ref == "refs/heads/main" ]]; then
     exit 1
   fi
   echo "✓ Release published to GitHub: v$VERSION (tarball verified present)"
+
+  # Published is the trigger for housekeeping: GitHub holds the durable artifact
+  # now, so the local archives of past versions have no job left. Local only —
+  # published releases are never touched.
+  echo ""
+  echo "🧹 Pruning local release archives..."
+  ./scripts/prune_release_artifacts.sh --archives --apply || \
+    echo "⚠️  archive prune skipped — carrying on (old tarballs left at the repo root)"
 
   echo ""
   echo "✅ All checks passed, release built and published!"

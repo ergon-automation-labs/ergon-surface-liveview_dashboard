@@ -1,4 +1,4 @@
-.PHONY: run deps compile clean help setup setup-hooks init release publish-release docker-build docker-up docker-down
+.PHONY: run deps compile clean help setup setup-hooks init release publish-release prune-releases docker-build docker-up docker-down
 
 help:
 	@echo "LiveView Surface Template"
@@ -18,8 +18,9 @@ help:
 	@echo "  make docker-down  - Stop containers (docker-compose down)"
 	@echo ""
 	@echo "Release (normally via git pre-push):"
-	@echo "  make release         - Build OTP release"
+	@echo "  make release         - Prune stale build artifacts, then build OTP release"
 	@echo "  make publish-release - Build, tarball, and publish to GitHub"
+	@echo "  make prune-releases  - Show stale release artifacts (APPLY=1 to delete)"
 	@echo ""
 
 setup: init deps setup-hooks
@@ -42,6 +43,7 @@ clean:
 	mix clean
 
 release:
+	@scripts/prune_release_artifacts.sh --build-tree --apply
 	MIX_ENV=prod mix release --overwrite
 	@echo "✓ Release built in _build/prod/rel/"
 
@@ -52,6 +54,14 @@ publish-release: release
 	tar -czf $$RELEASE_NAME-$$VERSION.tar.gz -C _build/prod/rel $$RELEASE_NAME/; \
 	gh release create v$$VERSION $$RELEASE_NAME-$$VERSION.tar.gz --draft=false; \
 	echo "✓ Published v$$VERSION"
+
+# `mix release --overwrite` never clears the release dir, so every past version
+# stays behind and rides into the next tarball. Dry run by default; APPLY=1 acts.
+# The pre-push hook calls the same script (prune before build, archives after publish).
+prune-releases:
+	@scripts/prune_release_artifacts.sh $(if $(APPLY),--apply,)
+	@echo ""
+	@echo "  add APPLY=1 to act:  make prune-releases APPLY=1"
 
 docker-build:
 	docker-compose build
