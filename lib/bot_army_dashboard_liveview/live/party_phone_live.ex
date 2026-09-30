@@ -95,6 +95,7 @@ defmodule BotArmyDashboardLiveview.PartyPhoneLive do
      |> assign(window: nil)
      |> assign(window_sentence: nil)
      |> assign(party: nil)
+     |> assign(narrator: nil)
      |> assign(reply: nil)
      |> assign(draft: "")
      |> assign(moved: moved_from(params))}
@@ -120,6 +121,7 @@ defmodule BotArmyDashboardLiveview.PartyPhoneLive do
          |> assign(window: window)
          |> assign(window_sentence: nil)
          |> assign(party: nil)
+         |> assign(narrator: PartyWindow.narrator(answer))
          |> assign(reply: PartyWindow.settle(socket.assigns[:reply], window))}
 
       {_kind, sentence} ->
@@ -127,7 +129,8 @@ defmodule BotArmyDashboardLiveview.PartyPhoneLive do
          socket
          |> assign(window: nil)
          |> assign(window_sentence: sentence)
-         |> assign(party: nil)}
+         |> assign(party: nil)
+         |> assign(narrator: nil)}
     end
   end
 
@@ -248,6 +251,11 @@ defmodule BotArmyDashboardLiveview.PartyPhoneLive do
       <.read_error reason={@read_error} />
     <% end %>
 
+    <style>
+      .party-phone .chip { display: inline-block; padding: 2px 8px; border: 1px solid #2c3766; border-radius: 999px; font-size: 11px; margin-left: 6px; }
+      .party-phone .chip.narrating { border-color: #ff5fa2; color: #ffb3d1; }
+    </style>
+
     <div class="handheld-container with-nav party-phone">
       <div class="phone-card">
         <div class="view-title">🎭 The window</div>
@@ -283,7 +291,9 @@ defmodule BotArmyDashboardLiveview.PartyPhoneLive do
               <% {:party, rows} -> %>
                 <div class="row">
                   <%= for row <- rows do %>
-                    <span><%= row.who %></span>
+                    <span>
+                      <%= row.who %><%= if PartyWindow.narrates?(@narrator, row) do %><span class="chip narrating">narrating</span><% end %>
+                    </span>
                   <% end %>
                 </div>
               <% {:unreported, sentence} -> %>

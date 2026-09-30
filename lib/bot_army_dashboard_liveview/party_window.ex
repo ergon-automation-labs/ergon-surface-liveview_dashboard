@@ -56,6 +56,16 @@ defmodule BotArmyDashboardLiveview.PartyWindow do
   — the dashboard is open and proves nothing about who is holding the phone, so the
   record says the operator spoke, which is what the shelf's verbs already say. It
   never says *she* said it.
+
+  ## Who narrates
+
+  The party can name one of its members the narrator (`rpg.party.set_narrator`), and
+  that role rides the party the window question already carries — so the badge on a
+  row is a reading of the window answer, not a third question. It is the same three
+  answers as every other read here: one member holds the role, the party was read and
+  nobody holds it, or the party was not reported. The badge is drawn only for the
+  first; an unread roster badges nobody and this screen says nothing about who
+  narrates, which is not the claim that nobody does.
   """
 
   alias BotArmyDashboardLiveview.Broker
@@ -222,6 +232,57 @@ defmodule BotArmyDashboardLiveview.PartyWindow do
 
   def party(_answer),
     do: {:unreported, "The party was not in the answer — who is in the window is not reported."}
+
+  @doc """
+  Who the window says narrates it — the role, read from the window question.
+
+  The bot names one member the party's narrator (`rpg.party.set_narrator`), and the
+  role rides the party it already sends, so this is a reading of the same answer the
+  window came in on rather than a third question.
+
+    * `{:narrator, character_id}` — the bot reported a party and one member holds
+      the role. The id is what is matched against a row; the row draws the badge.
+    * `{:no_narrator, nil}` — the bot reported the party and nobody holds the role.
+      A party nobody has joined yet is this answer too: nobody narrates it.
+    * `{:unreported, sentence}` — the bot did not report the party (`nil`), did not
+      carry the field at all, or refused the window question. The screen badges
+      nobody, and says nothing about who narrates, which is not the same claim as
+      *nobody narrates* — the badge makes no claim either way.
+
+  A member the roster gave no character id for matches no row, so it badges nobody.
+  """
+  @spec narrator(term()) ::
+          {:narrator, String.t()} | {:no_narrator, nil} | {:unreported, String.t()}
+  def narrator(%{"party" => %{"members" => members}}) when is_list(members) do
+    case Enum.find(members, &(&1["role"] == "narrator")) do
+      %{"character_id" => character_id} when is_binary(character_id) -> {:narrator, character_id}
+      _ -> {:no_narrator, nil}
+    end
+  end
+
+  def narrator(%{"party" => party}) when is_map(party), do: {:no_narrator, nil}
+
+  def narrator(%{"party" => nil}),
+    do:
+      {:unreported,
+       "The bot did not report the party, so this screen is not saying who narrates."}
+
+  def narrator(%{"ok" => false} = answer),
+    do: {:unreported, "The bot did not answer with the party" <> said(answer["error"]) <> "."}
+
+  def narrator(_answer),
+    do:
+      {:unreported, "The party was not in the answer — who narrates the window is not reported."}
+
+  @doc """
+  Whether this row is the member the party named as its narrator.
+
+  `false` for every row when the role was unreported, so an unread roster badges
+  nobody rather than badging the wrong bot.
+  """
+  @spec narrates?(term(), map()) :: boolean()
+  def narrates?({:narrator, character_id}, %{id: id}), do: id == character_id
+  def narrates?(_answer, _row), do: false
 
   @doc """
   The turns, oldest first — or `nil`, for a window whose turns were never reported.

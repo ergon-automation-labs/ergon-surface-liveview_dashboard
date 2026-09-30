@@ -205,6 +205,66 @@ defmodule BotArmyDashboardLiveview.PartyWindowTest do
     end
   end
 
+  describe "narrator/1 — the role, not a turn" do
+    test "one member holds the role, and she is named by her character id" do
+      assert PartyWindow.narrator(%{
+               "party" => %{
+                 "members" => [
+                   %{"character_id" => @char1, "bot_id" => "gtd_bot", "role" => "companion"},
+                   %{"character_id" => @char2, "bot_id" => "llm_bot", "role" => "narrator"}
+                 ]
+               }
+             }) == {:narrator, @char2}
+    end
+
+    test "a party that was read with nobody holding the role is a reading" do
+      assert PartyWindow.narrator(%{
+               "party" => %{
+                 "members" => [%{"character_id" => @char1, "role" => "companion"}]
+               }
+             }) == {:no_narrator, nil}
+    end
+
+    test "a party nobody has joined yet has no narrator" do
+      assert PartyWindow.narrator(%{"party" => %{"members" => []}}) == {:no_narrator, nil}
+      assert PartyWindow.narrator(%{"party" => %{}}) == {:no_narrator, nil}
+    end
+
+    test "a roster the bot could not read is unreported, not \"nobody narrates\"" do
+      assert {:unreported, sentence} = PartyWindow.narrator(%{"party" => nil})
+      assert sentence =~ "not saying who narrates"
+    end
+
+    test "a party field the bot never sent is not \"nobody narrates\" either" do
+      assert {:unreported, sentence} = PartyWindow.narrator(%{"session_id" => @session})
+      assert sentence =~ "not reported"
+    end
+
+    test "a refusal is reported in the bot's own word" do
+      assert {:unreported, sentence} =
+               PartyWindow.narrator(%{"ok" => false, "error" => ":not_found"})
+
+      assert sentence =~ "not_found"
+    end
+
+    test "a narrator the roster gave no id for matches no row" do
+      assert PartyWindow.narrator(%{
+               "party" => %{"members" => [%{"bot_id" => "gtd_bot", "role" => "narrator"}]}
+             }) == {:no_narrator, nil}
+    end
+
+    test "only the narrator's row is badged, and an unread role badges nobody" do
+      rows = [%{id: @char1, who: "gtd_bot"}, %{id: @char2, who: "llm_bot"}]
+      role = {:narrator, @char2}
+
+      assert Enum.map(rows, &PartyWindow.narrates?(role, &1)) == [false, true]
+      assert Enum.map(rows, &PartyWindow.narrates?({:no_narrator, nil}, &1)) == [false, false]
+
+      assert Enum.map(rows, &PartyWindow.narrates?({:unreported, "no"}, &1)) ==
+               [false, false]
+    end
+  end
+
   describe "a draft" do
     test "a reply is trimmed, and an empty one is refused" do
       assert PartyWindow.draft("  hello  ") == {:ok, "hello"}

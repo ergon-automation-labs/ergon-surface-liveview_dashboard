@@ -96,6 +96,31 @@ defmodule BotArmyDashboardLiveview.PartyPhoneTest do
     })
   end
 
+  # The window answer with the party roster on it — the read the narrator badge comes
+  # from. `nil` is a roster the bot could not read, which is not `%{"members" => []}`.
+  defp window_answer_with_party(party) do
+    Jason.encode!(%{
+      "ok" => true,
+      "data" => %{
+        "session_id" => @session,
+        "session_status" => "active",
+        "scene_description" => @scene,
+        "scene_facts" => :persistent_term.get(@turns_key, []),
+        "party" => party,
+        "theme" => %{"setting" => "cyberpunk", "tone" => "gritty"},
+        "character" => %{"name" => "the maid", "class" => "maid", "level" => 3}
+      }
+    })
+  end
+
+  defp roster(role) do
+    %{
+      "members" => [
+        %{"character_id" => @char, "bot_id" => "gtd_bot", "role" => role}
+      ]
+    }
+  end
+
   # The shelf's two questions, answered so the card draws rather than refuses: no
   # phrases yet, and a call open — which is the fact that offers the shelf at all.
   defp shelf_answers do
@@ -228,6 +253,57 @@ defmodule BotArmyDashboardLiveview.PartyPhoneTest do
     assert render(view) =~ "Her shelf"
     assert render(view) =~ "offered inside this window"
     assert render(view) =~ "Review it"
+  end
+
+  test "the member the party named as its narrator is badged in the party card" do
+    Application.put_env(
+      @app,
+      :broker_stub_reply,
+      answers(%{
+        @window_subject => window_answer_with_party(roster("narrator")),
+        @party_subject => party_answer()
+      })
+    )
+
+    {:ok, view, _html} = live(build_conn(), "/party-phone")
+    settle(view)
+
+    assert render(view) =~ "gtd_bot"
+    assert render(view) =~ ~s(class="chip narrating")
+  end
+
+  test "a party nobody narrates badges nobody — and says nothing about who narrates" do
+    Application.put_env(
+      @app,
+      :broker_stub_reply,
+      answers(%{
+        @window_subject => window_answer_with_party(roster("companion")),
+        @party_subject => party_answer()
+      })
+    )
+
+    {:ok, view, _html} = live(build_conn(), "/party-phone")
+    settle(view)
+
+    assert render(view) =~ "gtd_bot"
+    refute render(view) =~ ~s(class="chip narrating")
+  end
+
+  test "a roster the bot could not read badges nobody, and takes nothing else down" do
+    Application.put_env(
+      @app,
+      :broker_stub_reply,
+      answers(%{
+        @window_subject => window_answer_with_party(nil),
+        @party_subject => party_answer()
+      })
+    )
+
+    {:ok, view, _html} = live(build_conn(), "/party-phone")
+    settle(view)
+
+    assert render(view) =~ "gtd_bot"
+    refute render(view) =~ ~s(class="chip narrating")
   end
 
   test "the page asks whether a call is open, on the house screen's own subject" do
