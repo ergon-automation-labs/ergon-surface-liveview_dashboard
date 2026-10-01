@@ -113,6 +113,23 @@ defmodule BotArmyDashboardLiveview.PartyPhoneTest do
     })
   end
 
+  # The window answer with the narrator's ask on it — the read the waiting line comes
+  # from. `nil` is a window nobody was asked about; the field absent is an older bot.
+  defp window_answer_with_narration(narration) do
+    Jason.encode!(%{
+      "ok" => true,
+      "data" => %{
+        "session_id" => @session,
+        "session_status" => "active",
+        "scene_description" => @scene,
+        "scene_facts" => :persistent_term.get(@turns_key, []),
+        "narration" => narration,
+        "theme" => %{"setting" => "cyberpunk", "tone" => "gritty"},
+        "character" => %{"name" => "the maid", "class" => "maid", "level" => 3}
+      }
+    })
+  end
+
   defp roster(role) do
     %{
       "members" => [
@@ -304,6 +321,61 @@ defmodule BotArmyDashboardLiveview.PartyPhoneTest do
 
     assert render(view) =~ "gtd_bot"
     refute render(view) =~ ~s(class="chip narrating")
+  end
+
+  test "a window waiting on her narrator shows the silence, not a turn nobody wrote" do
+    Application.put_env(
+      @app,
+      :broker_stub_reply,
+      answers(%{
+        @window_subject =>
+          window_answer_with_narration(%{"asked_of" => "companion_bot", "pending" => true}),
+        @party_subject => party_answer()
+      })
+    )
+
+    {:ok, view, _html} = live(build_conn(), "/party-phone")
+    settle(view)
+    html = render(view)
+
+    assert html =~ "(she says nothing yet)"
+    assert html =~ "companion_bot"
+    refute html =~ "has written since she was asked"
+  end
+
+  test "a window she has written into does not draw the silence" do
+    Application.put_env(
+      @app,
+      :broker_stub_reply,
+      answers(%{
+        @window_subject =>
+          window_answer_with_narration(%{"asked_of" => "companion_bot", "pending" => false}),
+        @party_subject => party_answer()
+      })
+    )
+
+    {:ok, view, _html} = live(build_conn(), "/party-phone")
+    settle(view)
+    html = render(view)
+
+    assert html =~ "has written since she was asked"
+    refute html =~ "(she says nothing"
+  end
+
+  test "a window that did not report the ask claims nothing either way" do
+    Application.put_env(
+      @app,
+      :broker_stub_reply,
+      answers(%{@window_subject => window_answer(), @party_subject => party_answer()})
+    )
+
+    {:ok, view, _html} = live(build_conn(), "/party-phone")
+    settle(view)
+    html = render(view)
+
+    assert html =~ "not saying either"
+    refute html =~ "(she says nothing"
+    refute html =~ "has written since she was asked"
   end
 
   test "the page asks whether a call is open, on the house screen's own subject" do

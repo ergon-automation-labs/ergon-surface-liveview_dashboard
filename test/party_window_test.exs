@@ -265,6 +265,74 @@ defmodule BotArmyDashboardLiveview.PartyWindowTest do
     end
   end
 
+  describe "narration/1 — the words that have not arrived yet" do
+    test "an ask she has not answered is pending; an ask she has answered is not" do
+      assert PartyWindow.narration(%{
+               "narration" => %{"asked_of" => "companion_bot", "pending" => true}
+             }) == {:pending, "companion_bot"}
+
+      assert PartyWindow.narration(%{
+               "narration" => %{"asked_of" => "companion_bot", "pending" => false}
+             }) == {:answered, "companion_bot"}
+    end
+
+    test "the window carries the reading, not just the function" do
+      assert {:open_window, window} =
+               PartyWindow.window(
+                 answer(%{"narration" => %{"asked_of" => "companion_bot", "pending" => true}})
+               )
+
+      assert window.narration == {:pending, "companion_bot"}
+    end
+
+    test "a window nobody was asked about is a reading, and an absent field is not" do
+      assert PartyWindow.narration(%{"narration" => nil}) == {:no_ask, nil}
+
+      # The field absent is an older bot that never sends it — which is not the same
+      # sentence as *this party asked nobody*.
+      assert {:unreported, sentence} = PartyWindow.narration(%{"session_id" => @session})
+      assert sentence =~ "not saying either"
+    end
+
+    test "a shape this screen cannot read is unreported, never pending" do
+      unreadable = [
+        %{"narration" => %{"asked_of" => nil, "pending" => true}},
+        %{"narration" => %{"asked_of" => "companion_bot"}},
+        %{"narration" => %{"asked_of" => "companion_bot", "pending" => "yes"}},
+        %{"narration" => "companion_bot"}
+      ]
+
+      for answer <- unreadable do
+        assert {:unreported, _sentence} = PartyWindow.narration(answer)
+      end
+    end
+
+    test "a refusal is reported in the bot's own word" do
+      assert {:unreported, sentence} =
+               PartyWindow.narration(%{"ok" => false, "error" => ":no_active_session"})
+
+      assert sentence =~ "no_active_session"
+    end
+
+    test "the line a window waiting on her draws is the silence, and it names her" do
+      line = PartyWindow.narration_line({:pending, "companion_bot"})
+
+      assert line =~ "(she says nothing yet)"
+      assert line =~ "companion_bot"
+    end
+
+    test "a window she has written into says so, and one nobody asked says nothing" do
+      assert PartyWindow.narration_line({:answered, "companion_bot"}) =~ "has written"
+      assert PartyWindow.narration_line({:no_ask, nil}) == ""
+
+      assert PartyWindow.narration_line({:unreported, "the bot did not say"}) ==
+               "the bot did not say"
+
+      # Nothing has been read yet, and a line about nothing is not drawn.
+      assert PartyWindow.narration_line(nil) == ""
+    end
+  end
+
   describe "a draft" do
     test "a reply is trimmed, and an empty one is refused" do
       assert PartyWindow.draft("  hello  ") == {:ok, "hello"}

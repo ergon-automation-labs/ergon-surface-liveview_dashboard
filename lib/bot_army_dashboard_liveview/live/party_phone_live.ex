@@ -44,6 +44,15 @@ defmodule BotArmyDashboardLiveview.PartyPhoneLive do
   report them. The card draws all three differently, because *nothing came before* is
   a reading the bot made and *the bot did not say* is not.
 
+  ## A window can be asked for words that have not arrived
+
+  When the party has a narrator, the turn belongs to her: rpg hands her the words and
+  writes nothing of its own. So a window can be open, have turns, and still be waiting
+  on the next one — and the screen says which it is looking at (`PartyWindow.narration/1`,
+  the same three answers as every other read here). A window waiting on her draws
+  `(she says nothing yet)` under the turns rather than a sentence nobody wrote, and a
+  window that did not report the field claims nothing either way.
+
   ## A reply is confirmed by the window, not by the write
 
   Saying something into the window is a write, and it is the only write on this
@@ -96,6 +105,7 @@ defmodule BotArmyDashboardLiveview.PartyPhoneLive do
      |> assign(window_sentence: nil)
      |> assign(party: nil)
      |> assign(narrator: nil)
+     |> assign(narration: nil)
      |> assign(reply: nil)
      |> assign(draft: "")
      |> assign(moved: moved_from(params))}
@@ -122,6 +132,7 @@ defmodule BotArmyDashboardLiveview.PartyPhoneLive do
          |> assign(window_sentence: nil)
          |> assign(party: nil)
          |> assign(narrator: PartyWindow.narrator(answer))
+         |> assign(narration: PartyWindow.narration(answer))
          |> assign(reply: PartyWindow.settle(socket.assigns[:reply], window))}
 
       {_kind, sentence} ->
@@ -130,7 +141,8 @@ defmodule BotArmyDashboardLiveview.PartyPhoneLive do
          |> assign(window: nil)
          |> assign(window_sentence: sentence)
          |> assign(party: nil)
-         |> assign(narrator: nil)}
+         |> assign(narrator: nil)
+         |> assign(narration: nil)}
     end
   end
 
@@ -337,6 +349,11 @@ defmodule BotArmyDashboardLiveview.PartyPhoneLive do
                 <%= for turn <- turns do %>
                   <p class="dim" style="margin:0 0 6px; font-size:12px;"><%= turn %></p>
                 <% end %>
+            <% end %>
+            <%= if PartyWindow.narration_line(@narration) != "" do %>
+              <p class="read-note" style="margin:6px 0 0; font-size:12px;">
+                <%= PartyWindow.narration_line(@narration) %>
+              </p>
             <% end %>
           </div>
 

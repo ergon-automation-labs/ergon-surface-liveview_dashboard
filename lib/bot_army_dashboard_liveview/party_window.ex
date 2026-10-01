@@ -57,6 +57,27 @@ defmodule BotArmyDashboardLiveview.PartyWindow do
   record says the operator spoke, which is what the shelf's verbs already say. It
   never says *she* said it.
 
+  ## The words that have not arrived yet
+
+  When the party has named a narrator, the turn is *hers* to write, and rpg hands the
+  words to her instead of writing them itself. It also writes a note down (a `system`
+  fact, so it is not a turn in either window read) and reports the state of that note
+  as `"narration"` on the window question. So a window can be asked for a turn and
+  still be wordless, and the screen has to say which of those it is looking at:
+
+    * `{:pending, bot_id}` — she was asked and nothing has been written since. The
+      window says so with `(she says nothing yet)`; it does not fill the silence with
+      prose, because the words said here are hers.
+    * `{:answered, bot_id}` — a turn newer than the note is signed with her name, so
+      she has written. *Signed with her name* is the same rule that decides who wrote
+      any other turn.
+    * `{:no_ask, nil}` — no turn in what was read was handed to a narrator.
+    * `{:unreported, sentence}` — the bot did not say. An older bot never sends the
+      field, and *this bot never asked anyone* is not something this screen knows.
+
+  `nil` is not `{:no_ask, nil}`: the first is a question that did not come back, the
+  second is a bot that looked and reports nothing pending.
+
   ## Who narrates
 
   The party can name one of its members the narrator (`rpg.party.set_narrator`), and
@@ -181,6 +202,7 @@ defmodule BotArmyDashboardLiveview.PartyWindow do
        facts: facts(answer["scene_facts"]),
        theme: theme(answer["theme"]),
        character: character(answer["character"]),
+       narration: narration(answer),
        carry: carry(answer)
      }}
   end
@@ -201,6 +223,65 @@ defmodule BotArmyDashboardLiveview.PartyWindow do
   def window(_answer) do
     {:unreported, "The bot answered, but not with a window — nothing here is a reading of one."}
   end
+
+  @doc """
+  What the window says about the words that have not arrived yet.
+
+  A party with a narrator hands the turn to her (`rpg.narration.your_turn`), and rpg
+  reports the state of that hand-off on the same answer the window came in on — this
+  is a *reading* of that field, not a third question:
+
+    * `{:pending, bot_id}` — she was asked and nothing new has been written. The
+      window is wordless on purpose, and the screen says that rather than drawing a
+      sentence nobody wrote.
+    * `{:answered, bot_id}` — a turn newer than the ask is signed with her name.
+    * `{:no_ask, nil}` — the bot reports nobody was asked for a turn in what it read.
+    * `{:unreported, sentence}` — the field is absent (`nil`), the shape is not one
+      this screen can read, or the window question itself was refused. A bot that
+      does not know the field answers here, and the screen does not turn that into
+      *nobody was asked*, which is a claim about the party rather than about the bot.
+
+  Only the ask *itself* is read, not who the party named: a window whose ask fell
+  outside the read is `{:no_ask, nil}`, and the screen makes no claim about it either.
+  """
+  @spec narration(term()) ::
+          {:pending, String.t()}
+          | {:answered, String.t()}
+          | {:no_ask, nil}
+          | {:unreported, String.t()}
+  def narration(%{"narration" => %{"asked_of" => bot_id, "pending" => pending}})
+      when is_binary(bot_id) and is_boolean(pending) do
+    if pending, do: {:pending, bot_id}, else: {:answered, bot_id}
+  end
+
+  def narration(%{"narration" => nil}), do: {:no_ask, nil}
+
+  def narration(%{"ok" => false} = answer),
+    do: {:unreported, "The bot did not answer with the window" <> said(answer["error"]) <> "."}
+
+  def narration(%{"narration" => _other}),
+    do: {:unreported, "The bot answered, but not with a reading of the words that are owed."}
+
+  def narration(_answer),
+    do:
+      {:unreported,
+       "The bot did not say whether a turn was handed to a narrator, so this screen is not saying either."}
+
+  @doc """
+  The line under the turns for whatever the window said about the words owed.
+
+  `""` for a window that reports no ask: the turns are complete without it, and an
+  extra line claiming nothing happened would be a line about nothing.
+  """
+  @spec narration_line(term()) :: String.t()
+  def narration_line({:pending, bot_id}), do: "asked of #{bot_id} — (she says nothing yet)"
+
+  def narration_line({:answered, bot_id}),
+    do: "#{bot_id} has written since she was asked — the words are among the turns above"
+
+  def narration_line({:unreported, sentence}), do: sentence
+  def narration_line({:no_ask, nil}), do: ""
+  def narration_line(_answer), do: ""
 
   # ── the party ───────────────────────────────────────────────────────────────
 
