@@ -234,3 +234,12 @@ Visit http://localhost:8080/chore, etc.
 - Existing surface: `surfaces/elixir/bot_army_job_applications_liveview/` (router, LiveViews, NATS bridge).
 - North star: Bot Army docs in the main repo (CLAUDE.md, Surfaces UI Standards).
 - Application.ex comments show the multi-app supervisor pattern.
+
+## This surface's docs
+
+- [`docs/REFLECTION_READBACK.md`](docs/REFLECTION_READBACK.md) — the reflection
+  and tavern-window read-back lanes: the request subjects, the bell/cadence laws,
+  the refusal rules, and the "a `live/2` mounts twice" trap that decides how these
+  screens may be tested.
+- [`docs/PARTY_BANTER_DESIGN.md`](docs/PARTY_BANTER_DESIGN.md) — the tavern party.
+- [`docs/OFFLINE_MODE.md`](docs/OFFLINE_MODE.md) · [`docs/ACCESSIBILITY.md`](docs/ACCESSIBILITY.md)
