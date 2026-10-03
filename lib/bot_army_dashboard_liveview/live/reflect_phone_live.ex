@@ -1,8 +1,17 @@
 defmodule BotArmyDashboardLiveview.ReflectPhoneLive do
   use Phoenix.LiveView
   alias Phoenix.PubSub
+  alias BotArmyDashboardLiveview.BotRead
   alias BotArmyDashboardLiveview.PhoneNav
+  alias BotArmyDashboardLiveview.ReflectionWindow
   alias BotArmyDashboardLiveview.SyncStatus
+
+  import BotArmyDashboardLiveview.ReadError
+
+  # How long a round trip to the companion may take. A reflection is a small
+  # write and the store answers in milliseconds; this is a ceiling, not an
+  # expectation. A write that times out is not retried — see `save_reflection/1`.
+  @call_timeout 10_000
 
   @prompts [
     "What just happened?",
@@ -21,6 +30,19 @@ defmodule BotArmyDashboardLiveview.ReflectPhoneLive do
   def mount(_params, _session, socket) do
     :ok = PubSub.subscribe(BotArmyDashboardLiveview.PubSub, "gamepad")
 
+    # The bell for a finished answer. It carries the job, never the words.
+    :ok = PubSub.subscribe(BotArmyDashboardLiveview.PubSub, "dashboard:reflections")
+
+    # The first read: what the store already holds. A screen that only reads after
+    # a write has no way to show her that her earlier words are still there.
+    BotRead.async(
+      self(),
+      :recent,
+      ReflectionWindow.list_subject(),
+      ReflectionWindow.list_payload(),
+      timeout: @call_timeout
+    )
+
     socket =
       socket
       |> assign(
@@ -31,7 +53,22 @@ defmodule BotArmyDashboardLiveview.ReflectPhoneLive do
         prompt_index: Enum.random(0..(length(@prompts) - 1)),
         prompt: Enum.at(@prompts, Enum.random(0..(length(@prompts) - 1))),
         message: nil,
-        character_intro: "Let's capture this moment."
+        character_intro: "Let's capture this moment.",
+        # The confirmation card: `nil` until a draft is reviewed, `:confirmed`
+        # when the words are on the card waiting for the second press.
+        confirm: nil,
+        # The row the store wrote, read back. The success line is drawn from this
+        # and never from the write's own ok.
+        saved: nil,
+        # The recent list: `nil` until a read comes back, a list when it does.
+        recent: nil,
+        # A refusal from the store, for the write and for the list, kept apart so
+        # neither is reported as the other.
+        refusal: nil,
+        list_refusal: nil,
+        # The waiting state: one poll chain while an answer is owed.
+        polling: false,
+        waiting_since: nil
       )
       |> schedule_tick()
 
@@ -48,20 +85,27 @@ defmodule BotArmyDashboardLiveview.ReflectPhoneLive do
     {:noreply, schedule_tick(socket)}
   end
 
+  # Two presses, because her words are the one thing here that cannot be retyped
+  # from memory: the first press puts them on a confirmation card, the second
+  # writes them. Nothing is sent on a keystroke.
   @impl true
   def handle_event("gamepad-a", _params, socket) do
-    if String.trim(socket.assigns.reflection_text) != "" do
-      publish_reflection(socket)
-    else
-      {:noreply, assign(socket, message: "Write something first")}
-      |> then(fn s -> schedule_message_clear(s, 2000) end)
+    case socket.assigns[:confirm] do
+      nil -> review_draft(socket)
+      :confirmed -> save_reflection(socket)
     end
   end
 
   @impl true
   def handle_event("gamepad-b", _params, socket) do
-    {:noreply, assign(socket, reflection_text: "", message: nil)}
+    case socket.assigns[:confirm] do
+      nil -> {:noreply, assign(socket, reflection_text: "", message: nil, refusal: nil)}
+      :confirmed -> {:noreply, assign(socket, confirm: nil, message: "Not saved.")}
+    end
   end
+
+  @impl true
+  def handle_event("reread", _params, socket), do: {:noreply, reread(socket)}
 
   @impl true
   def handle_event("gamepad-up", _params, socket) do
@@ -107,57 +151,184 @@ defmodule BotArmyDashboardLiveview.ReflectPhoneLive do
     {:noreply, socket}
   end
 
-  defp publish_reflection(socket) do
-    parent = self()
+  defp review_draft(socket) do
+    case ReflectionWindow.draft(socket.assigns.reflection_text) do
+      {:ok, text} ->
+        {:noreply, assign(socket, confirm: :confirmed, reflection_text: text, message: nil)}
 
-    Task.start_link(fn ->
-      try do
-        payload = %{
-          "text" => socket.assigns.reflection_text,
-          "prompt" => socket.assigns.prompt,
-          "timestamp" => DateTime.utc_now() |> DateTime.to_iso8601()
-        }
+      {:refused, sentence} ->
+        {:noreply,
+         socket
+         |> assign(confirm: nil, refusal: nil, message: sentence)
+         |> schedule_message_clear(3_000)}
+    end
+  end
 
-        case Gnat.pub(:nats_connection, "events.reflection.captured", Jason.encode!(payload)) do
-          :ok ->
-            send(parent, {:reflection_saved})
+  # The one write on this screen, and it happens only past the confirmation card.
+  # A write is never retried: if this does not come back, the screen says so and
+  # waits for a human, because a reflection written twice is worse than one that
+  # has to be written again.
+  defp save_reflection(socket) do
+    BotRead.async(
+      self(),
+      :capture,
+      ReflectionWindow.capture_subject(),
+      ReflectionWindow.capture_payload(socket.assigns.reflection_text, socket.assigns.prompt),
+      timeout: @call_timeout
+    )
 
-          _ ->
-            send(parent, {:reflection_failed})
+    {:noreply,
+     socket
+     |> assign(message: "Saving…")
+     |> schedule_message_clear(2_000)}
+  end
+
+  # The write came back: with the row the store wrote, or with the store's own
+  # refusal. "Saved" is drawn only for the first, and the box is cleared only once
+  # the store holds the words.
+  @impl true
+  def handle_info({:capture, answer}, socket) do
+    case ReflectionWindow.capture(answer) do
+      {:stored, row} ->
+        {:noreply,
+         socket
+         |> assign(
+           saved: row,
+           reflection_text: "",
+           confirm: nil,
+           refusal: nil,
+           message: "Saved — the store has your words."
+         )
+         |> next_prompt()
+         |> reread()
+         |> schedule_message_clear(4_000)}
+
+      {:refused, sentence} ->
+        # The card stays up: the words are still in the box, and the store's
+        # refusal is shown where the confirmation was.
+        {:noreply, assign(socket, confirm: :confirmed, refusal: sentence, message: nil)}
+    end
+  end
+
+  # The list read answered: rows, or the store's refusal. `[]` is a reading;
+  # a refusal is not a list and is never drawn as one.
+  @impl true
+  def handle_info({:recent, answer}, socket) do
+    case ReflectionWindow.recent(answer) do
+      {:recent, rows} ->
+        {:noreply, socket |> assign(recent: rows, list_refusal: nil) |> start_poll_if_owed()}
+
+      {:refused, sentence} ->
+        {:noreply, assign(socket, recent: nil, list_refusal: sentence)}
+    end
+  end
+
+  # The single re-read of the row just saved — the diff that confirms the write.
+  # A refusal here is not news about the store: the list read is the reading, and
+  # a single row that is not there yet does not take the saved card away.
+  @impl true
+  def handle_info({:reflection, answer}, socket) do
+    case ReflectionWindow.one(answer) do
+      {:reflection, row} -> {:noreply, socket |> assign(saved: row) |> start_poll_if_owed()}
+      {:refused, _sentence} -> {:noreply, socket}
+    end
+  end
+
+  # A job finished. The bell carries the job, never the words; this only decides
+  # whether re-reading is worth doing.
+  @impl true
+  def handle_info({:answer_event, _subject, _event}, socket) do
+    if owes_answer?(socket), do: {:noreply, reread(socket)}, else: {:noreply, socket}
+  end
+
+  # The fallback cadence: only while an answer is owed, and only inside the lane's
+  # own budget. A poll that finds nothing owed stops the chain.
+  @impl true
+  def handle_info(:poll, socket) do
+    if owes_answer?(socket) and within_budget?(socket) do
+      Process.send_after(self(), :poll, ReflectionWindow.poll_ms())
+      {:noreply, reread(socket)}
+    else
+      {:noreply, assign(socket, polling: false, waiting_since: nil)}
+    end
+  end
+
+  # The same read that was asked at mount, asked again: the screen's own answer is
+  # whatever this comes back with.
+  defp reread(socket) do
+    BotRead.async(
+      self(),
+      :recent,
+      ReflectionWindow.list_subject(),
+      ReflectionWindow.list_payload(),
+      timeout: @call_timeout
+    )
+
+    read_saved(socket)
+  end
+
+  defp read_saved(socket) do
+    case socket.assigns[:saved] do
+      %{id: id} when is_binary(id) ->
+        BotRead.async(
+          self(),
+          :reflection,
+          ReflectionWindow.read_subject(),
+          ReflectionWindow.read_payload(id),
+          timeout: @call_timeout
+        )
+
+        socket
+
+      _other ->
+        socket
+    end
+  end
+
+  defp owes_answer?(socket) do
+    ReflectionWindow.awaits_answer?(socket.assigns[:saved]) or
+      ReflectionWindow.awaiting_any?(socket.assigns[:recent])
+  end
+
+  # One poll chain, and only while something is owed: starting again while it is
+  # already running would double the cadence on every event.
+  defp start_poll_if_owed(socket) do
+    if owes_answer?(socket) do
+      socket =
+        if socket.assigns[:waiting_since] do
+          socket
+        else
+          assign(socket, waiting_since: System.monotonic_time(:millisecond))
         end
-      rescue
-        _ -> send(parent, {:reflection_failed})
+
+      if socket.assigns[:polling] do
+        socket
+      else
+        Process.send_after(self(), :poll, ReflectionWindow.poll_ms())
+        assign(socket, polling: true)
       end
-    end)
-
-    {:noreply,
-     socket
-     |> assign(message: "Saving reflection...")
-     |> schedule_message_clear(2000)}
+    else
+      assign(socket, waiting_since: nil)
+    end
   end
 
-  @impl true
-  def handle_info({:reflection_saved}, socket) do
+  defp within_budget?(socket) do
+    case socket.assigns[:waiting_since] do
+      nil ->
+        true
+
+      since ->
+        System.monotonic_time(:millisecond) - since < ReflectionWindow.pending_budget_ms()
+    end
+  end
+
+  defp next_prompt(socket) do
     new_idx = Enum.random(0..(length(socket.assigns.prompts) - 1))
-    new_prompt = Enum.at(socket.assigns.prompts, new_idx)
 
-    {:noreply,
-     socket
-     |> assign(
-       reflection_text: "",
-       prompt_index: new_idx,
-       prompt: new_prompt,
-       message: "✓ Reflection captured. The story continues."
-     )
-     |> schedule_message_clear(4000)}
-  end
-
-  @impl true
-  def handle_info({:reflection_failed}, socket) do
-    {:noreply,
-     socket
-     |> assign(message: "✗ Could not save reflection")
-     |> schedule_message_clear(2000)}
+    assign(socket,
+      prompt_index: new_idx,
+      prompt: Enum.at(socket.assigns.prompts, new_idx)
+    )
   end
 
   defp schedule_message_clear(socket, delay_ms) do
@@ -205,7 +376,11 @@ defmodule BotArmyDashboardLiveview.ReflectPhoneLive do
       <div id="sync-manager-hook" phx-hook="SyncManagerHook" style="display: none;"></div>
       <SyncStatus.sync_status status={@sync_status} is_online={@is_online} />
       <div class="phone-card reflection-card-phone">
-        <div class="view-title">📝 Reflection</div>
+        <div class="view-title">📝 Reflection · Y: save · B: clear</div>
+
+        <%= if @read_error do %>
+          <.read_error reason={@read_error} />
+        <% end %>
 
         <div class="character-intro-phone">
           <p><%= @character_intro %></p>
@@ -237,12 +412,59 @@ defmodule BotArmyDashboardLiveview.ReflectPhoneLive do
         <div class="controls">
           <div class="control-hint">
             <span class="key">Y</span>
-            <span class="action">Save</span>
+            <span class="action"><%= if @confirm, do: "Confirm — save this", else: "Save" %></span>
           </div>
           <div class="control-hint">
             <span class="key">B</span>
-            <span class="action">Clear</span>
+            <span class="action"><%= if @confirm, do: "Back — don't save", else: "Clear" %></span>
           </div>
+        </div>
+
+        <%= if @confirm do %>
+          <div class="confirm-card-phone">
+            <p class="confirm-title">Save this reflection?</p>
+            <p class="confirm-body"><%= @reflection_text %></p>
+            <p class="confirm-hint">Y to save · B to go back</p>
+          </div>
+        <% end %>
+
+        <%= if @refusal do %>
+          <div class="refusal-phone" role="status">
+            <p class="refusal-title">Nothing was saved</p>
+            <p class="refusal-body"><%= @refusal %></p>
+          </div>
+        <% end %>
+
+        <%= if @saved do %>
+          <div class="saved-card-phone">
+            <p class="saved-title">Just saved</p>
+            <p class="saved-text"><%= @saved.text %></p>
+            <p class="saved-answer"><%= ReflectionWindow.answer_line(@saved.answer) %></p>
+          </div>
+        <% end %>
+
+        <div class="earlier-phone">
+          <p class="earlier-title">
+            Earlier <%= if is_list(@recent), do: "(#{length(@recent)})", else: "" %>
+            <span class="earlier-refresh" phx-click="reread">↻ re-read</span>
+          </p>
+
+          <%= if @list_refusal do %>
+            <div class="refusal-phone" role="status">
+              <p class="refusal-title">Your earlier reflections are not shown</p>
+              <p class="refusal-body"><%= @list_refusal %></p>
+            </div>
+          <% else %>
+            <%= if @recent == [] do %>
+              <p class="empty-state">Nothing written yet — write a line above and it lands here.</p>
+            <% end %>
+            <%= for row <- @recent || [] do %>
+              <div class="earlier-row">
+                <p class="earlier-text"><%= row.text %></p>
+                <p class="earlier-answer"><%= ReflectionWindow.answer_line(row.answer) %></p>
+              </div>
+            <% end %>
+          <% end %>
         </div>
 
         <div class="hint-text-phone">
@@ -435,6 +657,101 @@ defmodule BotArmyDashboardLiveview.ReflectPhoneLive do
           opacity: 1;
           transform: translateY(0);
         }
+      }
+
+      .confirm-card-phone,
+      .saved-card-phone,
+      .earlier-phone {
+        background: rgba(107, 127, 215, 0.12);
+        border-left: 3px solid #6b7fd7;
+        border-radius: 6px;
+        padding: 12px 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .confirm-title,
+      .saved-title,
+      .earlier-title {
+        font-size: 12px;
+        font-weight: bold;
+        color: #6b7fd7;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        margin: 0;
+      }
+
+      .confirm-body {
+        font-size: 15px;
+        color: #ecf0f1;
+        margin: 0;
+        word-wrap: break-word;
+      }
+
+      .confirm-hint,
+      .earlier-refresh {
+        font-size: 11px;
+        color: #8a9eff;
+        margin: 0;
+      }
+
+      .earlier-title {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      .earlier-refresh {
+        cursor: pointer;
+        text-transform: none;
+        letter-spacing: 0;
+      }
+
+      .saved-text,
+      .earlier-text {
+        font-size: 14px;
+        color: #ecf0f1;
+        margin: 0;
+        word-wrap: break-word;
+      }
+
+      .saved-answer,
+      .earlier-answer {
+        font-size: 13px;
+        color: #b0b0b0;
+        font-style: italic;
+        margin: 0;
+      }
+
+      .earlier-row {
+        border-top: 1px solid rgba(107, 127, 215, 0.3);
+        padding-top: 8px;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+
+      .refusal-phone {
+        background: rgba(215, 107, 107, 0.12);
+        border-left: 3px solid #d76b6b;
+        border-radius: 6px;
+        padding: 12px 14px;
+      }
+
+      .refusal-title {
+        font-size: 12px;
+        font-weight: bold;
+        color: #d76b6b;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        margin: 0 0 4px 0;
+      }
+
+      .refusal-body {
+        font-size: 13px;
+        color: #ecf0f1;
+        margin: 0;
       }
 
       @media (max-width: 768px) {

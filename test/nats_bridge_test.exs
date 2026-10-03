@@ -21,6 +21,8 @@ defmodule BotArmyDashboardLiveview.NATSBridgeTest do
 
   @topic "dashboard:hypnosis"
   @said "events.wife_care.hypnosis.said"
+  @reflections "dashboard:reflections"
+  @party "dashboard:party"
 
   setup do
     :ok = Phoenix.PubSub.subscribe(BotArmyDashboardLiveview.PubSub, @topic)
@@ -64,5 +66,63 @@ defmodule BotArmyDashboardLiveview.NATSBridgeTest do
     deliver(@said, "not json at all")
 
     assert_receive {:hypnosis_event, @said, %{"raw" => "not json at all"}}
+  end
+
+  # The two lanes the reflect and party phones read back on. The bell for a
+  # finished answer is `events.llm.job.completed` and the reflect screen listens on
+  # `dashboard:reflections`; the tavern's scene events land on `dashboard:party`.
+  # Both were silent before: a subject with no clause here is dropped, and the
+  # screen it was meant for simply keeps waiting.
+
+  test "a finished job is routed to the reflect screen's channel" do
+    :ok = Phoenix.PubSub.subscribe(BotArmyDashboardLiveview.PubSub, @reflections)
+
+    event = %{
+      "event" => "llm.job.completed",
+      "payload" => %{"job_id" => "7c0a1f2e-1111-4000-8000-000000000001", "status" => "completed"}
+    }
+
+    deliver("events.llm.job.completed", Jason.encode!(event))
+
+    # The bell carries the job, never the words: what arrives is the body as it came
+    # off the wire and nothing added to it.
+    assert_receive {:answer_event, "events.llm.job.completed", ^event}
+    refute_receive {:hypnosis_event, _, _}, 50
+  end
+
+  test "a tavern scene event is routed to the party screen's channel" do
+    :ok = Phoenix.PubSub.subscribe(BotArmyDashboardLiveview.PubSub, @party)
+
+    event = %{
+      "event" => "rpg.scene.fact.added",
+      "payload" => %{"fact_id" => "9f1a0f2e-2222-4000-8000-000000000001", "turn" => 3}
+    }
+
+    deliver("events.rpg.scene.fact.added", Jason.encode!(event))
+
+    assert_receive {:party_event, "events.rpg.scene.fact.added", ^event}
+    refute_receive {:hypnosis_event, _, _}, 50
+  end
+
+  test "every rpg scene subject under the wildcard lands on the party channel" do
+    :ok = Phoenix.PubSub.subscribe(BotArmyDashboardLiveview.PubSub, @party)
+
+    deliver("events.rpg.scene.narrated", Jason.encode!(%{"event" => "rpg.scene.narrated"}))
+
+    deliver(
+      "events.rpg.narration.your_turn",
+      Jason.encode!(%{"event" => "rpg.narration.your_turn"})
+    )
+
+    assert_receive {:party_event, "events.rpg.scene.narrated", _}
+    assert_receive {:party_event, "events.rpg.narration.your_turn", _}
+  end
+
+  test "a job event that will not decode is carried raw on the reflect channel" do
+    :ok = Phoenix.PubSub.subscribe(BotArmyDashboardLiveview.PubSub, @reflections)
+
+    deliver("events.llm.job.completed", "not json at all")
+
+    assert_receive {:answer_event, "events.llm.job.completed", %{"raw" => "not json at all"}}
   end
 end

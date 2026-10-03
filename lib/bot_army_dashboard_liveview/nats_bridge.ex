@@ -231,7 +231,15 @@ defmodule BotArmyDashboardLiveview.NATSBridge do
       # A saying the house made of its own accord, or one someone asked for. The event
       # carries ids and times only — never her words — so the shelf screen names the
       # phrase off the read it already has and re-reads.
-      "events.wife_care.hypnosis.>"
+      "events.wife_care.hypnosis.>",
+      # A job the llm bot finished. The event carries the job's id and status and
+      # never the words: the reflect screens re-read the answer by id from the bot
+      # that holds it, so a lost bell costs a poll and nothing else.
+      "events.llm.job.completed",
+      # The party's own events — a turn landed in the window, or a narration was
+      # handed to her. The party screen re-reads the window on these rather than
+      # trusting the write it just made.
+      "events.rpg.>"
     ]
 
     Logger.debug("[NATSBridge] Starting subscriptions to #{Enum.count(subjects)} subjects")
@@ -272,6 +280,12 @@ defmodule BotArmyDashboardLiveview.NATSBridge do
 
       String.starts_with?(subject, "events.wife_care.hypnosis.") ->
         broadcast_hypnosis_event(subject, event)
+
+      String.starts_with?(subject, "events.llm.job.completed") ->
+        broadcast_answer_event(subject, event)
+
+      String.starts_with?(subject, "events.rpg.") ->
+        broadcast_party_event(subject, event)
 
       true ->
         :ok
@@ -323,6 +337,30 @@ defmodule BotArmyDashboardLiveview.NATSBridge do
       )
 
     Logger.debug("[NATSBridge] Broadcast to dashboard:hypnosis result: #{inspect(result)}")
+    result
+  end
+
+  defp broadcast_answer_event(subject, event) do
+    result =
+      PubSub.broadcast(
+        BotArmyDashboardLiveview.PubSub,
+        "dashboard:reflections",
+        {:answer_event, subject, event}
+      )
+
+    Logger.debug("[NATSBridge] Broadcast to dashboard:reflections result: #{inspect(result)}")
+    result
+  end
+
+  defp broadcast_party_event(subject, event) do
+    result =
+      PubSub.broadcast(
+        BotArmyDashboardLiveview.PubSub,
+        "dashboard:party",
+        {:party_event, subject, event}
+      )
+
+    Logger.debug("[NATSBridge] Broadcast to dashboard:party result: #{inspect(result)}")
     result
   end
 

@@ -80,9 +80,19 @@ defmodule BotArmyDashboardLiveview.PartyPhoneLive do
 
   @call_timeout 3_000
 
+  # How often this screen re-reads the window while her turn is still owed.
+  # The rpg bot rings `events.rpg.*` when it lands (the bridge forwards it to
+  # `dashboard:party`), which is what makes it feel immediate; this is the
+  # guarantee underneath the bell, because a bell can be lost.
+  @poll_ms 10_000
+
   @impl true
   def mount(params, _session, socket) do
     :ok = PubSub.subscribe(BotArmyDashboardLiveview.PubSub, "dashboard:hypnosis")
+
+    # The party's own events: a turn landed in the window, or a narration was
+    # handed to her. Ids and times only — never her words.
+    :ok = PubSub.subscribe(BotArmyDashboardLiveview.PubSub, "dashboard:party")
 
     BotRead.async(
       self(),
@@ -108,7 +118,8 @@ defmodule BotArmyDashboardLiveview.PartyPhoneLive do
      |> assign(narration: nil)
      |> assign(reply: nil)
      |> assign(draft: "")
-     |> assign(moved: moved_from(params))}
+     |> assign(moved: moved_from(params))
+     |> assign(polling: false)}
   end
 
   # The window answered. A window opens the party read, which is the only dependent
@@ -133,7 +144,8 @@ defmodule BotArmyDashboardLiveview.PartyPhoneLive do
          |> assign(party: nil)
          |> assign(narrator: PartyWindow.narrator(answer))
          |> assign(narration: PartyWindow.narration(answer))
-         |> assign(reply: PartyWindow.settle(socket.assigns[:reply], window))}
+         |> assign(reply: PartyWindow.settle(socket.assigns[:reply], window))
+         |> start_poll_if_pending()}
 
       {_kind, sentence} ->
         {:noreply,
@@ -160,6 +172,26 @@ defmodule BotArmyDashboardLiveview.PartyPhoneLive do
   @impl true
   def handle_info({:hypnosis_event, _subject, event}, socket),
     do: {:noreply, HypnosisShelf.said(socket, event)}
+
+  # The rpg bot did something in the window. If her turn is still owed, this is the
+  # moment worth re-reading for; if it is not, the event is not news for this
+  # screen and the screen does not move under her.
+  @impl true
+  def handle_info({:party_event, _subject, _event}, socket) do
+    if pending?(socket), do: {:noreply, reread(socket)}, else: {:noreply, socket}
+  end
+
+  # The fallback cadence: one chain, only while her turn is owed. When it is not,
+  # the chain stops rather than re-reading a window that has already settled.
+  @impl true
+  def handle_info(:poll, socket) do
+    if pending?(socket) do
+      Process.send_after(self(), :poll, @poll_ms)
+      {:noreply, reread(socket)}
+    else
+      {:noreply, assign(socket, polling: false)}
+    end
+  end
 
   # What is being typed. Nothing is sent on a keystroke; this only keeps the box's
   # own text so a re-render does not lose it.
@@ -248,6 +280,21 @@ defmodule BotArmyDashboardLiveview.PartyPhoneLive do
   end
 
   defp empty_reply, do: "There is nothing to say — an empty reply is not a turn."
+
+  # `{:pending, bot_id}` is the window's own word that she was asked and has not
+  # answered yet — the only state worth waiting on. See `PartyWindow.narration/1`.
+  defp pending?(socket), do: match?({:pending, _bot_id}, socket.assigns[:narration])
+
+  # One poll chain: starting a second while one is running would double the
+  # cadence on every event the window gets.
+  defp start_poll_if_pending(socket) do
+    if pending?(socket) and not socket.assigns[:polling] do
+      Process.send_after(self(), :poll, @poll_ms)
+      assign(socket, polling: true)
+    else
+      socket
+    end
+  end
 
   # A bookmark to a retired screen arrives here with `moved=shelf` on it, and the sentence
   # is only drawn when it was really asked for: a redirect that lands somewhere
