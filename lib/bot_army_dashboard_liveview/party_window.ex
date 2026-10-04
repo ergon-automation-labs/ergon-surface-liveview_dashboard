@@ -568,14 +568,20 @@ defmodule BotArmyDashboardLiveview.PartyWindow do
   defp binary_or_nil(value) when is_binary(value), do: value
   defp binary_or_nil(_value), do: nil
 
-  # The bot's own word for a refusal, said without guessing at what it means. A
-  # reason that is not a string is not echoed: an unreadable term is a thing this
-  # screen cannot repeat as if it were an answer.
-  defp said(reason) when is_binary(reason) do
+  @doc """
+  The bot's own word for a refusal, said without guessing at what it means.
+
+  A reason that is not a string is not echoed: an unreadable term is a thing this screen
+  cannot repeat as if it were an answer. Public because the party is read from two screens
+  now — this one and `BotArmyDashboardLiveview.PartySelect` — and the same refusal has to be
+  said the same way on both, rather than each screen stripping the leading `:` for itself.
+  """
+  @spec said(term()) :: String.t()
+  def said(reason) when is_binary(reason) do
     word = String.trim_leading(reason, ":")
 
     if word == "", do: "", else: " — #{word}"
   end
 
-  defp said(_reason), do: ""
+  def said(_reason), do: ""
 end

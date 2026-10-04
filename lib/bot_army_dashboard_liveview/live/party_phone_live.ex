@@ -364,6 +364,9 @@ defmodule BotArmyDashboardLiveview.PartyPhoneLive do
                   <p class="dim">Reading who is in the window…</p>
                 <% end %>
             <% end %>
+            <p class="read-note" style="margin:8px 0 0; font-size:11px;">
+              <a href="/party-select-phone">Change who is in the party</a>
+            </p>
           </div>
 
           <div class="card">
@@ -452,6 +455,11 @@ defmodule BotArmyDashboardLiveview.PartyPhoneLive do
             <p class="read-note" style="margin-top:8px;">
               The shelf is offered inside an open window, so with no window open there is nothing
               here to offer it inside of.
+            </p>
+            <p class="read-note" style="margin-top:8px;">
+              A window opens onto a party, and a party is built on the
+              <a href="/party-select-phone">party screen</a> — nobody with her means nothing to
+              gather around.
             </p>
           </div>
         <% end %>

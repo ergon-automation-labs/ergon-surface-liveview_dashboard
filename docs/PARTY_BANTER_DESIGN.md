@@ -1,6 +1,53 @@
 # Party & Banter System (Design)
 
-**Status:** Design draft, not built. No routes, bots, or schemas exist yet — everything below is a proposal to be broken into phased work.
+**Status:** Partly built. The party itself is **built and live**; the banter/affinity half is still a design draft.
+
+**Correction (2026-10-04).** This draft proposed a new `party_selections` table inside `bot_army_companion`
+and a `/party-select` screen. Both are wrong in the light of what was already there:
+
+* **The durable party already exists** — `rpg_party_members` in `bot_army_rpg`, reached by
+  `rpg.party.get` / `.add` / `.remove` / `.set_narrator`. It is the one owner of who is with her,
+  and it already carries `role` (`narrator` | `companion`), `joined_at`, and the member's name/class/
+  level. **No `party_selections` table is needed or wanted**; a second table would be a second answer
+  to "who is with her," and the two would drift.
+* **The screen exists** — `/party-select-phone` (`PartySelectPhoneLive`), reached from `/party-phone`.
+  There is deliberately **no 16th navigation entry**: the window screen is where the party is used,
+  so it is where the party is built.
+* **`/party-phone` is the banter/window surface** — `PartyPhoneLive` already reads the party, the
+  narrator, the session, the history, and writes a reply through `rpg.*`, with a subscription to
+  `dashboard:party`. **The window is the chat; the session is the window.** Nothing in this draft's
+  "reply box" section needs a new route.
+* **What is genuinely unbuilt** — `character_affinity`, `banter_turns`, generation triggers, and the
+  boomerang queries. Those remain proposals. `bot_army_companion`'s `party_narrator.ex` is the far end
+  that already exists for narration.
+
+The rest of this document is otherwise still the design of record for the banter half; read the data
+model and phasing below through the correction above.
+
+## Built: `/party-select-phone`
+
+The screen is a **two-read, two-press** screen, and each half of that is a rule:
+
+* **Two reads.** `mount/3` asks two independent questions — `rpg.party.get`
+  (`{tenant_id, user_id}`) and `rpg.character.list` (`{tenant_id}` only, so it returns every
+  character the tenant has, including the ones no user is bound to). A failure belongs to the read
+  that failed: the top block reports it and names which question it was, and the other card still
+  draws. A party nobody could read is a refusal, and the characters read anyway.
+* **Two presses.** Picking a companion draws a confirmation that names what will be sent (`Add The
+  Lorekeeper to the party?`) and sends nothing; the second press sends it. **The confirmation is the
+  re-read, not the write's `ok`** — `rpg.party.add` acknowledging the write proves only that the bot
+  received it, so the act stays `:sent` until the re-read shows the member (`… is with her — the party
+  reads back with them in it.`), and a write that lands without changing the party is never called
+  done (`… sent, but the party reads back without it, so this screen is not calling it done.`).
+* **What it refuses here** — an empty bot id, a `user_id` the bot cannot key a party on, and a
+  character the party already has. A confirmation card for something the bot cannot act on is a step
+  leading nowhere.
+* **The narrator is a `character_id`, not a bot id** — `rpg.party.set_narrator` takes a character, so
+  the screen never prints a UUID at her; it names the companion that character belongs to.
+* **No live subscription.** There is no `dashboard:party` subscription here; the party is written by
+  this screen and read back by it, so a manual *Read it again* is the whole freshness story. (The
+  window screen `/party-phone` does subscribe — it is the surface where someone else's party changes
+  matter.)
 
 ## Overview
 
@@ -62,7 +109,7 @@ Concretely: the boomerang prompt pulls from the player's real record, not only t
 
 That means boomerang generation needs a lightweight query across both real task/quest history and real reflection/observation history (e.g. "tasks touched >N days apart," "same project resumed," "a reflection that mentioned this project before") feeding the prompt alongside the character's own recent turns — the turns give it voice, the real record gives it something true to say.
 
-**Decided: `bot_army_companion` owns it.** It already owns narrative-adjacent state (`thoughts.ex`, `reflection_history.ex`) and is the closest existing thing to "the layer that turns bots into characters" — party/affinity/banter state (`party_selections`, `character_affinity`, `banter_turns`) is new tables inside companion's existing Ecto repo, not a new bot.
+**Decided: `bot_army_companion` owns it.** It already owns narrative-adjacent state (`thoughts.ex`, `reflection_history.ex`) and is the closest existing thing to "the layer that turns bots into characters" — **banter** state (`banter_turns`, `character_affinity`) is new tables inside companion's existing Ecto repo, not a new bot. **Party membership is not part of this**: it already lives in `bot_army_rpg`'s `rpg_party_members` and is read, never duplicated (see the correction at the top).
 
 ## Affinity/leveling
 
@@ -80,23 +127,28 @@ A textarea + submit, same shape as `ReflectionLive` (`phx-change` bound text, on
 ## New surfaces (routes)
 
 Following the existing `*-handheld` / `*-phone` pairing (`timer-handheld`/`timer-phone`, etc.):
-- `/party-select` — choose party before a task/quest
-- `/party-banter` — check-in feed + reply box, scoped to the active/most-recent party
+- `/party-select-phone` — choose who is with her — **built** (writes `rpg.party.*`; `/party-phone` is its
+  front door and there is no separate nav entry)
+- `/party-phone` — the window: the party, the narrator, the session, the history, the reply box — **built**
+- `/party-banter` — the check-in feed as its own screen — **not built**; today the banter lives in the
+  window, and a separate feed would need a reason beyond this draft
 
 ## Data model sketch (new state only)
 
 ```
-party_selections
-  task_id | quest_id, characters: [bot_id], selected_at
+rpg_party_members            (BOT_ARMY_RPG — already built and live)
+  user_id, tenant_id, character_id, role (narrator|companion), joined_at
 
-character_affinity
+character_affinity           (proposed — companion)
   bot_id, tasks_completed_together, level, unlocked_topics
 
-banter_turns
+banter_turns                 (proposed — companion)
   bot_id, speaker (character|player), text, task_ref, created_at
 ```
 
-Lives in `bot_army_companion`'s Ecto repo (see "Boomerang continuity" above).
+There is deliberately **no `party_selections`**: `rpg_party_members` is the party, and it is not
+per-task (the window/session is the scope — see the correction at the top). The two proposed tables
+live in `bot_army_companion`'s Ecto repo.
 
 ## Explicitly out of scope for v1
 
@@ -107,7 +159,8 @@ Lives in `bot_army_companion`'s Ecto repo (see "Boomerang continuity" above).
 
 ## Phasing suggestion
 
-1. Party select screen + `party_selections` state (no banter yet — just prove the "who's with me" mechanic reads back correctly)
+1. Party select screen + the party state — **done**: `/party-select-phone` over `rpg_party_members`
 2. Banter generation on task-complete only (single trigger, not every state change) + check-in feed, no reply
-3. Reply box + continuity thread (boomerang becomes possible)
+3. Reply box + continuity thread (boomerang becomes possible) — the reply half is **done** in `/party-phone`;
+   the continuity thread (`banter_turns`) is not
 4. Affinity/leveling + topic unlocks

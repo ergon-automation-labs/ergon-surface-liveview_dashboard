@@ -28,6 +28,10 @@ defmodule BotArmyDashboardLiveview.Router do
       live("/", DashboardLive)
       live("/household-hud", HouseholdHUDLive)
       live("/party-phone", PartyPhoneLive)
+      # The party built from her phone. `/party-phone` draws the window the party is in; with
+      # no party there is no window, so this is the screen that makes one — and the link
+      # between them goes both ways.
+      live("/party-select-phone", PartySelectPhoneLive)
       live("/yearning-phone", YearningPhoneLive)
       live("/body-phone", BodyPhoneLive)
       live("/wardrobe-phone", WardrobePhoneLive)
