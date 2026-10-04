@@ -19,7 +19,11 @@ defmodule BotArmyDashboardLiveview.PartySelect do
   would disagree the first time someone recruited from one of them. Nothing here writes a
   table: it asks the routes that own the party.
 
-  ## The identity is named here, and only here
+  ## Who names the identity, and why a user is named here
+
+  The identity itself is `BotArmyDashboardLiveview.PartyIdentity`'s, and it is asked for
+  rather than re-decided here: one owner, so this screen and the window screen cannot
+  come up with two answers to *whose party is this* (N+56).
 
   The party routes **require** a user and refuse without one (`:missing_user_id`), unlike the
   window routes, which resolve a session the fleet opens with no user on it. So this screen
@@ -55,6 +59,22 @@ defmodule BotArmyDashboardLiveview.PartySelect do
   that is not about the party. A write that failed is reported and never retried: the operator
   decides, and the party is read back either way.
 
+  ## Recruiting is not joining, so a recruit is put in the window too
+
+  A party and a window are two different facts. `rpg.party.add` writes the durable party
+  (`rpg_party_members`); the window draws its party from the session's joined characters
+  (`rpg.session.state`), and recruiting touches neither. So a companion recruited from this
+  phone would be *with her* and still not in the window she is looking at — which is not a
+  missing feature so much as half of one: the route that joins a bot into an open window
+  (`rpg.session.join`, with a `bot_id` and no user) has been there all along.
+
+  The join is a second step, and it happens **only after** the recruit is sent, because a
+  window is where a recruit goes, not where one comes from. It asks the window question to
+  find the open session, joins the bot it just recruited, and reads the window's party back
+  before saying it worked — the write's `ok` is an acknowledgement here too. With no window
+  open there is nothing to join: the recruit is in the party and in no window, and the screen
+  says exactly that rather than inventing a window to have put them in.
+
   ## Recruiting by id is a real capability, not a workaround
 
   `rpg.party.add` resolves a bot id through `CharacterProvisioning.ensure_bot_character/2`, so
@@ -71,6 +91,7 @@ defmodule BotArmyDashboardLiveview.PartySelect do
   """
 
   alias BotArmyDashboardLiveview.Broker
+  alias BotArmyDashboardLiveview.PartyIdentity
   alias BotArmyDashboardLiveview.PartyWindow
 
   @get_subject "rpg.party.get"
@@ -78,18 +99,9 @@ defmodule BotArmyDashboardLiveview.PartySelect do
   @remove_subject "rpg.party.remove"
   @narrator_subject "rpg.party.set_narrator"
   @roster_subject "rpg.character.list"
+  @join_subject "rpg.session.join"
 
   @request_timeout 5_000
-
-  # The identity the party is read and written as. The bot's deployment is single-tenant and
-  # this dashboard has no auth to learn a different tenant from, so it is named once here and
-  # is overridable in config — the same two keys `PartyWindow` uses for its tenant.
-  @default_tenant_id "00000000-0000-0000-0000-000000000001"
-
-  # The user the party belongs to; see the module doc for why a user is named here and not on
-  # the window's reads. Overridable, because a second operator is a configuration rather than
-  # a code change.
-  @default_user_id "abby"
 
   # A bot id longer than this is a typo rather than a bot, and it is refused here with the
   # ceiling in the refusal instead of sent and refused by the bot.
@@ -114,12 +126,10 @@ defmodule BotArmyDashboardLiveview.PartySelect do
   def max_bot_id, do: @max_bot_id
 
   @doc "The tenant the party belongs to."
-  def tenant_id,
-    do: Application.get_env(:bot_army_dashboard_liveview, :party_tenant_id, @default_tenant_id)
+  def tenant_id, do: PartyIdentity.tenant_id()
 
-  @doc "The user whose party this is — see the module doc for why one is named here."
-  def user_id,
-    do: Application.get_env(:bot_army_dashboard_liveview, :party_select_user_id, @default_user_id)
+  @doc "The user whose party this is — see the module doc for why a user is named here."
+  def user_id, do: PartyIdentity.user_id()
 
   @doc "The body of the party question."
   def party_payload, do: identity()
@@ -147,7 +157,22 @@ defmodule BotArmyDashboardLiveview.PartySelect do
   """
   def narrator_payload(character_id), do: Map.put(identity(), "character_id", character_id)
 
-  defp identity, do: %{"tenant_id" => tenant_id(), "user_id" => user_id()}
+  @doc "The subject a recruit is put into an open window on."
+  def join_subject, do: @join_subject
+
+  @doc """
+  The body of a join: the window it is about, and the bot joining it.
+
+  No character id is named: `rpg.session.join` takes a bot id and resolves the character
+  itself (`do_bot_join/3` provisions one if the bot has none), so naming one here would be
+  this screen deciding what the bot already decides. The user rides along because this is a
+  write, not because the join is keyed on one — the route ignores it when a bot id is named.
+  """
+  def join_payload(session_id, bot_id) do
+    Map.merge(identity(), %{"session_id" => session_id, "bot_id" => bot_id})
+  end
+
+  defp identity, do: PartyIdentity.write_identity()
 
   # ── the party ───────────────────────────────────────────────────────────────
 
@@ -351,6 +376,53 @@ defmodule BotArmyDashboardLiveview.PartySelect do
   defp trouble(_other),
     do: "The bot was not asked — the party did not change."
 
+  # ── putting a recruit in the window ─────────────────────────────────────────
+
+  @doc """
+  Which window a recruit belongs in, read from the window question.
+
+  Three answers, the same three as every read on these screens:
+
+    * `{:join, session_id}` — a window is open, and the recruit goes in it
+    * `{:no_window, sentence}` — the bot looked and there is none. The recruit is in the
+      party and in no window, and that is a reading rather than a failure
+    * `{:unreported, sentence}` — the question did not come back as a window, so this screen
+      is not claiming there is one and not claiming there is not
+  """
+  @spec window_for(term()) ::
+          {:join, String.t()} | {:no_window, String.t()} | {:unreported, String.t()}
+  def window_for({:open_window, %{id: id}}) when is_binary(id) and id != "", do: {:join, id}
+
+  def window_for({:open_window, _window}),
+    do: {:unreported, "The window question came back without naming a window."}
+
+  def window_for({:no_window, sentence}), do: {:no_window, sentence}
+  def window_for({:unreported, sentence}), do: {:unreported, sentence}
+
+  @doc """
+  Put a bot into an open window.
+
+  `{:ok, :stored}` is the bot's acknowledgement and nothing more — the confirmation is the
+  window's party read back (`in_window?/2`). A write is never retried.
+  """
+  @spec join(String.t(), String.t()) :: {:ok, :stored} | {:error, String.t()}
+  def join(session_id, bot_id) do
+    send_act(@join_subject, join_payload(session_id, bot_id), "put #{bot_id} in the window")
+  end
+
+  @doc """
+  Whether the window reads back with the bot in it.
+
+  `true` and `false` are readings of the window's party; `nil` is the window's party **not
+  being read** — an unanswered question is not *they are not in it*. The party here is the
+  session's joined characters (`PartyWindow.party/1`), whose `who` is the bot id.
+  """
+  @spec in_window?(term(), String.t()) :: boolean() | nil
+  def in_window?({:party, rows}, bot_id) when is_list(rows),
+    do: Enum.any?(rows, &(&1.who == bot_id))
+
+  def in_window?(_answer, _bot_id), do: nil
+
   @doc """
   Reconcile an act with a fresh read of the party. This is the confirmation.
 
@@ -380,7 +452,9 @@ defmodule BotArmyDashboardLiveview.PartySelect do
     do: Map.put(act, :reading, "the party did not read back")
 
   @doc "The question the confirmation card asks, in the words of the thing being done."
-  def ask(%{verb: :recruit, label: label}), do: "Add #{label} to the party?"
+  def ask(%{verb: :recruit, label: label}),
+    do: "Add #{label} to the party, and put them in the window if one is open?"
+
   def ask(%{verb: :dismiss, label: label}), do: "Take #{label} out of the party?"
   def ask(%{verb: :narrator, label: label}), do: "Let #{label} write the turns from now on?"
   def ask(%{verb: :clear}), do: "Let the bot write the turns itself again?"
@@ -389,12 +463,16 @@ defmodule BotArmyDashboardLiveview.PartySelect do
   @doc "The sentence under the action card."
   def line(%{state: :refused, sentence: sentence}), do: sentence
   def line(%{state: :error, sentence: sentence}), do: sentence
-  def line(%{confirmed?: true} = act), do: landed_line(act)
+  def line(%{confirmed?: true} = act), do: landed_line(act) <> in_window_line(act)
 
-  def line(%{reading: reading, label: label}),
-    do: "#{label} — sent, but #{reading}, so this screen is not calling it done."
+  def line(%{reading: reading, label: label} = act),
+    do:
+      "#{label} — sent, but #{reading}, so this screen is not calling it done." <>
+        in_window_line(act)
 
-  def line(%{state: :sent, label: label}), do: "#{label} — sent, reading the party back…"
+  def line(%{state: :sent, label: label} = act),
+    do: "#{label} — sent, reading the party back…" <> in_window_line(act)
+
   def line(%{state: :review}), do: "check it, then do it."
   def line(_act), do: ""
 
@@ -432,6 +510,25 @@ defmodule BotArmyDashboardLiveview.PartySelect do
     do: "the bot writes the turns again — the party reads back with nobody holding the role."
 
   defp landed_line(_act), do: "the party reads back with the change."
+
+  # ── the second step: the window a recruit belongs in ───────────────────────
+
+  # The window is a separate fact from the party, so the window half of a recruit is drawn
+  # separately — and only for a recruit that got as far as being sent. A recruit whose party
+  # write was refused has nothing to put in a window.
+  defp in_window_line(%{step: {:in_window, true}}), do: " They are in the window now."
+
+  defp in_window_line(%{step: {:in_window, false}}),
+    do: " The window still reads back without them."
+
+  defp in_window_line(%{step: {:in_window, nil}}),
+    do: " The party in the window did not read back, so this screen is not saying they are in it."
+
+  defp in_window_line(%{step: {:sending, _session_id}}), do: " Putting them in the window…"
+  defp in_window_line(%{step: {:refused, sentence}}), do: " " <> sentence
+  defp in_window_line(%{step: {:no_window, sentence}}), do: " " <> sentence
+  defp in_window_line(%{step: {:unreadable, sentence}}), do: " " <> sentence
+  defp in_window_line(_act), do: ""
 
   # ── readers ─────────────────────────────────────────────────────────────────
 

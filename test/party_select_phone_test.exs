@@ -56,6 +56,11 @@ defmodule BotArmyDashboardLiveview.PartySelectPhoneTest do
   @add_subject "rpg.party.add"
   @remove_subject "rpg.party.remove"
   @narrator_subject "rpg.party.set_narrator"
+  @join_subject "rpg.session.join"
+  @context_subject "rpg.session.gather_context"
+  @state_subject "rpg.session.state"
+
+  @session "20572659-53c2-417e-b67b-fc315d7ee38b"
 
   @tenant "00000000-0000-0000-0000-000000000001"
   @char_gtd "91bae810-82b6-4380-acf4-4f44a5284539"
@@ -152,6 +157,22 @@ defmodule BotArmyDashboardLiveview.PartySelectPhoneTest do
   end
 
   defp install(fun), do: Application.put_env(@app, :broker_stub_reply, {:answers, fun})
+
+  # A window that named itself, and the characters the window has joined. The window question
+  # is `rpg.session.gather_context` and its party is `rpg.session.state`.
+  defp window_body(session_id \\ @session) do
+    %{
+      "session_id" => session_id,
+      "session_status" => "active",
+      "scene_description" => "The tavern, after dark.",
+      "scene_facts" => ["a line she said"],
+      "character_ids" => %{},
+      "party" => %{"members" => []},
+      "narration" => nil
+    }
+  end
+
+  defp window_with(session_id, ids), do: Map.put(window_body(session_id), "character_ids", ids)
 
   # A stub that answers each subject once, with a body already encoded.
   defp answering(overrides), do: install(fn subject -> Map.get(overrides, subject, "{}") end)
@@ -316,6 +337,9 @@ defmodule BotArmyDashboardLiveview.PartySelectPhoneTest do
 
       @roster_subject ->
         ok(roster_rows())
+
+      _subject ->
+        "{}"
     end)
 
     {:ok, view, _html} = live(build_conn(), "/party-select-phone")
@@ -329,7 +353,9 @@ defmodule BotArmyDashboardLiveview.PartySelectPhoneTest do
       "who" => "The Lorekeeper"
     })
 
-    assert render(view) =~ "Add The Lorekeeper to the party?"
+    assert render(view) =~
+             "Add The Lorekeeper to the party, and put them in the window if one is open?"
+
     refute_received {:broker_stub_request, _conn, @add_subject, _payload, _opts}
 
     # The second press sends it, and the confirmation comes from the party reading back.
@@ -346,6 +372,7 @@ defmodule BotArmyDashboardLiveview.PartySelectPhoneTest do
       @add_subject -> ok(%{"members" => [member()]})
       @get_subject -> ok(blank_party())
       @roster_subject -> ok(roster_rows())
+      _subject -> "{}"
     end)
 
     {:ok, view, _html} = live(build_conn(), "/party-select-phone")
@@ -372,6 +399,7 @@ defmodule BotArmyDashboardLiveview.PartySelectPhoneTest do
       @add_subject -> refusal(":bot_character_failed")
       @get_subject -> ok(blank_party())
       @roster_subject -> ok(roster_rows())
+      _subject -> "{}"
     end)
 
     {:ok, view, _html} = live(build_conn(), "/party-select-phone")
@@ -499,12 +527,336 @@ defmodule BotArmyDashboardLiveview.PartySelectPhoneTest do
     view = open(ok(blank_party()), ok(roster_rows()))
 
     render_click(view, "act", %{"verb" => "recruit", "bot_id" => "gtd_bot"})
-    assert render(view) =~ "Add gtd_bot to the party?"
+
+    assert render(view) =~
+             "Add gtd_bot to the party, and put them in the window if one is open?"
 
     render_click(view, "cancel")
 
-    refute render(view) =~ "Add gtd_bot to the party?"
+    refute render(view) =~ "Add gtd_bot to the party,"
     refute_received {:broker_stub_request, _conn, @add_subject, _payload, _opts}
+  end
+
+  # ── the second step: putting the recruit in the window ───────────────────────
+
+  test "a recruit is put in the window that is open, and the window's party confirms it" do
+    install(fn
+      @add_subject -> ok(%{"members" => [member()]})
+      @get_subject -> ok(party([member()]))
+      @roster_subject -> ok(roster_rows())
+      @context_subject -> ok(window_body())
+      @state_subject -> ok(window_with(@session, %{@char_gtd => "gtd_bot"}))
+      @join_subject -> ok(%{"session_id" => @session})
+      _subject -> "{}"
+    end)
+
+    {:ok, view, _html} = live(build_conn(), "/party-select-phone")
+    settle(view)
+    drain_requests()
+
+    render_click(view, "act", %{
+      "verb" => "recruit",
+      "bot_id" => "gtd_bot",
+      "who" => "The Lorekeeper"
+    })
+
+    render_click(view, "send")
+
+    html = await(view, "They are in the window now.")
+
+    assert html =~ "The Lorekeeper is with her — the party reads back with them in it."
+    assert html =~ "They are in the window now."
+
+    # The join is asked for by name, with the window and the bot — and no character id,
+    # because the bot makes the character it has no character for.
+    assert_receive {:broker_stub_request, _conn, @join_subject, payload, _opts}, 500
+    body = Jason.decode!(payload)
+
+    assert body["session_id"] == @session
+    assert body["bot_id"] == "gtd_bot"
+    assert body["tenant_id"] == @tenant
+    assert body["user_id"] == "abby"
+    refute Map.has_key?(body, "character_id")
+  end
+
+  test "the window's party is read with the session and no user, like every other read" do
+    install(fn
+      @add_subject -> ok(%{"members" => [member()]})
+      @get_subject -> ok(party([member()]))
+      @roster_subject -> ok(roster_rows())
+      @context_subject -> ok(window_body())
+      @state_subject -> ok(window_with(@session, %{@char_gtd => "gtd_bot"}))
+      @join_subject -> ok(%{"session_id" => @session})
+      _subject -> "{}"
+    end)
+
+    {:ok, view, _html} = live(build_conn(), "/party-select-phone")
+    settle(view)
+    drain_requests()
+
+    render_click(view, "act", %{
+      "verb" => "recruit",
+      "bot_id" => "gtd_bot",
+      "who" => "The Lorekeeper"
+    })
+
+    render_click(view, "send")
+    await(view, "They are in the window now.")
+
+    assert_receive {:broker_stub_request, _conn, @state_subject, payload, _opts}, 500
+
+    # Naming a user on this read is what makes a window that is open answer "no window": the
+    # write names the user the party is keyed on, the read names only the session.
+    assert Jason.decode!(payload) == %{"tenant_id" => @tenant, "session_id" => @session}
+  end
+
+  test "a recruit with no window open is in the party and in no window, and nothing is joined" do
+    install(fn
+      @add_subject -> ok(%{"members" => [member()]})
+      @get_subject -> ok(party([member()]))
+      @roster_subject -> ok(roster_rows())
+      @context_subject -> refusal(":no_active_session")
+      _subject -> "{}"
+    end)
+
+    {:ok, view, _html} = live(build_conn(), "/party-select-phone")
+    settle(view)
+    drain_requests()
+
+    render_click(view, "act", %{
+      "verb" => "recruit",
+      "bot_id" => "gtd_bot",
+      "who" => "The Lorekeeper"
+    })
+
+    render_click(view, "send")
+
+    # "There is no window" is a reading, not a failure, and the party half still landed.
+    html = await(view, "No window is open.")
+
+    assert html =~ "The Lorekeeper is with her — the party reads back with them in it."
+    assert html =~ "No window is open. Nothing has gathered, so there is nothing to say into yet."
+    refute_received {:broker_stub_request, _conn, @join_subject, _payload, _opts}
+    refute_received {:broker_stub_request, _conn, @state_subject, _payload, _opts}
+  end
+
+  test "a recruit the bot refused asks about no window at all" do
+    install(fn
+      @add_subject -> refusal(":bot_character_failed")
+      @get_subject -> ok(blank_party())
+      @roster_subject -> ok(roster_rows())
+      _subject -> "{}"
+    end)
+
+    {:ok, view, _html} = live(build_conn(), "/party-select-phone")
+    settle(view)
+    drain_requests()
+
+    render_click(view, "act", %{
+      "verb" => "recruit",
+      "bot_id" => "gtd_bot",
+      "who" => "The Lorekeeper"
+    })
+
+    render_click(view, "send")
+    await(view, "The bot refused to recruit gtd_bot")
+
+    # A window question here would be this screen looking for somewhere to put a companion
+    # who is not in the party.
+    refute_received {:broker_stub_request, _conn, @context_subject, _payload, _opts}
+  end
+
+  test "a window question that did not come back is said on the act, not on the page" do
+    install(fn
+      @add_subject -> ok(%{"members" => [member()]})
+      @get_subject -> ok(party([member()]))
+      @roster_subject -> ok(roster_rows())
+      @context_subject -> {:error, :timeout}
+      _subject -> "{}"
+    end)
+
+    {:ok, view, _html} = live(build_conn(), "/party-select-phone")
+    settle(view)
+    drain_requests()
+
+    render_click(view, "act", %{
+      "verb" => "recruit",
+      "bot_id" => "gtd_bot",
+      "who" => "The Lorekeeper"
+    })
+
+    render_click(view, "send")
+
+    html = await(view, "not saying whether they are in one")
+
+    assert html =~
+             "The bot was not asked about a window — the bot did not answer in time — so this " <>
+               "screen is not saying whether they are in one."
+
+    refute html =~ "They are in the window now."
+    refute html =~ "The window still reads back without them."
+  end
+
+  test "a join the bot refused is a refusal, and the window's party is not read" do
+    install(fn
+      @add_subject -> ok(%{"members" => [member()]})
+      @get_subject -> ok(party([member()]))
+      @roster_subject -> ok(roster_rows())
+      @context_subject -> ok(window_body())
+      @join_subject -> refusal(":session_not_active")
+      _subject -> "{}"
+    end)
+
+    {:ok, view, _html} = live(build_conn(), "/party-select-phone")
+    settle(view)
+    drain_requests()
+
+    render_click(view, "act", %{
+      "verb" => "recruit",
+      "bot_id" => "gtd_bot",
+      "who" => "The Lorekeeper"
+    })
+
+    render_click(view, "send")
+
+    html = await(view, "The bot refused to put gtd_bot in the window")
+
+    assert html =~ "session_not_active"
+    refute_received {:broker_stub_request, _conn, @state_subject, _payload, _opts}
+  end
+
+  test "a join the bot accepted that the window does not read back is not called done" do
+    install(fn
+      @add_subject -> ok(%{"members" => [member()]})
+      @get_subject -> ok(party([member()]))
+      @roster_subject -> ok(roster_rows())
+      @context_subject -> ok(window_body())
+      @join_subject -> ok(%{"session_id" => @session})
+      @state_subject -> ok(window_with(@session, %{}))
+      _subject -> "{}"
+    end)
+
+    {:ok, view, _html} = live(build_conn(), "/party-select-phone")
+    settle(view)
+    drain_requests()
+
+    render_click(view, "act", %{
+      "verb" => "recruit",
+      "bot_id" => "gtd_bot",
+      "who" => "The Lorekeeper"
+    })
+
+    render_click(view, "send")
+
+    html = await(view, "The window still reads back without them.")
+
+    refute html =~ "They are in the window now."
+  end
+
+  test "a window party nobody could read is not a no — it is not saying" do
+    install(fn
+      @add_subject -> ok(%{"members" => [member()]})
+      @get_subject -> ok(party([member()]))
+      @roster_subject -> ok(roster_rows())
+      @context_subject -> ok(window_body())
+      @join_subject -> ok(%{"session_id" => @session})
+      @state_subject -> {:error, :timeout}
+      _subject -> "{}"
+    end)
+
+    {:ok, view, _html} = live(build_conn(), "/party-select-phone")
+    settle(view)
+    drain_requests()
+
+    render_click(view, "act", %{
+      "verb" => "recruit",
+      "bot_id" => "gtd_bot",
+      "who" => "The Lorekeeper"
+    })
+
+    render_click(view, "send")
+
+    html = await(view, "party in the window did not read back")
+
+    assert html =~
+             "The party in the window did not read back — the bot did not answer in time."
+
+    refute html =~ "The window still reads back without them."
+  end
+
+  test "a recruit is only sent into the window that the bot named, not one this screen made up" do
+    assert PartySelect.window_for({:open_window, %{id: @session}}) == {:join, @session}
+
+    # A window that does not name itself is not a window to join.
+    assert {:unreported, _sentence} = PartySelect.window_for({:open_window, %{id: ""}})
+
+    assert {:no_window, sentence} = PartySelect.window_for({:no_window, "No window is open."})
+    assert sentence == "No window is open."
+
+    assert {:unreported, sentence} = PartySelect.window_for({:unreported, "not a window"})
+    assert sentence == "not a window"
+  end
+
+  test "the window's party is read for the bot, and an unread party is not a no" do
+    party = {:party, [%{id: @char_gtd, who: "gtd_bot"}, %{id: @char_llm, who: "llm_bot"}]}
+
+    assert PartySelect.in_window?(party, "gtd_bot") == true
+    assert PartySelect.in_window?(party, "synapse") == false
+    assert PartySelect.in_window?({:party, []}, "gtd_bot") == false
+
+    assert PartySelect.in_window?({:unreported, "the party was not in the answer"}, "gtd_bot") ==
+             nil
+  end
+
+  test "the join names the window and the bot, and never a character" do
+    body = PartySelect.join_payload(@session, "gtd_bot")
+
+    assert PartySelect.join_subject() == @join_subject
+    assert body["session_id"] == @session
+    assert body["bot_id"] == "gtd_bot"
+    assert body["tenant_id"] == @tenant
+    assert body["user_id"] == "abby"
+    refute Map.has_key?(body, "character_id")
+  end
+
+  test "the confirmation card asks both halves of a recruit" do
+    assert PartySelect.ask(%{verb: :recruit, label: "The Lorekeeper"}) ==
+             "Add The Lorekeeper to the party, and put them in the window if one is open?"
+
+    assert PartySelect.ask(%{verb: :dismiss, label: "The Lorekeeper"}) ==
+             "Take The Lorekeeper out of the party?"
+  end
+
+  test "the line says where a recruit got to in the window, and says nothing when it is not known" do
+    act = %{confirmed?: true, verb: :recruit, label: "The Lorekeeper", target: "gtd_bot"}
+
+    assert PartySelect.line(act) ==
+             "The Lorekeeper is with her — the party reads back with them in it."
+
+    assert PartySelect.line(Map.put(act, :step, {:in_window, true})) ==
+             "The Lorekeeper is with her — the party reads back with them in it. " <>
+               "They are in the window now."
+
+    assert PartySelect.line(Map.put(act, :step, {:in_window, false})) =~
+             "The window still reads back without them."
+
+    assert PartySelect.line(Map.put(act, :step, {:in_window, nil})) =~
+             "did not read back, so this screen is not saying they are in it."
+
+    assert PartySelect.line(Map.put(act, :step, {:no_window, "No window is open."})) =~
+             " No window is open."
+
+    assert PartySelect.line(Map.put(act, :step, {:unreadable, "the bot did not answer in time."})) =~
+             " the bot did not answer in time."
+
+    # A step is not a confirmation: an act that has not been read back yet says so and may
+    # still carry where the window half got to.
+    unconfirmed = %{state: :sent, verb: :recruit, label: "The Lorekeeper", target: "gtd_bot"}
+
+    assert PartySelect.line(unconfirmed) == "The Lorekeeper — sent, reading the party back…"
+
+    assert PartySelect.line(Map.put(unconfirmed, :step, {:in_window, true})) ==
+             "The Lorekeeper — sent, reading the party back… They are in the window now."
   end
 
   # ── the rules the screen is built on, asked directly ────────────────────────

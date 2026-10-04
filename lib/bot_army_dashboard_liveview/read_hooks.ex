@@ -22,10 +22,30 @@ defmodule BotArmyDashboardLiveview.ReadHooks do
       |> assign(:read_failed_tag, nil)
       |> attach_hook(:bot_read, :handle_info, fn
         {:read_started, tag}, socket -> {:halt, BotRead.started(socket, tag)}
-        {:read_failed, tag, reason}, socket -> {:halt, BotRead.failed(socket, tag, reason)}
+        {:read_failed, tag, reason}, socket -> {:halt, report(socket, tag, reason)}
         _message, socket -> {:cont, socket}
       end)
 
     {:cont, socket}
+  end
+
+  # A screen may claim a failed read that is its own errand's: a read this screen asks for as
+  # part of a write can say on the act what went unanswered, which is a truer sentence than
+  # the page saying the broker is down while the rest of the screen is fine. A screen that
+  # claims nothing gets the page-wide report exactly as before, so no view can forget one and
+  # none is required to mention `:read_failed`. Hooks attached in `mount/3` cannot do this: the
+  # lifecycle runs `handle_info` hooks in the order they were attached, and this one is
+  # attached first, in `on_mount`.
+  defp report(socket, tag, reason) do
+    view = socket.view
+
+    if function_exported?(view, :claim_read_failure, 3) do
+      case view.claim_read_failure(tag, reason, socket) do
+        {:claimed, %Phoenix.LiveView.Socket{} = claimed} -> claimed
+        :default -> BotRead.failed(socket, tag, reason)
+      end
+    else
+      BotRead.failed(socket, tag, reason)
+    end
   end
 end

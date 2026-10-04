@@ -24,6 +24,19 @@ defmodule BotArmyDashboardLiveview.PartySelectPhoneLive do
   a companion is with her is the party, read back. A write is never retried, and a refusal is
   drawn as a refusal.
 
+  ## A recruit is two facts, so a recruit is two steps
+
+  The party and the window are different facts in the bot: recruiting writes
+  `rpg_party_members`, and the window draws its party from the session's joined characters.
+  So recruiting a companion from this phone used to leave them *with her* and still not in the
+  window she was looking at. The second step is the bot's own join route
+  (`rpg.session.join` with a bot id and no user): after a recruit that went out, this screen
+  asks whether a window is open, joins the bot it just recruited into it, and reads the
+  window's party back before saying it worked — the same rule as every other write here, the
+  `ok` is an acknowledgement and the read is the confirmation. With no window open there is
+  nothing to join, and the screen says the recruit is in the party and in no window rather
+  than inventing a window to have put them in.
+
   ## The screen re-reads; it does not pretend to be current
 
   There is no live subscription here, and that is deliberate rather than unfinished: the
@@ -80,6 +93,43 @@ defmodule BotArmyDashboardLiveview.PartySelectPhoneLive do
      |> assign(act: PartySelect.settle(socket.assigns[:act], party))}
   end
 
+  # The window question, asked only because a recruit was just sent. A window is where a
+  # recruit goes, so this is the second step and not a second read for its own sake.
+  @impl true
+  def handle_info({:window, answer}, socket) do
+    case socket.assigns[:act] do
+      %{verb: :recruit, state: :sent} = act ->
+        {:noreply,
+         join_the_window(socket, act, PartySelect.window_for(PartyWindow.window(answer)))}
+
+      _other ->
+        # Nothing here is waiting on a window: this screen does not draw one, so a window
+        # answer nobody asked for is not a reading it may report.
+        {:noreply, socket}
+    end
+  end
+
+  # The window's own party, read back after a join. This is what confirms it: the join's
+  # `ok` is an acknowledgement, exactly like every other write here.
+  @impl true
+  def handle_info({:in_window, answer}, socket) do
+    case socket.assigns[:act] do
+      %{step: {:sending, _session_id}} = act ->
+        {:noreply,
+         assign(socket,
+           act:
+             Map.put(
+               act,
+               :step,
+               {:in_window, PartySelect.in_window?(PartyWindow.party(answer), act.target)}
+             )
+         )}
+
+      _other ->
+        {:noreply, socket}
+    end
+  end
+
   @impl true
   def handle_info({:roster, answer}, socket),
     do: {:noreply, assign(socket, roster: PartySelect.roster(answer))}
@@ -113,6 +163,14 @@ defmodule BotArmyDashboardLiveview.PartySelectPhoneLive do
   @impl true
   def handle_event("send", _params, socket) do
     case socket.assigns[:act] do
+      %{state: :review, verb: :recruit, target: bot_id} = act ->
+        act = after_send(act, PartySelect.act(:recruit, bot_id))
+
+        socket
+        |> assign(act: act)
+        |> reread_party()
+        |> ask_the_window(act)
+
       %{state: :review, verb: verb, target: target} = act ->
         {:noreply,
          socket
@@ -128,6 +186,83 @@ defmodule BotArmyDashboardLiveview.PartySelectPhoneLive do
   # Read it again, because the party changed somewhere this screen cannot see.
   @impl true
   def handle_event("refresh", _params, socket), do: {:noreply, reread(socket)}
+
+  # A recruit is a party write and then, if a window is open, a window write — so the window
+  # question is asked only after a recruit that actually went out. A recruit the bot refused
+  # has nothing to put in a window, and a window question asked anyway would be this screen
+  # looking for somewhere to put a companion who is not in the party.
+  defp ask_the_window(socket, %{state: :sent}) do
+    BotRead.async(self(), :window, PartyWindow.context_subject(), PartyWindow.context_payload(),
+      timeout: @call_timeout
+    )
+
+    {:noreply, socket}
+  end
+
+  defp ask_the_window(socket, _act), do: {:noreply, socket}
+
+  # The window half of a recruit. With a window open the bot is joined into it, and the
+  # window's party is read back to confirm it; with no window there is nothing to join and the
+  # screen says so instead of inventing one.
+  defp join_the_window(socket, act, {:join, session_id}) do
+    case PartySelect.join(session_id, act.target) do
+      {:ok, :stored} ->
+        BotRead.async(
+          self(),
+          :in_window,
+          PartyWindow.state_subject(),
+          PartyWindow.state_payload(session_id),
+          timeout: @call_timeout
+        )
+
+        assign(socket, act: Map.put(act, :step, {:sending, session_id}))
+
+      {:error, sentence} ->
+        assign(socket, act: Map.put(act, :step, {:refused, sentence}))
+    end
+  end
+
+  defp join_the_window(socket, act, {:no_window, sentence}),
+    do: assign(socket, act: Map.put(act, :step, {:no_window, sentence}))
+
+  defp join_the_window(socket, act, {:unreported, sentence}),
+    do: assign(socket, act: Map.put(act, :step, {:unreadable, sentence}))
+
+  # The window is asked for on this screen's own errand — a recruit that needs a window to be
+  # put into — so a window question that did not come back is a step of that act rather than a
+  # page-level read failure. `ReadHooks` offers every screen this claim before it reports a
+  # failed read page-wide; with no act waiting on a window, `:default` is exactly right.
+  @doc false
+  def claim_read_failure(tag, reason, socket) when tag in [:window, :in_window] do
+    case socket.assigns[:act] do
+      %{verb: :recruit} = act ->
+        if waiting_on_window?(act) do
+          {:claimed,
+           assign(socket, act: Map.put(act, :step, {:unreadable, window_trouble(tag, reason)}))}
+        else
+          :default
+        end
+
+      _other ->
+        :default
+    end
+  end
+
+  def claim_read_failure(_tag, _reason, _socket), do: :default
+
+  # Nothing is waiting on a window once the act has been read back and confirmed, or once it
+  # has been refused: those reads were fired by this errand, so a late failure is still
+  # this act's to report only while the errand is mid-step.
+  defp waiting_on_window?(%{step: {:sending, _session_id}}), do: true
+  defp waiting_on_window?(act), do: is_nil(Map.get(act, :step))
+
+  defp window_trouble(:window, reason),
+    do:
+      "The bot was not asked about a window — #{BotRead.message(reason)} — so this screen is " <>
+        "not saying whether they are in one."
+
+  defp window_trouble(:in_window, reason),
+    do: "The party in the window did not read back — #{BotRead.message(reason)}."
 
   defp verb_of("recruit"), do: {:ok, :recruit}
   defp verb_of("dismiss"), do: {:ok, :dismiss}

@@ -90,23 +90,20 @@ defmodule BotArmyDashboardLiveview.PartyWindow do
   """
 
   alias BotArmyDashboardLiveview.Broker
+  alias BotArmyDashboardLiveview.PartyIdentity
 
   @context_subject "rpg.session.gather_context"
   @state_subject "rpg.session.state"
   @write_subject "rpg.scene.fact.add"
   @request_timeout 5_000
 
-  # The identity the window is read and written as. The bot's deployment is
-  # single-tenant and this dashboard has no auth to learn a different tenant from,
-  # so the tenant is named once, here, and is overridable in config.
-  @default_tenant_id "00000000-0000-0000-0000-000000000001"
-
-  # No user is named by default, and that is a fact about the fleet rather than a
-  # gap: the fleet's own way of opening a window (`rpg.session.start`) names no user
-  # either, so the domain resolves the session's owner to `nil`. Sending a user id
-  # that no session carries would make this screen answer *no window is open* while
-  # a window is open — an omission dressed as a reading. An operator may pin one with
-  # `config :bot_army_dashboard_liveview, :party_user_id`, and then it is named.
+  # The identity the window is read and written as, owned by
+  # `BotArmyDashboardLiveview.PartyIdentity` — one owner, so this screen and the party
+  # screen cannot disagree about who the party belongs to. A **read** names the tenant
+  # and no user (a live session carries `user_id: nil`, so naming one here would make
+  # this screen answer *no window is open* while a window is open). A **write** names
+  # the party's user, because the bot reads the party back from the turn it is given to
+  # find the narrator the line is handed to.
 
   # The voice a reply is filed as — see the module doc.
   @source "operator"
@@ -139,14 +136,16 @@ defmodule BotArmyDashboardLiveview.PartyWindow do
   def source, do: @source
 
   @doc "The tenant the window belongs to."
-  def tenant_id,
-    do: Application.get_env(:bot_army_dashboard_liveview, :party_tenant_id, @default_tenant_id)
+  def tenant_id, do: PartyIdentity.tenant_id()
 
   @doc """
-  The user whose window this is, or `nil` to name none and let the bot resolve its
-  own default.
+  The user this window's writes are filed as — the party's user.
+
+  Reads do **not** name it; see `PartyIdentity` for why. This is the write identity, and
+  it is the identity a reply is keyed on so the bot can find the party the turn belongs
+  to.
   """
-  def user_id, do: Application.get_env(:bot_army_dashboard_liveview, :party_user_id)
+  def user_id, do: PartyIdentity.user_id()
 
   @doc """
   The body of the window question, asking for the story so far.
@@ -155,30 +154,20 @@ defmodule BotArmyDashboardLiveview.PartyWindow do
   that does not know the field ignores it, which is why an answer without it is
   unreported rather than empty.
   """
-  def context_payload, do: Map.put(identity(), "carry_history", true)
+  def context_payload, do: Map.put(PartyIdentity.read_identity(), "carry_history", true)
 
   @doc "The body of the party question."
-  def state_payload(session_id), do: Map.put(identity(), "session_id", session_id)
+  def state_payload(session_id),
+    do: Map.put(PartyIdentity.read_identity(), "session_id", session_id)
 
   @doc "The body of a reply."
   def write_payload(session_id, text) do
-    Map.merge(identity(), %{
+    Map.merge(PartyIdentity.write_identity(), %{
       "session_id" => session_id,
       "content" => text,
       "category" => @category,
       "source" => @source
     })
-  end
-
-  # Named once, and only the parts that name something: a `"user_id" => nil` would
-  # look like an identity on the wire and be read as one downstream.
-  defp identity do
-    tenant = %{"tenant_id" => tenant_id()}
-
-    case user_id() do
-      id when is_binary(id) and id != "" -> Map.put(tenant, "user_id", id)
-      _ -> tenant
-    end
   end
 
   # ── the window ──────────────────────────────────────────────────────────────

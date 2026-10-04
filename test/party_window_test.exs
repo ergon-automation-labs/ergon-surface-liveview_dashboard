@@ -364,22 +364,34 @@ defmodule BotArmyDashboardLiveview.PartyWindowTest do
              }
 
       refute Map.has_key?(PartyWindow.context_payload(), "user_id")
-      assert PartyWindow.user_id() == nil
     end
 
-    test "a user is named once an operator pins one, and then it is on the wire" do
+    test "a read names no user even when the party's user is pinned, and the write names one" do
+      # The split this file exists to pin: the user is a fact the *write* carries, because
+      # the bot reads the party back from the turn it is given (`rpg.scene.fact.add`) to
+      # find the narrator the line is handed to. A read that carried it would answer "no
+      # window is open" while a window is open.
       Application.put_env(@app, :party_user_id, "11111111-1111-1111-1111-111111111111")
 
       on_exit(fn -> Application.delete_env(@app, :party_user_id) end)
 
       assert PartyWindow.context_payload() == %{
                "tenant_id" => "00000000-0000-0000-0000-000000000001",
-               "user_id" => "11111111-1111-1111-1111-111111111111",
                "carry_history" => true
              }
 
+      refute Map.has_key?(PartyWindow.state_payload(@session), "user_id")
+
       assert PartyWindow.write_payload(@session, "hello")["user_id"] ==
                "11111111-1111-1111-1111-111111111111"
+    end
+
+    test "the party's user is named on a write by default, and it is the fleet's own literal" do
+      # `"abby"` is what the fleet's party and quest screens send, and the bot resolves it
+      # through `BotArmyRpg.Identity.resolve_user_id/2` to the same stable UUID — so the
+      # turn this screen writes belongs to the same party the window was opened for.
+      assert PartyWindow.user_id() == "abby"
+      assert PartyWindow.write_payload(@session, "hello")["user_id"] == "abby"
     end
 
     test "an empty pinned user id names nobody rather than naming nothing" do
@@ -387,6 +399,7 @@ defmodule BotArmyDashboardLiveview.PartyWindowTest do
 
       on_exit(fn -> Application.delete_env(@app, :party_user_id) end)
 
+      refute Map.has_key?(PartyWindow.write_payload(@session, "hello"), "user_id")
       refute Map.has_key?(PartyWindow.context_payload(), "user_id")
     end
 
@@ -401,9 +414,11 @@ defmodule BotArmyDashboardLiveview.PartyWindowTest do
 
       assert PartyWindow.context_payload() == %{
                "tenant_id" => "22222222-2222-2222-2222-222222222222",
-               "user_id" => "11111111-1111-1111-1111-111111111111",
                "carry_history" => true
              }
+
+      assert PartyWindow.write_payload(@session, "hello")["tenant_id"] ==
+               "22222222-2222-2222-2222-222222222222"
     end
 
     test "the party question names the session it is about" do
