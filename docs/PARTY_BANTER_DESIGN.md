@@ -34,11 +34,31 @@ The screen is a **two-read, two-press** screen, and each half of that is a rule:
   that failed: the top block reports it and names which question it was, and the other card still
   draws. A party nobody could read is a refusal, and the characters read anyway.
 * **Two presses.** Picking a companion draws a confirmation that names what will be sent (`Add The
-  Lorekeeper to the party?`) and sends nothing; the second press sends it. **The confirmation is the
-  re-read, not the write's `ok`** — `rpg.party.add` acknowledging the write proves only that the bot
-  received it, so the act stays `:sent` until the re-read shows the member (`… is with her — the party
-  reads back with them in it.`), and a write that lands without changing the party is never called
-  done (`… sent, but the party reads back without it, so this screen is not calling it done.`).
+  Lorekeeper to the party, and put them in the window if one is open?`) and sends nothing; the second
+  press sends it. **The confirmation is the re-read, not the write's `ok`** — `rpg.party.add`
+  acknowledging the write proves only that the bot received it, so the act stays `:sent` until the
+  re-read shows the member (`… is with her — the party reads back with them in it.`), and a write
+  that lands without changing the party is never called done (`… sent, but the party reads back
+  without it, so this screen is not calling it done.`).
+* **A recruit is two facts, so it is two writes.** The durable party is `rpg.party.add`, but
+  **the window draws its people from the session's `character_ids`**, which a recruit never touches —
+  so a companion who is in the party can still be in no window. After a recruit that actually went
+  out, the screen asks `rpg.session.gather_context` for the open window and, if there is one, joins
+  the bot into it (`rpg.session.join` with `{tenant_id, session_id, bot_id}`) and reads the window's
+  own party back (`rpg.session.state`) — the join's `ok` is an acknowledgement, exactly like every
+  other write here. With no window open, nothing is joined and the screen says so rather than
+  inventing a window to put the companion in.
+* **This screen's reads name the tenant and no user.** Live sessions carry `user_id: nil`, and
+  `Sessions.active_for/2` filters on the user, so a window read that named one would find nothing.
+  The party routes are the other way round — they refuse a call with no `user_id` — so `PartyIdentity`
+  is the one owner of both shapes: reads name the tenant only, writes name the party user.
+* **A failure of this screen's own errand is this act's, not the page's.** `ReadHooks`' page-wide
+  `:read_failed` halter is attached in `on_mount`, and LiveView runs `handle_info` hooks in attachment
+  order (0.20.17), so a hook attached in `mount/3` can never intercept it. Instead `ReadHooks.report/3`
+  offers each screen a chance to claim a failed read of its own through `claim_read_failure/3`;
+  `{:claimed, socket}` wins and `:default` falls through to the same page-wide report as before — so
+  no view can forget one, and none is required to mention `:read_failed`. Here that is what lets a
+  window question that did not come back be said on the recruit card instead of blanking the page.
 * **What it refuses here** — an empty bot id, a `user_id` the bot cannot key a party on, and a
   character the party already has. A confirmation card for something the bot cannot act on is a step
   leading nowhere.
