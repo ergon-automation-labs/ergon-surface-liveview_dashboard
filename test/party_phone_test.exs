@@ -174,10 +174,28 @@ defmodule BotArmyDashboardLiveview.PartyPhoneTest do
   end
 
   # The async read lands in the view's own mailbox; asking for state puts that call
-  # behind whatever is already queued for it.
+  # behind whatever is already queued for it. That drains what has *arrived* — it is not
+  # a barrier, so it must never stand in for one in front of an assertion about what a
+  # read drew. `await/2` is that barrier.
   defp settle(view) do
     :sys.get_state(view.pid)
     :ok
+  end
+
+  # The screen re-reads in a hand-rolled task, which `render_async/1` does not track, so
+  # a test that pins what a read drew waits for the drawn line instead of for a frame: a
+  # fixed guess about how long a read takes under load is a flake waiting to happen.
+  defp await(view, text), do: await(view, text, 80)
+
+  defp await(_view, text, 0), do: flunk("the screen never showed #{inspect(text)}")
+
+  defp await(view, text, tries) do
+    if render(view) =~ text do
+      :ok
+    else
+      Process.sleep(10)
+      await(view, text, tries - 1)
+    end
   end
 
   test "the window question asks for the story so far, so the answer can carry it" do
@@ -191,7 +209,7 @@ defmodule BotArmyDashboardLiveview.PartyPhoneTest do
     settle(view)
 
     assert_receive {:broker_stub_request, _conn, @window_subject, payload, _opts},
-                   500
+                   2_000
 
     assert Jason.decode!(payload)["carry_history"] == true
   end
@@ -211,7 +229,7 @@ defmodule BotArmyDashboardLiveview.PartyPhoneTest do
     )
 
     {:ok, view, _html} = live(build_conn(), "/party-phone")
-    settle(view)
+    await(view, "Previously in this story")
     html = render(view)
 
     assert html =~ "Previously in this story"
@@ -230,7 +248,7 @@ defmodule BotArmyDashboardLiveview.PartyPhoneTest do
     )
 
     {:ok, view, _html} = live(build_conn(), "/party-phone")
-    settle(view)
+    await(view, "Nothing came before this window")
 
     assert render(view) =~ "Nothing came before this window"
     refute render(view) =~ "The bot did not report what came before"
@@ -244,7 +262,7 @@ defmodule BotArmyDashboardLiveview.PartyPhoneTest do
     )
 
     {:ok, view, _html} = live(build_conn(), "/party-phone")
-    settle(view)
+    await(view, "The bot did not report what came before this window.")
     html = render(view)
 
     assert html =~ "The bot did not report what came before this window."
@@ -261,7 +279,8 @@ defmodule BotArmyDashboardLiveview.PartyPhoneTest do
     )
 
     {:ok, view, html} = live(build_conn(), "/party-phone")
-    settle(view)
+    await(view, @scene)
+    await(view, "offered inside this window")
 
     assert html =~ "The window"
     assert render(view) =~ @scene
@@ -283,7 +302,7 @@ defmodule BotArmyDashboardLiveview.PartyPhoneTest do
     )
 
     {:ok, view, _html} = live(build_conn(), "/party-phone")
-    settle(view)
+    await(view, ~s(class="chip narrating"))
 
     assert render(view) =~ "gtd_bot"
     assert render(view) =~ ~s(class="chip narrating")
@@ -300,7 +319,7 @@ defmodule BotArmyDashboardLiveview.PartyPhoneTest do
     )
 
     {:ok, view, _html} = live(build_conn(), "/party-phone")
-    settle(view)
+    await(view, "gtd_bot")
 
     assert render(view) =~ "gtd_bot"
     refute render(view) =~ ~s(class="chip narrating")
@@ -317,7 +336,7 @@ defmodule BotArmyDashboardLiveview.PartyPhoneTest do
     )
 
     {:ok, view, _html} = live(build_conn(), "/party-phone")
-    settle(view)
+    await(view, "gtd_bot")
 
     assert render(view) =~ "gtd_bot"
     refute render(view) =~ ~s(class="chip narrating")
@@ -335,7 +354,7 @@ defmodule BotArmyDashboardLiveview.PartyPhoneTest do
     )
 
     {:ok, view, _html} = live(build_conn(), "/party-phone")
-    settle(view)
+    await(view, "(she says nothing yet)")
     html = render(view)
 
     assert html =~ "(she says nothing yet)"
@@ -355,7 +374,7 @@ defmodule BotArmyDashboardLiveview.PartyPhoneTest do
     )
 
     {:ok, view, _html} = live(build_conn(), "/party-phone")
-    settle(view)
+    await(view, "has written since she was asked")
     html = render(view)
 
     assert html =~ "has written since she was asked"
@@ -370,7 +389,7 @@ defmodule BotArmyDashboardLiveview.PartyPhoneTest do
     )
 
     {:ok, view, _html} = live(build_conn(), "/party-phone")
-    settle(view)
+    await(view, "not saying either")
     html = render(view)
 
     assert html =~ "not saying either"
@@ -390,7 +409,7 @@ defmodule BotArmyDashboardLiveview.PartyPhoneTest do
 
     # The shelf's card is handed this answer, so the question has to be asked: a page
     # that draws the shelf without asking is claiming a gate it never checked.
-    assert_receive {:broker_stub_request, _conn, @call_subject, _payload, _opts}
+    assert_receive {:broker_stub_request, _conn, @call_subject, _payload, _opts}, 2_000
   end
 
   test "a call that is not open takes the shelf off the window page" do
@@ -409,7 +428,8 @@ defmodule BotArmyDashboardLiveview.PartyPhoneTest do
     )
 
     {:ok, view, _html} = live(build_conn(), "/party-phone")
-    settle(view)
+    await(view, @scene)
+    await(view, "Nothing is waiting right now")
     html = render(view)
 
     # The window still stands — this is the shelf's condition, not the window's.
@@ -432,7 +452,7 @@ defmodule BotArmyDashboardLiveview.PartyPhoneTest do
     )
 
     {:ok, view, _html} = live(build_conn(), "/party-phone")
-    settle(view)
+    await(view, "No window is open")
     html = render(view)
 
     assert html =~ "No window is open"
@@ -454,7 +474,7 @@ defmodule BotArmyDashboardLiveview.PartyPhoneTest do
     )
 
     {:ok, view, _html} = live(build_conn(), "/party-phone")
-    settle(view)
+    await(view, "the bot did not answer in time")
     html = render(view)
 
     assert html =~ "the bot did not answer in time"
@@ -472,7 +492,8 @@ defmodule BotArmyDashboardLiveview.PartyPhoneTest do
     )
 
     {:ok, view, _html} = live(build_conn(), "/party-phone")
-    settle(view)
+    await(view, @scene)
+    await(view, "the bot is not reachable right now")
     html = render(view)
 
     assert html =~ @scene
@@ -528,7 +549,7 @@ defmodule BotArmyDashboardLiveview.PartyPhoneTest do
     # The write landed and the window reads back with the reply in it, so now — and only
     # now — the screen calls it said.
     assert_receive {:broker_stub_request, _conn, @window_subject, _payload, _opts}
-    settle(view)
+    await(view, "reads back with your reply in it")
 
     assert render(view) =~ "reads back with your reply in it"
   end
@@ -550,7 +571,7 @@ defmodule BotArmyDashboardLiveview.PartyPhoneTest do
     render_submit(view, "review", %{"text" => "hello"})
     view |> element("button.reply-send") |> render_click()
 
-    settle(view)
+    await(view, "not calling it said")
     html = render(view)
 
     assert html =~ "not calling it said"
@@ -599,7 +620,8 @@ defmodule BotArmyDashboardLiveview.PartyPhoneTest do
     )
 
     {:ok, view, _html} = live(build_conn(), "/party-phone?moved=shelf")
-    settle(view)
+    await(view, "Her shelf moved into the window")
+    await(view, @scene)
     html = render(view)
 
     assert html =~ "Her shelf moved into the window"
@@ -616,7 +638,7 @@ defmodule BotArmyDashboardLiveview.PartyPhoneTest do
     )
 
     {:ok, view, _html} = live(build_conn(), "/party-phone")
-    settle(view)
+    await(view, "Her shelf")
     html = render(view)
 
     refute html =~ "Her shelf moved into the window"
