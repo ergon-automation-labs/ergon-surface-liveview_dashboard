@@ -60,6 +60,10 @@ defmodule BotArmyDashboardLiveview.ReflectPhoneLive do
         # The row the store wrote, read back. The success line is drawn from this
         # and never from the write's own ok.
         saved: nil,
+        # This draft's key. Held across sends so that a second press while the
+        # first is still in flight is the same draft, not a second reflection;
+        # a new one is minted only once the store says it holds the words.
+        dedupe_key: ReflectionWindow.new_dedupe_key(),
         # The recent list: `nil` until a read comes back, a list when it does.
         recent: nil,
         # A refusal from the store, for the write and for the list, kept apart so
@@ -173,7 +177,11 @@ defmodule BotArmyDashboardLiveview.ReflectPhoneLive do
       self(),
       :capture,
       ReflectionWindow.capture_subject(),
-      ReflectionWindow.capture_payload(socket.assigns.reflection_text, socket.assigns.prompt),
+      ReflectionWindow.capture_payload(
+        socket.assigns.reflection_text,
+        socket.assigns.prompt,
+        socket.assigns.dedupe_key
+      ),
       timeout: @call_timeout
     )
 
@@ -197,7 +205,11 @@ defmodule BotArmyDashboardLiveview.ReflectPhoneLive do
            reflection_text: "",
            confirm: nil,
            refusal: nil,
-           message: "Saved — the store has your words."
+           message: "Saved — the store has your words.",
+           # These words are kept now, so the next draft is a different one and
+           # needs its own key. A refusal keeps the old key on purpose: the words
+           # are still on the card, and re-pressing is re-sending that draft.
+           dedupe_key: ReflectionWindow.new_dedupe_key()
          )
          |> next_prompt()
          |> reread()

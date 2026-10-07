@@ -106,18 +106,53 @@ defmodule BotArmyDashboardLiveview.ReflectionWindow do
   def pending_budget_ms, do: @pending_budget_ms
 
   @doc """
-  The body of a capture: her words and the prompt she answered.
+  A fresh key for one draft.
+
+  Minted here, by the screen, because the screen is what knows when a draft
+  begins — the store only knows what arrives. The rule the key encodes: the words
+  on the card are one reflection, so every send from that card carries the same
+  key, and a second send (a double tap, a touchscreen repeating itself, a press
+  after a reply that never came back) is the *same* draft rather than a second
+  one.
+
+  A new key is minted only once the store says it has the words — never on a
+  refusal, and never on a send. That is what makes a press-while-in-flight
+  harmless: the second send cannot look like a new reflection, so it cannot
+  become a second row or ask for a second answer.
+  """
+  @spec new_dedupe_key() :: String.t()
+  def new_dedupe_key do
+    "draft-" <> Base.url_encode64(:crypto.strong_rand_bytes(16), padding: false)
+  end
+
+  @doc """
+  The body of a capture: her words, the prompt she answered, and this draft's key.
 
   `captured_at` is deliberately not sent. It is the publisher's claim about the
   clock it saw, and the store already keeps its own `stored_at`; a screen that
   invents one is a screen telling the store what time it is.
+
+  `dedupe_key` **is** sent, and it is the one field here that is about the
+  sending rather than about her. The companion stores it as metadata: a missing or
+  malformed key costs the caller its key and never her words. So a key that is
+  blank or not text is left out of the body entirely rather than sent as a null —
+  the body says what it means.
   """
-  def capture_payload(text, prompt) when is_binary(text) do
-    case prompt do
-      prompt when is_binary(prompt) and prompt != "" -> %{"text" => text, "prompt" => prompt}
-      _ -> %{"text" => text}
-    end
+  def capture_payload(text, prompt, dedupe_key) when is_binary(text) do
+    %{"text" => text}
+    |> put_prompt(prompt)
+    |> put_key(dedupe_key)
   end
+
+  defp put_prompt(payload, prompt) when is_binary(prompt) and prompt != "",
+    do: Map.put(payload, "prompt", prompt)
+
+  defp put_prompt(payload, _prompt), do: payload
+
+  defp put_key(payload, key) when is_binary(key) and key != "",
+    do: Map.put(payload, "dedupe_key", key)
+
+  defp put_key(payload, _key), do: payload
 
   @doc "The body of the recent list."
   def list_payload(limit \\ @recent_limit), do: %{"limit" => limit}
@@ -158,6 +193,12 @@ defmodule BotArmyDashboardLiveview.ReflectionWindow do
   `{:stored, row}` carries the row the store wrote — the reply's own view, not
   the words this screen sent. The difference matters: the screen draws the stored
   row back, so what it shows is what the store holds.
+
+  A send the store recognised as a duplicate reads as `{:stored, row}` too, and
+  that is deliberate. The store does hold her words, which is the only thing this
+  outcome is asked to mean, and a screen that reported "you pressed that twice"
+  would be charging her for her own phone's mistake. Nothing was lost either way,
+  and the duplicate is written down where the lane can count it.
   """
   @spec capture(term()) :: {:stored, map()} | {:refused, String.t()}
   def capture(%{"reflection" => row}) when is_map(row), do: {:stored, view(row)}

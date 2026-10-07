@@ -259,6 +259,68 @@ defmodule BotArmyDashboardLiveview.ReflectPhoneReadTest do
     refute_receive {:broker_stub_request, _, "events.reflection.captured", _, _}, 50
   end
 
+  # A double tap is the phone's mistake, not a second reflection. On 2026-10-05 one
+  # press produced two rows 30 ms apart and asked the model twice; the two sends
+  # carried no way to tell that they were one draft. They do now: the key is held
+  # until the store says it holds the words.
+  test "a second press while the first is in flight is the same draft" do
+    # The write is answered by nothing at all, so it is still in flight while the
+    # next presses happen — the same moment the duplicate was born in.
+    install_reply(
+      {:answers,
+       fn
+         "companion.reflections.capture" -> {:error, :timeout}
+         _other -> list_body([])
+       end}
+    )
+
+    {:ok, view, _html} = live(build_conn(), "/reflect-phone")
+
+    render_change(view, "update-reflection", %{"reflection" => @line})
+
+    # The first press is the card; the next three are writes that never came back, so
+    # each is still in flight when the one after it leaves.
+    render_hook(view, "gamepad-a", %{})
+    render_hook(view, "gamepad-a", %{})
+    render_hook(view, "gamepad-a", %{})
+    render_hook(view, "gamepad-a", %{})
+
+    keys = [next_capture(), next_capture(), next_capture()]
+
+    assert Enum.uniq(keys) == [hd(keys)]
+    assert is_binary(hd(keys)) and hd(keys) != ""
+  end
+
+  # Once the store has the words, the next draft is a different one — otherwise a
+  # second reflection written later from the same screen would be deduped away.
+  test "the next draft gets its own key once the store holds the words" do
+    install_reply(
+      {:answers,
+       fn
+         "companion.reflections.capture" -> Jason.encode!(%{"reflection" => row()})
+         "companion.reflections.list" -> list_body([])
+         _other -> "{}"
+       end}
+    )
+
+    {:ok, view, _html} = live(build_conn(), "/reflect-phone")
+
+    fill_and_save(view, @line)
+    assert_receive {:broker_stub_request, _, "companion.reflections.capture", first, _opts}
+
+    # The barrier: the store's own row has been drawn, so the write is finished and
+    # the key has been rotated.
+    await(view, "Just saved")
+
+    render_change(view, "update-reflection", %{"reflection" => "a second line"})
+    render_hook(view, "gamepad-a", %{})
+    render_hook(view, "gamepad-a", %{})
+
+    assert_receive {:broker_stub_request, _, "companion.reflections.capture", second, _opts}, 200
+    refute Jason.decode!(first)["dedupe_key"] == Jason.decode!(second)["dedupe_key"]
+    assert Jason.decode!(second)["text"] == "a second line"
+  end
+
   # A refusal is a refusal: the store's sentence, no "saved" anywhere, and her words
   # still in the box rather than thrown away.
   test "a write the store refused is never drawn as a save" do
@@ -376,6 +438,15 @@ defmodule BotArmyDashboardLiveview.ReflectPhoneReadTest do
 
   # The box is a form; a test types into it the same way the browser does, then
   # presses Y twice: the first press is the confirmation card, the second writes.
+  # One capture request, off the wire, with the body the screen sent.
+  defp next_capture do
+    assert_receive {:broker_stub_request, _, "companion.reflections.capture", payload, _opts},
+                   2_000
+
+    assert Jason.decode!(payload)["text"] == @line
+    Jason.decode!(payload)["dedupe_key"]
+  end
+
   defp fill_and_save(view, text) do
     render_change(view, "update-reflection", %{"reflection" => text})
     render_hook(view, "gamepad-a", %{})

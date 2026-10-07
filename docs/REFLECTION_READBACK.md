@@ -23,6 +23,7 @@ rules below testable without a broker.
 | Lane | Subject | Direction |
 |------|---------|-----------|
 | reflections | `companion.reflections.capture` | the write (a request, never a publish) |
+| reflections | `companion.reflections.reoffer` | ask the store to answer a stored row again, when nobody ever did |
 | reflections | `companion.reflections.list` | the recent list (read at mount, re-read on the cadence) |
 | reflections | `companion.reflections.read` | one row by id (the diff after a write) |
 | reflections | `events.llm.job.completed` → `dashboard:reflections` | the bell: a job ended |
@@ -53,6 +54,16 @@ running would double the cadence on every event.
 6. **A field the store has never sent is `nil`** — never `""`, never `0`.
 7. **Two presses to write.** Y reviews the draft (the confirmation card), Y again
    sends it, B backs out. Nothing is sent on a keystroke.
+8. **One key per draft.** The capture body carries `dedupe_key`, minted by
+   `ReflectionWindow.new_dedupe_key/0` when the screen mounts and rotated **only
+   after the store says it holds the words**. A press while the previous write is
+   still in flight therefore carries the same key, and the companion keeps one row
+   and asks one answer. On 2026-10-05 one press produced two rows 30 ms apart and
+   asked the model twice, because the two sends were indistinguishable. A refusal
+   keeps the key on purpose: the words are still on the card, so re-pressing is
+   re-sending *that* draft. A deduped reply reads as `{:stored, row}` — the store
+   does hold her words, and a screen that reported "you pressed that twice" would
+   be charging her for her own phone's mistake.
 
 ## A trap for tests: a `live/2` mounts twice
 

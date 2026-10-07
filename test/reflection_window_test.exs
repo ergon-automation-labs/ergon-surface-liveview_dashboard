@@ -53,22 +53,54 @@ defmodule BotArmyDashboardLiveview.ReflectionWindowTest do
   end
 
   test "the payloads are the shapes the bot reads" do
-    assert W.capture_payload("her line", "the prompt") == %{
+    assert W.capture_payload("her line", "the prompt", "draft-7") == %{
              "text" => "her line",
-             "prompt" => "the prompt"
+             "prompt" => "the prompt",
+             "dedupe_key" => "draft-7"
            }
 
-    assert W.capture_payload("her line", nil) == %{"text" => "her line"}
-    assert W.capture_payload("her line", "") == %{"text" => "her line"}
+    assert W.capture_payload("her line", nil, "draft-7") == %{
+             "text" => "her line",
+             "dedupe_key" => "draft-7"
+           }
+
+    assert W.capture_payload("her line", "", "draft-7") == %{
+             "text" => "her line",
+             "dedupe_key" => "draft-7"
+           }
+
     assert W.list_payload() == %{"limit" => W.recent_limit()}
     assert W.list_payload(2) == %{"limit" => 2}
     assert W.read_payload("abc") == %{"id" => "abc"}
   end
 
+  # No usable key means no key field at all, rather than a null: the body says what
+  # it means, and the companion stores a malformed key as *no* key — it never costs
+  # her the words, so it must not cost the screen its honesty either.
+  test "a key that is not a key is left out of the body" do
+    assert W.capture_payload("her line", "the prompt", nil) == %{
+             "text" => "her line",
+             "prompt" => "the prompt"
+           }
+
+    assert W.capture_payload("her line", nil, "") == %{"text" => "her line"}
+    assert W.capture_payload("her line", nil, 7) == %{"text" => "her line"}
+  end
+
+  # One key per draft, minted by the screen because the screen is what knows when a
+  # draft begins. Two drafts must not share one, or the second would be deduped away.
+  test "every draft gets a fresh key" do
+    key = W.new_dedupe_key()
+
+    assert is_binary(key)
+    assert key != ""
+    refute key == W.new_dedupe_key()
+  end
+
   # `captured_at` is the publisher's claim about the clock, and the store keeps its
   # own `stored_at`. A screen that invents one is telling the store what time it is.
   test "the capture carries no clock claim of its own" do
-    refute Map.has_key?(W.capture_payload("her line", "the prompt"), "captured_at")
+    refute Map.has_key?(W.capture_payload("her line", "the prompt", "draft-7"), "captured_at")
   end
 
   test "the waiting cadence is the companion's own ten seconds, inside its own hour" do
