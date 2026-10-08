@@ -400,11 +400,21 @@ defmodule BotArmyDashboardLiveview.PartyWindow do
   A time this screen cannot read is `nil`, not a guess — and the caller draws nothing
   rather than "unknown ago", which would be a claim about when rather than about the
   reading.
+
+  A stamp that names no zone is read as UTC, because the bot stamps its scene facts
+  with Ecto's `:naive_datetime`, which *is* UTC by the store's own definition
+  (`Ecto.Schema.__timestamps__/1` autogenerates `NaiveDateTime.utc_now/0`) and which
+  `NaiveDateTime.to_iso8601/1` therefore writes down with the zone trimmed off. That
+  is reading the store's contract, not guessing at a timezone. It matters more than it
+  looks: without it every real turn drew *no time at all*, and "no time" is the one
+  reading this screen cannot tell apart from a bot that reported none — the failure was
+  invisible until the live wire was read back (see the regression test).
   """
   @spec ago(String.t() | nil) :: String.t() | nil
   def ago(at) when is_binary(at) do
     case DateTime.from_iso8601(at) do
       {:ok, _then, _offset} -> BotArmyDashboardLiveview.BotHealth.format_heartbeat(at)
+      {:error, :missing_offset} -> ago(at <> "Z")
       {:error, _reason} -> nil
     end
   end

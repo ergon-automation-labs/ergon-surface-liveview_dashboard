@@ -55,6 +55,18 @@ defmodule BotArmyDashboardLiveview.PartyWindowTest do
     |> DateTime.to_iso8601()
   end
 
+  # The bot's real shape. It stamps scene facts with Ecto's `:naive_datetime` (UTC by
+  # definition) and writes it out with `NaiveDateTime.to_iso8601/1`, so the zone is
+  # trimmed off and the string is `"2026-10-08T00:46:52"` — no `Z`. Before this helper
+  # existed every test used `stamp/1` above, which *does* carry a `Z`, so the suite was
+  # green while every live turn drew no time at all. A fixture that is not the shape
+  # production sends proves nothing about production.
+  defp naive_stamp(seconds_ago) do
+    NaiveDateTime.utc_now()
+    |> NaiveDateTime.add(seconds_ago, :second)
+    |> NaiveDateTime.to_iso8601()
+  end
+
   describe "window/1" do
     test "a window reads as the session, its scene, its theme and its character" do
       assert {:open_window, window} = PartyWindow.window(answer())
@@ -428,6 +440,20 @@ defmodule BotArmyDashboardLiveview.PartyWindowTest do
       assert PartyWindow.since(%{}) == ""
 
       assert PartyWindow.since(stamp(-180)) =~ "3m ago"
+    end
+
+    test "the zone-less stamp the bot really sends still reads" do
+      # The bot sends `"2026-10-08T00:46:52"`. `DateTime.from_iso8601/1` answers
+      # `{:error, :missing_offset}` for that, so it drew nothing — which is exactly
+      # what this screen draws for a bot that never reported a time, and so the whole
+      # feature was silently inert on the live wire.
+      naive = naive_stamp(-180)
+      refute naive =~ "Z", "the fixture must be the bot's shape: no zone offset"
+
+      assert PartyWindow.since(naive) =~ "3m ago"
+
+      # Both shapes agree, so a bot that starts sending the zone changes nothing here.
+      assert PartyWindow.since(naive) == PartyWindow.since(stamp(-180))
     end
 
     test "a window she has written into says so, and one nobody asked says nothing" do
