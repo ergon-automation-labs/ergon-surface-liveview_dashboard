@@ -65,9 +65,10 @@ defmodule BotArmyDashboardLiveview.PartyWindow do
   as `"narration"` on the window question. So a window can be asked for a turn and
   still be wordless, and the screen has to say which of those it is looking at:
 
-    * `{:pending, bot_id}` — she was asked and nothing has been written since. The
-      window says so with `(she says nothing yet)`; it does not fill the silence with
-      prose, because the words said here are hers.
+    * `{:pending, bot_id, at}` — she was asked and nothing has been written since. The
+      window says so with `(she says nothing yet)`, and `at` — when the ask was made —
+      is how the screen adds *how long* without ever promising how long is left. It
+      does not fill the silence with prose, because the words said here are hers.
     * `{:answered, bot_id}` — a turn newer than the note is signed with her name, so
       she has written. *Signed with her name* is the same rule that decides who wrote
       any other turn.
@@ -189,6 +190,7 @@ defmodule BotArmyDashboardLiveview.PartyWindow do
        status: binary_or_nil(answer["session_status"]),
        scene: binary_or_nil(answer["scene_description"]),
        facts: facts(answer["scene_facts"]),
+       times: times(answer["scene_facts_at"]),
        theme: theme(answer["theme"]),
        character: character(answer["character"]),
        narration: narration(answer),
@@ -220,9 +222,10 @@ defmodule BotArmyDashboardLiveview.PartyWindow do
   reports the state of that hand-off on the same answer the window came in on — this
   is a *reading* of that field, not a third question:
 
-    * `{:pending, bot_id}` — she was asked and nothing new has been written. The
-      window is wordless on purpose, and the screen says that rather than drawing a
-      sentence nobody wrote.
+    * `{:pending, bot_id, at}` — she was asked and nothing new has been written. `at`
+      is when the ask was made, or `nil` when the bot did not say; the screen turns it
+      into how long the words have been missing. The window is wordless on purpose,
+      and the screen says that rather than drawing a sentence nobody wrote.
     * `{:answered, bot_id}` — a turn newer than the ask is signed with her name.
     * `{:no_ask, nil}` — the bot reports nobody was asked for a turn in what it read.
     * `{:unreported, sentence}` — the field is absent (`nil`), the shape is not one
@@ -232,15 +235,22 @@ defmodule BotArmyDashboardLiveview.PartyWindow do
 
   Only the ask *itself* is read, not who the party named: a window whose ask fell
   outside the read is `{:no_ask, nil}`, and the screen makes no claim about it either.
+
+  There is no deadline in this reading and there cannot be one: rpg publishes the ask
+  once and never awaits it, so the system has no opinion about when an answer is late.
+  The elapsed time is honest about that — it says how long it has been, and never how
+  long is left.
   """
   @spec narration(term()) ::
-          {:pending, String.t()}
+          {:pending, String.t(), String.t() | nil}
           | {:answered, String.t()}
           | {:no_ask, nil}
           | {:unreported, String.t()}
-  def narration(%{"narration" => %{"asked_of" => bot_id, "pending" => pending}})
+  def narration(%{"narration" => %{"asked_of" => bot_id, "pending" => pending} = reading})
       when is_binary(bot_id) and is_boolean(pending) do
-    if pending, do: {:pending, bot_id}, else: {:answered, bot_id}
+    if pending,
+      do: {:pending, bot_id, binary_or_nil(reading["asked_at"])},
+      else: {:answered, bot_id}
   end
 
   def narration(%{"narration" => nil}), do: {:no_ask, nil}
@@ -263,7 +273,8 @@ defmodule BotArmyDashboardLiveview.PartyWindow do
   extra line claiming nothing happened would be a line about nothing.
   """
   @spec narration_line(term()) :: String.t()
-  def narration_line({:pending, bot_id}), do: "asked of #{bot_id} — (she says nothing yet)"
+  def narration_line({:pending, bot_id, at}),
+    do: "asked of #{bot_id}#{since(at)} — (she says nothing yet)"
 
   def narration_line({:answered, bot_id}),
     do: "#{bot_id} has written since she was asked — the words are among the turns above"
@@ -360,10 +371,45 @@ defmodule BotArmyDashboardLiveview.PartyWindow do
   The bot sends the most recent facts first; a window reads the other way. An empty
   list and an unreported field are not the same answer: the window had nothing said
   in it, versus the bot did not say what had been said. `nil` is the second.
+
+  Each turn is `%{text: line, at: stamp}`, where `at` is when that turn was written —
+  or `nil` when the bot did not report a time for it. The two lists are matched by
+  position, so a turn the bot did not stamp is drawn without a time rather than
+  borrowing its neighbour's. A window from a bot that does not know the field at all
+  gives every turn `nil` here, and the screen shows the words it always showed.
   """
-  @spec turns(map()) :: [String.t()] | nil
-  def turns(%{facts: facts}) when is_list(facts), do: Enum.reverse(facts)
+  @spec turns(map()) :: [%{text: String.t(), at: String.t() | nil}] | nil
+  def turns(%{facts: facts} = window) when is_list(facts) do
+    stamps = times_of(window)
+
+    # Paired in the bot's own order (newest first), then turned round together — pairing
+    # after the reverse would slide a short list's stamps onto the wrong turns.
+    facts
+    |> Enum.with_index()
+    |> Enum.map(fn {text, index} -> %{text: text, at: Enum.at(stamps, index)} end)
+    |> Enum.reverse()
+  end
+
   def turns(_window), do: nil
+
+  @doc """
+  How long ago something happened, as words — `"just now"`, `"4m ago"`, `"2d ago"`.
+
+  The window never prints a clock hour: a house that reads "6 minutes ago" knows
+  whether the party is warm, where a timestamp makes it do arithmetic at a glance.
+  A time this screen cannot read is `nil`, not a guess — and the caller draws nothing
+  rather than "unknown ago", which would be a claim about when rather than about the
+  reading.
+  """
+  @spec ago(String.t() | nil) :: String.t() | nil
+  def ago(at) when is_binary(at) do
+    case DateTime.from_iso8601(at) do
+      {:ok, _then, _offset} -> BotArmyDashboardLiveview.BotHealth.format_heartbeat(at)
+      {:error, _reason} -> nil
+    end
+  end
+
+  def ago(_at), do: nil
 
   @doc """
   The turns of the windows before this one, oldest first — or `nil` when the bot did
@@ -533,6 +579,13 @@ defmodule BotArmyDashboardLiveview.PartyWindow do
   defp facts(list) when is_list(list), do: Enum.filter(list, &is_binary/1)
   defp facts(_other), do: nil
 
+  # The time of each turn, in the same shape as `facts`: `nil` for a bot that did not
+  # send the field at all, `[]` for one that sent it empty, and unreadable entries kept
+  # as `nil` so the positions still line up. Dropping them would slide every later
+  # turn's time onto the wrong line.
+  defp times(list) when is_list(list), do: Enum.map(list, &binary_or_nil/1)
+  defp times(_other), do: nil
+
   # The story so far, as the answer carried it. A window that was never reported, a
   # carry this bot could not read (`nil`) and a bot that does not know the field all
   # come back `nil` here, and the screen says the one true sentence for all three.
@@ -556,6 +609,29 @@ defmodule BotArmyDashboardLiveview.PartyWindow do
 
   defp binary_or_nil(value) when is_binary(value), do: value
   defp binary_or_nil(_value), do: nil
+
+  # When the words went missing, said as a duration. Public because the turns list draws
+  # it too: the window has one way of saying how long ago, not two.
+  @doc """
+  " · 4m ago" for a time, and `""` for one this screen cannot read or was not given.
+
+  An empty string rather than "unknown ago": a turn with no time is drawn with no
+  time, which is the truth about the reading rather than a claim about the clock.
+  """
+  @spec since(String.t() | nil) :: String.t()
+  def since(nil), do: ""
+
+  def since(at) do
+    case ago(at) do
+      nil -> ""
+      phrase -> " · #{phrase}"
+    end
+  end
+
+  # The window's turns newest-first, so `turns/1` can pair them with the words it has
+  # just reversed. Kept private: the screen reads turns, not bare stamps.
+  defp times_of(%{times: times}) when is_list(times), do: times
+  defp times_of(_window), do: []
 
   @doc """
   The bot's own word for a refusal, said without guessing at what it means.

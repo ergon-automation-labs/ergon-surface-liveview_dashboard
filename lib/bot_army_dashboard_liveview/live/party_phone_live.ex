@@ -281,9 +281,11 @@ defmodule BotArmyDashboardLiveview.PartyPhoneLive do
 
   defp empty_reply, do: "There is nothing to say — an empty reply is not a turn."
 
-  # `{:pending, bot_id}` is the window's own word that she was asked and has not
-  # answered yet — the only state worth waiting on. See `PartyWindow.narration/1`.
-  defp pending?(socket), do: match?({:pending, _bot_id}, socket.assigns[:narration])
+  # `{:pending, bot_id, at}` is the window's own word that she was asked and has not
+  # answered yet — the only state worth waiting on. The `at` is not part of that test:
+  # a window that was asked is pending whether or not it said when. See
+  # `PartyWindow.narration/1`.
+  defp pending?(socket), do: match?({:pending, _bot_id, _at}, socket.assigns[:narration])
 
   # One poll chain: starting a second while one is running would double the
   # cadence on every event the window gets.
@@ -389,7 +391,7 @@ defmodule BotArmyDashboardLiveview.PartyPhoneLive do
           </div>
 
           <div class="card">
-            <div class="card-title">What has been said  oldest first</div>
+            <div class="card-title">What has been said  oldest first  each line says how recent</div>
             <%= case PartyWindow.turns(@window) do %>
               <% nil -> %>
                 <p class="unreported">The bot did not report what has been said in this window.</p>
@@ -397,7 +399,7 @@ defmodule BotArmyDashboardLiveview.PartyPhoneLive do
                 <p class="unreported">Nothing has been said in this window yet.</p>
               <% turns -> %>
                 <%= for turn <- turns do %>
-                  <p class="dim" style="margin:0 0 6px; font-size:12px;"><%= turn %></p>
+                  <p class="dim" style="margin:0 0 6px; font-size:12px;"><%= turn.text %><span class="unreported"><%= PartyWindow.since(turn.at) %></span></p>
                 <% end %>
             <% end %>
             <%= if PartyWindow.narration_line(@narration) != "" do %>

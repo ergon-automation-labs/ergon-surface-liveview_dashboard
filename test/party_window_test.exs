@@ -46,6 +46,15 @@ defmodule BotArmyDashboardLiveview.PartyWindowTest do
     )
   end
 
+  # A stamp a known number of seconds in the past, for the elapsed-time readings. Built
+  # from the clock rather than pinned to a date so the test does not start failing in a
+  # year, and only its *distance* is asserted, never an hour.
+  defp stamp(seconds_ago) do
+    DateTime.utc_now()
+    |> DateTime.add(seconds_ago, :second)
+    |> DateTime.to_iso8601()
+  end
+
   describe "window/1" do
     test "a window reads as the session, its scene, its theme and its character" do
       assert {:open_window, window} = PartyWindow.window(answer())
@@ -60,7 +69,60 @@ defmodule BotArmyDashboardLiveview.PartyWindowTest do
     test "the turns come back oldest first, because the bot sends newest first" do
       assert {:open_window, window} = PartyWindow.window(answer())
 
-      assert PartyWindow.turns(window) == ["an earlier thing", "the newest thing"]
+      assert PartyWindow.turns(window) == [
+               %{text: "an earlier thing", at: nil},
+               %{text: "the newest thing", at: nil}
+             ]
+    end
+
+    test "each turn carries its own time, and it stays with its own line" do
+      assert {:open_window, window} =
+               PartyWindow.window(
+                 answer(%{
+                   "scene_facts_at" => ["2026-10-01T12:00:00", "2026-10-01T09:30:00"]
+                 })
+               )
+
+      assert PartyWindow.turns(window) == [
+               %{text: "an earlier thing", at: "2026-10-01T09:30:00"},
+               %{text: "the newest thing", at: "2026-10-01T12:00:00"}
+             ]
+    end
+
+    test "a bot that does not send times draws the same words it always drew" do
+      assert {:open_window, window} = PartyWindow.window(answer())
+
+      # Absent and empty are different readings, as they are for the turns themselves.
+      assert window.times == nil
+
+      assert PartyWindow.turns(window) == [
+               %{text: "an earlier thing", at: nil},
+               %{text: "the newest thing", at: nil}
+             ]
+    end
+
+    test "a turn the bot left unstamped does not borrow its neighbour's time" do
+      assert {:open_window, window} =
+               PartyWindow.window(answer(%{"scene_facts_at" => [nil, "2026-10-01T09:30:00"]}))
+
+      # A list walked separately from the words would have slid the older stamp up onto
+      # the newer line, which reads as a newer turn than the one below it.
+      assert PartyWindow.turns(window) == [
+               %{text: "an earlier thing", at: "2026-10-01T09:30:00"},
+               %{text: "the newest thing", at: nil}
+             ]
+    end
+
+    test "a time list that stops short leaves the turns it does not cover bare" do
+      assert {:open_window, window} =
+               PartyWindow.window(answer(%{"scene_facts_at" => ["2026-10-01T12:00:00"]}))
+
+      # The list runs parallel to the bot's own order, so the stamp it does carry is the
+      # newest turn's — not the oldest turn's, which is where a reversed pairing lands it.
+      assert PartyWindow.turns(window) == [
+               %{text: "an earlier thing", at: nil},
+               %{text: "the newest thing", at: "2026-10-01T12:00:00"}
+             ]
     end
 
     test "a window whose turns were not reported does not read as nothing said" do
@@ -269,11 +331,29 @@ defmodule BotArmyDashboardLiveview.PartyWindowTest do
     test "an ask she has not answered is pending; an ask she has answered is not" do
       assert PartyWindow.narration(%{
                "narration" => %{"asked_of" => "companion_bot", "pending" => true}
-             }) == {:pending, "companion_bot"}
+             }) == {:pending, "companion_bot", nil}
 
       assert PartyWindow.narration(%{
                "narration" => %{"asked_of" => "companion_bot", "pending" => false}
              }) == {:answered, "companion_bot"}
+    end
+
+    test "the ask reports when it was made, and a time it cannot read is not one" do
+      assert PartyWindow.narration(%{
+               "narration" => %{
+                 "asked_of" => "companion_bot",
+                 "pending" => true,
+                 "asked_at" => "2026-10-01T12:00:00"
+               }
+             }) == {:pending, "companion_bot", "2026-10-01T12:00:00"}
+
+      assert PartyWindow.narration(%{
+               "narration" => %{
+                 "asked_of" => "companion_bot",
+                 "pending" => true,
+                 "asked_at" => 42
+               }
+             }) == {:pending, "companion_bot", nil}
     end
 
     test "the window carries the reading, not just the function" do
@@ -282,7 +362,7 @@ defmodule BotArmyDashboardLiveview.PartyWindowTest do
                  answer(%{"narration" => %{"asked_of" => "companion_bot", "pending" => true}})
                )
 
-      assert window.narration == {:pending, "companion_bot"}
+      assert window.narration == {:pending, "companion_bot", nil}
     end
 
     test "a window nobody was asked about is a reading, and an absent field is not" do
@@ -315,10 +395,39 @@ defmodule BotArmyDashboardLiveview.PartyWindowTest do
     end
 
     test "the line a window waiting on her draws is the silence, and it names her" do
-      line = PartyWindow.narration_line({:pending, "companion_bot"})
+      line = PartyWindow.narration_line({:pending, "companion_bot", nil})
 
       assert line =~ "(she says nothing yet)"
       assert line =~ "companion_bot"
+    end
+
+    test "a pending line says how long it has been, and never how long is left" do
+      line = PartyWindow.narration_line({:pending, "companion_bot", stamp(-180)})
+
+      assert line =~ "companion_bot"
+      assert line =~ "3m ago"
+      assert line =~ "(she says nothing yet)"
+
+      # rpg publishes the ask once and never awaits it, so there is no deadline for this
+      # line to quote and it must not invent one.
+      refute line =~ "expected"
+      refute line =~ "left"
+      refute line =~ "by 12"
+    end
+
+    test "a pending line with no ask time still names her, and says no duration" do
+      line = PartyWindow.narration_line({:pending, "companion_bot", nil})
+
+      assert line =~ "companion_bot"
+      refute line =~ "ago"
+    end
+
+    test "a time it cannot read reads as no time at all, not as unknown ago" do
+      assert PartyWindow.since(nil) == ""
+      assert PartyWindow.since("not a time") == ""
+      assert PartyWindow.since(%{}) == ""
+
+      assert PartyWindow.since(stamp(-180)) =~ "3m ago"
     end
 
     test "a window she has written into says so, and one nobody asked says nothing" do
