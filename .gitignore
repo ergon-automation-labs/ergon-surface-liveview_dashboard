@@ -11,6 +11,11 @@ erl_crash.dump
 # Release tarballs (created by pre-push)
 *.tar.gz
 
+# Proof-of-validation written by `make push` (see the Makefile). The hook this
+# repo uses publishes the release and does not read it; it is ignored so that
+# `make push` leaves the tree clean.
+.push-validated
+
 # Development
 .env
 .idea
