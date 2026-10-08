@@ -56,6 +56,9 @@ defmodule BotArmyDashboardLiveview.SelfReport do
   @panel_subject "wife_care.control_panel.state"
   @yearning_subject "wife_care.control_panel.record_goddess_proximity"
   @body_subject "wife_care.control_panel.record_body_reading"
+  @escape_subject "wife_care.control_panel.record_cage_escape"
+  @undo_escape_subject "wife_care.control_panel.undo_cage_escape"
+  @flip_escape_subject "wife_care.control_panel.set_cage_escape_period"
   @request_timeout 3_000
 
   @doc "The subject yearning is reported on."
@@ -116,6 +119,48 @@ defmodule BotArmyDashboardLiveview.SelfReport do
   defp reread(socket) do
     BotRead.async(self(), :self_report, @panel_subject, %{}, timeout: @request_timeout)
     socket
+  end
+
+  @doc """
+  One press on the cage card.
+
+  `action` is `:record` (one escape came off, now), `:undo` (take the newest
+  back), or `:flip` (`params` naming an event id and the side to move it to).
+
+  There is nothing here for this screen to refuse the way `click/3` refuses a
+  point off the scale: the only inputs are the ones this card drew, and every one
+  of them is already a fact she is reporting. A press with the id missing is a
+  stale page rather than a bad tap, and it says so instead of sending a request
+  the bot could only answer with a refusal.
+  """
+  @spec escape(Phoenix.LiveView.Socket.t(), :record | :undo | :flip, map()) ::
+          Phoenix.LiveView.Socket.t()
+  def escape(socket, :record, _params) do
+    send_escape(socket, @escape_subject, %{}, :record)
+  end
+
+  def escape(socket, :undo, _params) do
+    send_escape(socket, @undo_escape_subject, %{}, :undo)
+  end
+
+  def escape(socket, :flip, %{"id" => id, "period" => period}) do
+    send_escape(socket, @flip_escape_subject, %{"id" => id, "period" => period}, :flip)
+  end
+
+  def escape(socket, :flip, _params) do
+    assign(socket,
+      tap: %{
+        where: :cage_escapes,
+        error: "those buttons are from an older page — reload and try again"
+      }
+    )
+  end
+
+  defp send_escape(socket, subject, payload, intent) do
+    case write(subject, payload) do
+      {:ok, _data} -> socket |> assign(tap: %{where: :cage_escapes, intent: intent}) |> reread()
+      {:error, sentence} -> assign(socket, tap: %{where: :cage_escapes, error: sentence})
+    end
   end
 
   # ── deciding what a tap means ───────────────────────────────────────────────
@@ -181,6 +226,15 @@ defmodule BotArmyDashboardLiveview.SelfReport do
   @spec settle(map() | nil, map() | nil) :: map() | nil
   def settle(nil, _report), do: nil
 
+  # The escape card's sentence is made from the read that came back, never from
+  # the write that went out: "counted" is not a number, and the number is the only
+  # thing this card is for. A refusal has no read to wait for.
+  def settle(%{where: :cage_escapes, error: _} = tap, _report), do: tap
+
+  def settle(%{where: :cage_escapes, intent: intent} = tap, report) do
+    Map.put(tap, :sentence, escape_line(intent, escape_block(report)))
+  end
+
   def settle(%{level: level} = tap, report) do
     case reading_of(report, tap) do
       %{today?: true, level: ^level} -> Map.put(tap, :confirmed?, true)
@@ -193,6 +247,13 @@ defmodule BotArmyDashboardLiveview.SelfReport do
 
   @doc "The sentence under the card that owns this tap."
   def line(%{error: error}), do: error
+  def line(%{sentence: sentence}), do: sentence
+
+  # Between the press and the read that follows it there is no number yet, so the
+  # line says what was done and not what it counted. It must not guess a count: a
+  # count that flickers from wrong to right is a count nobody trusts.
+  def line(%{where: :cage_escapes, intent: intent}),
+    do: "#{escape_verb(intent)} — reading it back…"
 
   def line(%{confirmed?: true} = tap),
     do: "logged — the reading that came back is #{tap.what} today."
@@ -219,7 +280,7 @@ defmodule BotArmyDashboardLiveview.SelfReport do
   attr(:report, :map, default: nil)
   attr(:tap, :map, default: nil)
 
-  def card(%{which: which} = assigns) when which in [:yearning, :body] do
+  def card(%{which: which} = assigns) when which in [:yearning, :body, :cage_escapes] do
     ~H"""
     <style>
       .report-card { background: #131a3a; border: 1px solid #222c56; border-radius: 10px; padding: 14px 16px; margin: 0 auto 14px; max-width: 900px; }
@@ -239,10 +300,11 @@ defmodule BotArmyDashboardLiveview.SelfReport do
       <%= case @which do %>
         <% :yearning -> %><%= yearning_card(assigns) %>
         <% :body -> %><%= body_card(assigns) %>
+        <% :cage_escapes -> %><%= cage_card(assigns) %>
       <% end %>
     <% else %>
       <div class="report-card">
-        <div class="card-title"><%= if @which == :yearning, do: "Yearning", else: "The body" %></div>
+        <div class="card-title"><%= card_title(@which) %></div>
         <p class="unreported">nothing from the panel yet — the card appears when the read lands</p>
       </div>
     <% end %>
@@ -285,6 +347,158 @@ defmodule BotArmyDashboardLiveview.SelfReport do
       </p>
     </div>
     """
+  end
+
+  defp card_title(:yearning), do: "Yearning"
+  defp card_title(:body), do: "The body"
+  defp card_title(:cage_escapes), do: "The cage"
+  defp card_title(_which), do: "The record"
+
+  # The escapes card. It sits beside the body card on the same screen because it is
+  # a fact about the same body, and it is still not a body channel: a channel is a
+  # level on the house scale, an escape is an event with a time. There is no sixth
+  # point for it to be, and nothing on this card is ever inferred.
+  #
+  # No streak and no "days since the last one". An escape is not a lapse, and a
+  # countdown turns a household fact into something that resets.
+  defp cage_card(assigns) do
+    ~H"""
+    <div class="report-card">
+      <div class="card-title">The cage — escapes  ·  press + when it came off</div>
+      <%= if @report.cage_escapes.source == :unreported do %>
+        <p class="unreported">the panel has not reported the escape log yet</p>
+      <% else %>
+        <div class="row" style="align-items:baseline;">
+          <span style="font-size:30px; line-height:1;"><%= @report.cage_escapes.total %></span>
+          <span class="dim"><%= night_phrase(@report.cage_escapes) %></span>
+        </div>
+        <div class="tap-row">
+          <button
+            type="button"
+            phx-click="record_cage_escape"
+            phx-disable-with="…"
+            title="it came off on its own"
+            aria-label="count one cage escape"
+            class="tap"
+            style="font-size:17px;"
+          >+  it came off</button>
+        </div>
+        <p class="tap-legend"><%= escape_legend(@report.cage_escapes) %></p>
+        <%= if @report.cage_escapes.last do %><%= cage_last(assigns) %><% end %>
+      <% end %>
+      <.result tap={@tap} where={:cage_escapes} />
+      <p class="dim" style="margin-top:8px; font-size:12px;">
+        A count is not a reading: it stays here rather than on the body card, where every point is a number on one scale. Nothing on this card is measured or inferred — it is what she says happened.
+      </p>
+    </div>
+    """
+  end
+
+  # The one entry she is most likely to want back, with both corrections drawn as
+  # words rather than a toggle: "it was night" says what pressing it will do, and a
+  # switch whose current state has to be inferred from its position is the thing
+  # people get wrong at five in the morning.
+  defp cage_last(assigns) do
+    event = assigns.report.cage_escapes.last
+
+    assigns =
+      assigns
+      |> assign(:escape_id, event.id)
+      |> assign(:escape_period, event.period)
+      |> assign(:escape_target, if(event.period == :night, do: "day", else: "night"))
+      |> assign(:escape_ago, ago(event.at))
+      |> assign(:escape_note, event.note)
+
+    ~H"""
+    <div style="margin-top:10px; border-top:1px solid #222c56; padding-top:8px;">
+      <div class="row">
+        <span class="dim" style="font-size:12px;">
+          most recent — <%= @escape_ago %><%= if @escape_note, do: " · #{@escape_note}", else: "" %>
+        </span>
+        <span class="chip"><%= @escape_period %></span>
+      </div>
+      <div class="tap-row" style="margin:6px 0 0;">
+        <button
+          type="button"
+          phx-click="flip_cage_escape"
+          phx-value-id={@escape_id}
+          phx-value-period={@escape_target}
+          title={"move this one to the #{@escape_target}"}
+          aria-label={"count the most recent escape as #{@escape_target} instead"}
+          class="tap"
+          style="min-height:34px; font-size:13px;"
+        >it was <%= @escape_target %></button>
+        <button
+          type="button"
+          phx-click="undo_cage_escape"
+          title="take back the most recent escape"
+          aria-label="take back the most recent escape"
+          class="tap"
+          style="min-height:34px; font-size:13px; flex:0 0 28%;"
+        >undo</button>
+      </div>
+    </div>
+    """
+  end
+
+  defp night_phrase(%{night: night, day: day}) when is_integer(night) and is_integer(day),
+    do: "#{night} at night · #{day} during the day"
+
+  defp night_phrase(_block), do: ""
+
+  defp escape_legend(%{window: %{from: from, until: until}}),
+    do:
+      "night means #{clock(from)}\u2013#{clock(until)}. An escape found in the morning can be moved with one press."
+
+  defp escape_legend(_block),
+    do: "An escape found in the morning can be moved with one press."
+
+  defp clock(hour) when is_integer(hour),
+    do: "#{String.pad_leading(Integer.to_string(hour), 2, "0")}:00"
+
+  defp clock(_hour), do: "?"
+
+  defp escape_verb(:record), do: "counted"
+  defp escape_verb(:undo), do: "took it back"
+  defp escape_verb(:flip), do: "moved it"
+  defp escape_verb(_intent), do: "saved it"
+
+  defp escape_line(intent, %{total: total} = block) when is_integer(total) do
+    counts = "#{block.night || 0} at night, #{block.day || 0} during the day"
+
+    case intent do
+      :record -> "counted — #{total} in all, #{counts}."
+      :undo -> "took the last one back — #{total} in all, #{counts}."
+      :flip -> "moved it — #{total} in all, #{counts}."
+    end
+  end
+
+  defp escape_line(_intent, _block), do: "the log did not read back — reload the page"
+
+  defp escape_block(%{cage_escapes: block}) when is_map(block), do: block
+  defp escape_block(_report), do: nil
+
+  # Relative, never a clock time. This surface has no timezone database either, so
+  # a UTC hour drawn as if it were local would be six hours out and look entirely
+  # plausible. "3h ago" is true wherever the reader is standing.
+  defp ago(at) when is_binary(at) do
+    case DateTime.from_iso8601(at) do
+      {:ok, then, _offset} -> ago_phrase(DateTime.diff(DateTime.utc_now(), then, :second))
+      {:error, _reason} -> "just now"
+    end
+  end
+
+  defp ago(_at), do: "just now"
+
+  defp ago_phrase(seconds) when seconds < 60, do: "just now"
+  defp ago_phrase(seconds) when seconds < 3_600, do: "#{div(seconds, 60)}m ago"
+  defp ago_phrase(seconds) when seconds < 86_400, do: "#{div(seconds, 3_600)}h ago"
+
+  defp ago_phrase(seconds) do
+    case div(seconds, 86_400) do
+      1 -> "yesterday"
+      days -> "#{days} days ago"
+    end
   end
 
   defp body_card(assigns) do

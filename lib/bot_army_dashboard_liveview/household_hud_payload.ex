@@ -234,6 +234,7 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDPayload do
     %{
       answering?: is_map(panel) or is_map(chorus),
       body: body_section(panel),
+      cage_escapes: cage_escapes_section(panel),
       hierarchy: ladder(),
       tier: "Abby — Maid / Servant",
       containment: containment(panel),
@@ -675,6 +676,88 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDPayload do
   end
 
   defp body_scale(_scale), do: @house_scale
+
+  @doc """
+  The cage escapes — how many times it came off on its own, and which side of
+  the night each one fell on.
+
+  This is **not** a body channel and deliberately does not ride inside
+  `body_section/1`. A body channel is a *level* on the house scale — the `cage`
+  channel answers "how much strain is it taking" — while an escape is an
+  *event*. There is no sixth point on a five-point scale and no reading for it to
+  be the reading of, so the two are separate series that happen to share a screen.
+
+  Both counts are the bot's, not this module's. A split two surfaces each compute
+  is a split they can each get differently wrong, and "night" rests on a rule
+  about a clock that only the bot has ever seen. `window` is carried so the card
+  can say what night meant rather than assuming the reader knows.
+
+  `last` is the newest event, for a card that wants to show the one she would
+  correct; `events` is the few behind it. When the bot has not answered, every
+  count is `nil` and `source` is `:unreported` — the card says the log has not
+  landed rather than drawing a confident zero, because "nothing recorded" and
+  "nothing happened" are different claims.
+  """
+  @spec cage_escapes_section(map() | nil) :: map()
+  def cage_escapes_section(panel) when is_map(panel) do
+    block = nested(panel, "cage_escapes")
+    events = escape_events(value_of(block, "events"))
+
+    %{
+      total: count_of(block, "total"),
+      night: count_of(block, "night"),
+      day: count_of(block, "day"),
+      last: List.first(events),
+      events: events,
+      window: escape_window(value_of(block, "night_window")),
+      source: if(map_size(block) > 0, do: :reported, else: :unreported)
+    }
+  end
+
+  def cage_escapes_section(_panel) do
+    %{
+      total: nil,
+      night: nil,
+      day: nil,
+      last: nil,
+      events: [],
+      window: nil,
+      source: :unreported
+    }
+  end
+
+  # An event with no id cannot be corrected — the correction names the event it
+  # moves — so it is dropped here rather than drawn as a row whose one button
+  # would send an id the bot has never heard of.
+  defp escape_events(events) when is_list(events) do
+    Enum.flat_map(events, fn
+      %{"id" => id, "at" => at} = event when is_integer(id) and is_binary(at) ->
+        [
+          %{
+            id: id,
+            at: at,
+            period: escape_period(Map.get(event, "period")),
+            note: Map.get(event, "note")
+          }
+        ]
+
+      _other ->
+        []
+    end)
+  end
+
+  defp escape_events(_events), do: []
+
+  defp escape_period("night"), do: :night
+  defp escape_period("day"), do: :day
+  defp escape_period(_other), do: nil
+
+  defp escape_window(%{"from" => from, "until" => until})
+       when is_integer(from) and is_integer(until) do
+    %{from: from, until: until}
+  end
+
+  defp escape_window(_other), do: nil
 
   @doc """
   §27 — the calls she has sent, and the two facts that keep one legible: whether
