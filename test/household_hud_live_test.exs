@@ -53,19 +53,20 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDLiveTest do
     refute html =~ "this note"
   end
 
-  # The screen used to print the panel's address in an `href`. It is a button
-  # now: the address is computed at the tap, from a one-time ticket the bot
-  # mints (see `test/household_hud_entry_test.exs`, which asserts the redirect).
-  # What stays here is the part this screen can still be wrong about — naming a
-  # host that is the *viewer's* machine, where the panel does not run.
-  test "the way to the panel is a button, and names no host until it is pressed" do
+  # The screen used to print the panel's address in an `href`, then it printed a
+  # button that minted a ticket at the tap. It is a plain link again, and now it
+  # is the *right* one: her panel, on the host this page was reached on, so that
+  # a viewer is not sent to their own machine (see
+  # `test/household_hud_exit_test.exs`, which pins both the address and the fact
+  # that no press asks the broker for anything).
+  test "the way to the panel is a link to her panel, and names the host it was reached on" do
     {:ok, view, _html} = live(build_conn(), "/household-hud")
     html = render_async(view)
 
-    assert html =~ ~s(phx-click="open_panel")
+    assert html =~ ~s(<a href="http://www.example.com:30014">)
     assert html =~ "→ open the control panel"
-    refute html =~ "localhost:30013"
-    refute html =~ "www.example.com:30013"
+    refute html =~ "localhost:30014"
+    refute html =~ ":30013"
   end
 
   test "never fabricates the doc's example numbers" do

@@ -22,21 +22,26 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDLive do
   There are no keys to press. It used to advertise "r refresh" and a "?" note,
   and it bound neither: this surface has no key handler at all, so the hint was a
   promise the page could not keep. The interactive things are the lens strip and
-  the exit's button to the control panel — the two ladders that used to be here
+  the exit's link to the control panel — the two ladders that used to be here
   are on `/timer-phone`, where she reports, and this screen only reads their
-  latest numbers. That
-  button names the host this page was reached on, because `localhost` is the
-  viewer's machine and the panel does not run there.
+  latest numbers. That link names the host this page was reached on, because
+  `localhost` is the viewer's machine and the panel does not run there.
 
-  That button asks the bot for a **one-time entry ticket** and follows the
-  redirect, so the panel opens without anyone typing a code: the ticket is
-  single-use, good for sixty seconds, and mintable only for `louiza`. If the bot
-  does not answer, the button falls back to the plain panel address — which lands
-  on the panel's own front door, where the code from another device works. The
-  fast path failing costs a tap, never the way in. What a ticket is *not* is
-  proof of who is pressing: this dashboard is ungated, and whoever can load it
-  can obtain an entry. The bus the request travels on is the household network's,
-  and the panel refuses a ticket naming any other identity.
+  It opens **her** panel. This handheld is hers — every other thing it carries is
+  her own report — and the two levers the exit advertises are hers too: `stop` is
+  a reply she makes, and `resume` is a write she holds, while the authority's
+  side of that same verb arrives as a picker over what she already said. So the
+  exit is a link: a device that has signed in before goes straight in on its
+  session cookie, and a new one lands on the panel's own front door, where the
+  code from another device works.
+
+  It used to mint a ticket instead, and the ticket was the wrong door. The bot's
+  store refuses `slave` and `operator` by design — an identity that can speak the
+  reply that lifts a stop is not one an ungated screen may hand out — so the only
+  ticket it could mint was `louiza`'s: not hers, and not an identity her panel is
+  configured to hold. An extra tap through the right door is worth more than one
+  tap through the wrong one, and nothing this screen can serve should be able to
+  produce any identity's entry at all.
   """
 
   use Phoenix.LiveView
@@ -48,9 +53,13 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDLive do
 
   @panel_subject "wife_care.control_panel.state"
   @chorus_subject "wife_care.chorus.categories"
-  @entry_ticket_subject "wife_care.control_panel.entry_ticket"
   @request_timeout 3_000
-  @panel_port 30013
+
+  # Her panel. The household runs two instances of the wife care release — the
+  # authority's and hers — and this handheld is hers, so the exit leads to the
+  # one whose verbs it names. (`docs/wife_care/PANELS.md` in the elixir_bots
+  # monorepo has the three-surface map.)
+  @panel_port 30014
 
   # The screen answers all of this in one read; the strip only decides what is
   # drawn. Keeping the keys here means a typo cannot quietly add a sixth lens.
@@ -105,15 +114,12 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDLive do
     {:noreply, fetch(socket)}
   end
 
-  @impl true
-  def handle_event("open_panel", _params, socket) do
-    {:noreply, redirect(socket, external: panel_entry_url(socket.assigns.control_panel_url))}
-  end
-
   # `hud-help` and `open-control-panel` used to sit here as `{:noreply, socket}`
   # no-ops that no element ever fired. They are deleted rather than bound: this
   # screen has no keys and no clickable cards, and dead handlers pretending
-  # otherwise are part of what made the hint line look true.
+  # otherwise are part of what made the hint line look true. `open_panel` was
+  # here too — a handler that minted a ticket and redirected. It went with the
+  # mint: the exit is an anchor now, so no press needs a round trip at all.
   # Off the LiveView's own process, so a slow or absent bot never blocks the
   # screen from rendering. `start_async` also makes the load observable in tests
   # (`render_async/1`), which a hand-rolled task would not be.
@@ -159,47 +165,6 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDLive do
 
   defp panel_host(%URI{host: host}) when is_binary(host) and host != "", do: host
   defp panel_host(_host_uri), do: "localhost"
-
-  # One tap: mint a ticket, then follow the redirect into it. `Door` on the panel
-  # is what recognises the `k_…` shape, so nothing here has to know the format.
-  defp panel_entry_url(panel_url) do
-    case Broker.request(@entry_ticket_subject, "{}", timeout: @request_timeout) do
-      {:ok, %{body: body}} -> ticket_entry_url(panel_url, body)
-      other -> plain_panel_url(panel_url, other)
-    end
-  rescue
-    error -> plain_panel_url(panel_url, {:raised, error})
-  catch
-    kind, reason -> plain_panel_url(panel_url, {kind, reason})
-  end
-
-  defp ticket_entry_url(panel_url, body) do
-    case Jason.decode(body) do
-      {:ok, %{"ok" => true, "data" => %{"ticket" => ticket}}} when is_binary(ticket) ->
-        panel_url <> "/enter?t=" <> URI.encode_www_form(ticket)
-
-      {:ok, %{"ok" => false}} ->
-        plain_panel_url(panel_url, :refused)
-
-      {:ok, _decoded} ->
-        plain_panel_url(panel_url, :unexpected_reply)
-
-      {:error, _} ->
-        plain_panel_url(panel_url, :not_json)
-    end
-  end
-
-  # The whole point of the fallback: a bot that is down, or a build that predates
-  # this subject, costs a tap — the panel still opens, on the page that carries
-  # the code door. Nothing is swallowed silently, so an operator can tell the
-  # three apart from the log.
-  #
-  # A reason and never a body: a mint reply's `data` holds a live ticket, and a
-  # log line is the one place it must never be.
-  defp plain_panel_url(panel_url, reason) do
-    Logger.debug("[HouseholdHUD] no entry ticket: #{inspect(reason)}")
-    panel_url
-  end
 
   defp clock do
     DateTime.utc_now() |> DateTime.to_time() |> Time.to_iso8601() |> String.slice(0, 5)
@@ -397,16 +362,21 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDLive do
 
   # Rendered in every state. Hiding the way out exactly when the panel goes quiet
   # would take it away at the moment it is most worth having.
+  #
+  # A link, not a button: with no ticket to mint there is nothing to wait for, and
+  # an anchor is one the page can honour even before the socket connects. The
+  # press it names is hers — the stop she says and the lift she holds — so it
+  # leads to her panel and asks nobody for an identity on the way.
   defp render_exit(assigns) do
     ~H"""
     <div class="card exit">
       <div class="card-title">Exit — always available</div>
       <p><%= @hud.exit.label %> — <span class="dim"><%= @hud.exit.detail %></span></p>
       <p style="margin-top:6px;">
-        <button type="button" phx-click="open_panel" phx-disable-with="opening…">→ open the control panel</button>
+        <a href={@control_panel_url}>→ open the control panel</a>
       </p>
       <p class="dim" style="margin-top:6px; font-size:12px;">
-        It asks the wife care bot for one-time entry — good for a minute and a single use. If the bot does not answer, the panel opens on its own front door instead, where you can type the code from another device.
+        It opens her side of the panel, where that press is hers to make. A device that has signed in before goes straight in; a new one lands on the panel's front door, where you can type the code from another device.
       </p>
       <p class="dim" style="margin-top:6px; font-size:12px;">While paused, anything that raises something is refused at write time — not merely hidden here.</p>
     </div>
