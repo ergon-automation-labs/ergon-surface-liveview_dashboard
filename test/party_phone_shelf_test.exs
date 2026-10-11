@@ -87,7 +87,7 @@ defmodule BotArmyDashboardLiveview.PartyPhoneShelfTest do
       "state_label" => if(on, do: "in the air", else: "off the air"),
       "on?" => on,
       "removed?" => false,
-      "authored_by" => "subject"
+      "authored_by" => "slave"
     }
 
     Map.merge(phrase, delivery_keys(opts))

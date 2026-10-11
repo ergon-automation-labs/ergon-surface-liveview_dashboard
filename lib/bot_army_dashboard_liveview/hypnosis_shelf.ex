@@ -26,7 +26,7 @@ defmodule BotArmyDashboardLiveview.HypnosisShelf do
       its count moved on, and the event the bot publishes carries the phrase's id and
       never the words.
 
-  `add`, `reword` and `restore` all require `"actor": "subject"` — her voice — and this
+  `add`, `reword` and `restore` all require `"actor": "slave"` — her voice — and this
   dashboard is open, so it proves nothing about who is holding the phone. A screen that
   claimed her would be forging the one voice it must not: the write would land under her
   name and look like something she asked for. So the card says which verbs it is not
@@ -232,12 +232,17 @@ defmodule BotArmyDashboardLiveview.HypnosisShelf do
 
   # How it came to be said, in the bot's own two sources. `tick` is the house's own
   # cadence; `hand` is someone asking for it, and the voice is named as the role it is —
-  # the maid, her, or the keep-the-lights-on role — rather than as a pronoun.
+  # the slave, her, or the keep-the-lights-on role — rather than as a pronoun.
   defp voice(%{"source" => "tick"}), do: " of its own accord, on the tick"
   defp voice(%{"source" => "hand", "by" => by}) when is_binary(by), do: " by hand, as #{role(by)}"
   defp voice(_payload), do: ""
 
-  defp role("subject"), do: "the maid"
+  # The bot records her as `slave` and normalizes the retired spelling on the wire, so a
+  # row written before October 2026 can still arrive saying `subject`. Naming the
+  # retired word at the reader would put it back on the screen a year after it was
+  # retired, so the legacy spelling answers the same words as the current one.
+  defp role("slave"), do: "the slave"
+  defp role("subject"), do: "the slave"
   defp role("louiza"), do: "her voice"
   defp role("operator"), do: "the operator"
   defp role(other), do: "a voice it calls #{other}"

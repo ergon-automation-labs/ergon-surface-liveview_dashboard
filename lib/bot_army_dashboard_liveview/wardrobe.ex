@@ -14,10 +14,10 @@ defmodule BotArmyDashboardLiveview.Wardrobe do
   ## The two verbs, and why both are here
 
   A set can arrive on her two ways, and the bot already keeps them apart: its wearing
-  row carries `chosen`, written as `by == "subject"`. So this screen offers both and
+  row carries `chosen`, written as `by == "slave"`. So this screen offers both and
   never blurs them:
 
-    * **Wear this** is hers. It sends `by: "subject"`, and the bot records
+    * **Wear this** is hers. It sends `by: "slave"`, and the bot records
       `chosen: true`.
     * **Assign** is the house putting a set on her. It sends `by: "louiza"`, and the
       bot records `chosen: false`.
@@ -81,8 +81,12 @@ defmodule BotArmyDashboardLiveview.Wardrobe do
   # The two voices the bot accepts for a wearing, and the whole difference between
   # "she chose this" and "this was put on her". Not this screen's vocabulary: the
   # bot's own (`Wardrobe.validate_worn_by/1` accepts exactly these, and the wear
-  # handler writes `chosen: by == "subject"`).
-  @her_voice "subject"
+  # handler writes `chosen: by == "slave"`).
+  #
+  # `subject` was her spelling until October 2026 and read as "the maid" on the
+  # screen. Both are gone from here: the bot still normalizes the old spelling on the
+  # wire for a screen that has not been redeployed, but this one has been.
+  @her_voice "slave"
   @house_voice "louiza"
 
   # The parts of a set this card draws, with the bot's own word for each one. A part

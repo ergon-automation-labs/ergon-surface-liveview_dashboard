@@ -10,7 +10,7 @@ defmodule BotArmyDashboardLiveview.WardrobePhoneLive do
   from the nav bar the way the reporting screens are.
 
   It offers both verbs the bot accepts, and marks which one a wearing came from: **Wear
-  this** sends `by: "subject"` (hers, `chosen: true`) and **Assign** sends
+  this** sends `by: "slave"` (hers, `chosen: true`) and **Assign** sends
   `by: "louiza"` (the house putting a set on her, `chosen: false`). Everything a wear
   has to obey — a set the card is not drawing refused before anything is sent, the
   re-read that is today's, the bot's own words for a refusal, and the difference

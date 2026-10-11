@@ -67,7 +67,7 @@ defmodule BotArmyDashboardLiveview.BodyPhoneTest do
       "window_s" => nil,
       "session_id" => nil,
       "note" => nil,
-      "reported_by" => "subject",
+      "reported_by" => "slave",
       "occurred_at" => "2026-09-25T20:00:00Z",
       "minutes_ago" => Keyword.get(opts, :minutes_ago, 4),
       "today?" => Keyword.get(opts, :today?, true)

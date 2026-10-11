@@ -34,8 +34,9 @@ defmodule BotArmyDashboardLiveview.DevotionPhoneTest do
 
   # The bot's own `control_panel.state` reply, cut to the four blocks the seeds
   # read. These are the live shapes: `engagement.this_week` and `quotas.weekly`
-  # are both counted by the bot, and `maid_level.notice` is the house's own
-  # present-tense sentence.
+  # are both counted by the bot, and `slave_level.notice` is the house's own
+  # present-tense sentence. `:level_key` exists so a test can send the block under
+  # the spelling the bot used before October 2026 and prove the reader still reads it.
   defp state_reply(opts \\ []) do
     opts = Map.new(opts)
 
@@ -54,7 +55,7 @@ defmodule BotArmyDashboardLiveview.DevotionPhoneTest do
           "current_streak" => Map.get(opts, :run, 2),
           "longest_streak" => Map.get(opts, :longest, 21)
         },
-        "maid_level" => %{
+        Map.get(opts, :level_key, "slave_level") => %{
           "level" => 1,
           "notice" => Map.get(opts, :notice, "this week reads 3 of 10")
         }
@@ -150,6 +151,22 @@ defmodule BotArmyDashboardLiveview.DevotionPhoneTest do
 
     assert html =~ "the week is met: 10 of 10"
     refute html =~ "Good submission"
+  end
+
+  test "a level block filed under the retired spelling still reads" do
+    # The bot publishes both names while a screen might not have been redeployed. The
+    # reader prefers the current one and falls back to the old one; `nested/2` answers
+    # an empty map for an absent key, and an empty map is truthy, so this is the test
+    # that would catch a fallback written with `||`.
+    html =
+      render(
+        page(
+          %{@panel => state_reply(level_key: "maid_level", notice: "the old name still reads")},
+          "the old name still reads"
+        )
+      )
+
+    assert html =~ "the old name still reads"
   end
 
   test "an empty record says the week is blank rather than bad" do

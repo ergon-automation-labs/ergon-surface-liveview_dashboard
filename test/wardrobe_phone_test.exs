@@ -88,7 +88,7 @@ defmodule BotArmyDashboardLiveview.WardrobePhoneTest do
       "name" => "Maid",
       "outfit_id" => @maid,
       "chosen" => chosen,
-      "worn_by" => if(chosen, do: "subject", else: "louiza"),
+      "worn_by" => if(chosen, do: "slave", else: "louiza"),
       "worn_at" => now(),
       "parts" => %{"cage" => "standard", "humiliation_level" => 6, "accessories" => ["collar"]}
     }
@@ -235,7 +235,7 @@ defmodule BotArmyDashboardLiveview.WardrobePhoneTest do
     render_click(view, "wear_set", %{"id" => @maid})
 
     assert_received {:broker_stub_request, _conn, @write, body, _opts}
-    assert Jason.decode!(body) == %{"outfit_id" => @maid, "by" => "subject"}
+    assert Jason.decode!(body) == %{"outfit_id" => @maid, "by" => "slave"}
 
     await(view, "recorded as her choice")
     assert render(view) =~ "the wardrobe reads back Maid, recorded as her choice"

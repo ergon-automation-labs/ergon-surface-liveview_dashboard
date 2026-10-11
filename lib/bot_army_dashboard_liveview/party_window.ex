@@ -610,7 +610,7 @@ defmodule BotArmyDashboardLiveview.PartyWindow do
 
   defp carry_row(_row), do: nil
 
-  # Who spoke, naming the role. Both the operator and the maid are *she*, so a bare
+  # Who spoke, naming the role. Both the operator and the slave are *she*, so a bare
   # pronoun in this spot would be a sentence with two possible subjects (§28).
   defp who(@source), do: "the operator"
   defp who("gm"), do: "the GM"

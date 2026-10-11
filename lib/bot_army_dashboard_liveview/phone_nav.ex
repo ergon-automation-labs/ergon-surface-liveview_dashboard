@@ -3,7 +3,7 @@ defmodule BotArmyDashboardLiveview.PhoneNav do
   Shared navigation component for phone handhelds.
   Provides quick access between all phone pages.
 
-  The household HUD is first on purpose. It is the screen the maid lives on —
+  The household HUD is first on purpose. It is the screen the slave lives on —
   what the house is doing, where she is in it, and what the house knows about her
   — and until this bar carried it the page had no way in except a URL someone had
   to remember. A screen nobody can navigate to is not a screen.

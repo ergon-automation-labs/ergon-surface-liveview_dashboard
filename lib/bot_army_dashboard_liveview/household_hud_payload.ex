@@ -21,7 +21,7 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDPayload do
   | `yearning` | §19 `louiza.yearning` (the derived proximity reading) | `:unreported` |
   | `demands` | §27 `louiza.demands` (sent, seen, done, still open) | `:unreported` |
   | `body` | §15 `body` (five channels, each with its newest reading) | `:unreported` per channel |
-  | `devotion` | the week's count, the run, and `maid_level.notice` | `:unreported` per seed |
+  | `devotion` | the week's count, the run, and `slave_level.notice` | `:unreported` per seed |
 
   ## What this screen may write
 
@@ -274,7 +274,6 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDPayload do
     engagement = nested(panel, "engagement")
     weekly = nested(nested(panel, "quotas"), "weekly")
     streak = nested(panel, "streak")
-    maid = nested(panel, "maid_level")
 
     %{
       week: count_of(engagement, "this_week"),
@@ -282,7 +281,7 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDPayload do
       met?: value_of(weekly, "status") == "compliant",
       run: count_of(streak, "current_streak"),
       longest: count_of(streak, "longest_streak"),
-      notice: notice_of(maid),
+      notice: notice_of(level_block(panel)),
       source: :reported
     }
   end
@@ -310,6 +309,21 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDPayload do
   end
 
   defp nested(_panel, _key), do: %{}
+
+  # The bot publishes this block under `slave_level` and, for a screen that has not been
+  # redeployed, under the retired `maid_level` as well. The current name is preferred and
+  # the old one is the fallback — which is what lets the bot stop sending the duplicate
+  # once every reader has moved.
+  #
+  # The `||` form is wrong here on purpose-made grounds: `nested/2` answers `%{}` for a
+  # key that is absent, and an empty map is truthy, so `nested(p, "slave_level") || …`
+  # would silently never fall back.
+  defp level_block(panel) do
+    case value_of(panel, "slave_level") do
+      value when is_map(value) -> value
+      _other -> nested(panel, "maid_level")
+    end
+  end
 
   # A key may arrive as a string (JSON) or an atom (read straight off the store),
   # and this module has been bitten by that difference before. No atom is created

@@ -219,7 +219,7 @@ defmodule BotArmyDashboardLiveview.WardrobeTest do
     test "wearing is sent in her voice and assigning in the house's" do
       closet = Wardrobe.build(reply())
 
-      assert {:send, %{"outfit_id" => @maid, "by" => "subject"}, act} =
+      assert {:send, %{"outfit_id" => @maid, "by" => "slave"}, act} =
                Wardrobe.plan(:wear, @maid, closet)
 
       assert act.verb == :wear
@@ -232,7 +232,7 @@ defmodule BotArmyDashboardLiveview.WardrobeTest do
     end
 
     test "the two voices and the two subjects are the bot's own" do
-      assert Wardrobe.chosen_by() == "subject"
+      assert Wardrobe.chosen_by() == "slave"
       assert Wardrobe.assigned_by() == "louiza"
       assert Wardrobe.read_subject() == "wife_care.control_panel.wardrobe.list"
       assert Wardrobe.write_subject() == "wife_care.control_panel.wear_outfit"

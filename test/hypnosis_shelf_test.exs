@@ -60,7 +60,7 @@ defmodule BotArmyDashboardLiveview.HypnosisShelfTest do
       "state_label" => if(on, do: "in the air", else: "off the air"),
       "on?" => on,
       "removed?" => false,
-      "authored_by" => "subject",
+      "authored_by" => "slave",
       "supersedes_id" => nil,
       "added_at" => "2026-09-25T10:00:00Z"
     }
@@ -726,7 +726,7 @@ defmodule BotArmyDashboardLiveview.HypnosisShelfTest do
     shelf = built(phrases: [phrase(id: @p1, text: "the house notices")])
 
     for {by, role} <- [
-          {"subject", "the maid"},
+          {"slave", "the slave"},
           {"louiza", "her voice"},
           {"operator", "the operator"}
         ] do
@@ -734,6 +734,18 @@ defmodule BotArmyDashboardLiveview.HypnosisShelfTest do
 
       assert HypnosisShelf.said_line(shelf, event) =~ " by hand, as #{role}"
     end
+  end
+
+  test "a saying the bot filed under the retired spelling names her the same words" do
+    # The bot normalizes `subject` on the wire, so this only arrives for a row written
+    # before the rename. It must not put the retired word back on the screen.
+    shelf = built(phrases: [phrase(id: @p1, text: "the house notices")])
+    event = %{"payload" => %{"phrase_id" => @p1, "source" => "hand", "by" => "subject"}}
+
+    line = HypnosisShelf.said_line(shelf, event)
+
+    assert line =~ " by hand, as the slave"
+    refute line =~ "subject"
   end
 
   test "a saying this screen cannot name is said to be exactly that" do
