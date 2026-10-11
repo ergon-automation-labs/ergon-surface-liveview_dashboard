@@ -1,4 +1,4 @@
-.PHONY: run deps compile test credo clean help setup setup-hooks init release publish-release prune-releases push git-push deploy-surface docker-build docker-up docker-down
+.PHONY: run deps compile test credo clean help setup setup-hooks init release bump-version publish-release prune-releases push git-push deploy-surface docker-build docker-up docker-down
 
 help:
 	@echo "LiveView Surface Template"
@@ -22,6 +22,7 @@ help:
 	@echo ""
 	@echo "Release (normally via git pre-push):"
 	@echo "  make release         - Build OTP release, then drop the stale copies it leaves behind"
+	@echo "  make bump-version    - Bump mix.exs first (BUMP=patch|minor|major); the version IS the release signal"
 	@echo "  make publish-release - Build, tarball, and publish to GitHub"
 	@echo "  make prune-releases  - Show stale release artifacts (APPLY=1 to delete)"
 	@echo ""
@@ -71,7 +72,25 @@ release:
 	@scripts/prune_release_artifacts.sh --build-tree --apply
 	@echo "✓ Release built in _build/prod/rel/"
 
+## Bump mix.exs. A surface has no release signal of its own, so the version IS
+## the signal: pushing a change without bumping re-cuts a version that is already
+## published, which clobbers its release and leaves the deploy with nothing to do
+## — green everywhere, old code still serving. `scripts/check_surface_version.sh`
+## in the push path refuses that; this is how you satisfy it.
+##
+## Never edit the version by hand for this: bump_version.sh targets the version
+## key and nothing else.
+bump-version:
+	@if [ -z "$(BUMP)" ]; then echo "Usage: make bump-version BUMP=major|minor|patch"; exit 1; fi
+	@if [ ! -f mix.exs ]; then echo "✗ Not found: mix.exs"; exit 1; fi
+	@OLD=$$(grep 'version:' mix.exs | head -1 | sed -E 's/.*version: "([^"]+)".*/\1/'); \
+	bash scripts/bump_version.sh mix.exs $(BUMP) > /dev/null; \
+	NEW=$$(grep 'version:' mix.exs | head -1 | sed -E 's/.*version: "([^"]+)".*/\1/'); \
+	echo "✓ Bumped: $$OLD → $$NEW"; \
+	echo "  Next: commit, then make push (which publishes it), then deploy."
+
 publish-release: release
+	@./scripts/check_surface_version.sh "$$(grep 'version:' mix.exs | head -1 | sed -E 's/.*version: "([^"]+)".*/\1/')" "ergon-automation-labs/ergon-surface-liveview_dashboard"
 	@echo "Publishing to GitHub..."
 	@RELEASE_NAME="bot_army_dashboard_liveview"; \
 	VERSION=$$(cat _build/prod/rel/$$RELEASE_NAME/releases/start_erl.data | awk '{print $$2}'); \

@@ -23,6 +23,18 @@ if [[ $remote_ref == "refs/heads/main" ]]; then
   echo "⚠️  Pushing to main branch - validating and building release..."
   echo ""
 
+  # Ask GitHub whether this version is already published, BEFORE spending a
+  # build on it. A change pushed without a version bump re-cuts the version that
+  # is already running: the upload below clobbers the release's tarball, and
+  # salt/surfaces/dashboard.sls skips a version whose directory is already on
+  # disk — so the deploy reports success and the old code keeps serving. That is
+  # the one failure here that looks exactly like success. HOTFIX=1 is the
+  # deliberate escape (see scripts/check_surface_version.sh).
+  REPO="ergon-automation-labs/ergon-surface-liveview_dashboard"
+  ./scripts/check_surface_version.sh \
+    "$(grep 'version:' mix.exs | head -1 | sed -E 's/.*version: "([^"]+)".*/\1/')" "$REPO" || exit 1
+  echo ""
+
   echo "📦 Installing dependencies..."
   mix deps.get || {
     echo "❌ Failed to install dependencies"
@@ -93,7 +105,6 @@ if [[ $remote_ref == "refs/heads/main" ]]; then
   fi
   echo "✓ Tarball carries exactly one copy of the app"
 
-  REPO="ergon-automation-labs/ergon-surface-liveview_dashboard"
   ASSET="$RELEASE_NAME-$VERSION.tar.gz"
 
   if ! gh release create "v$VERSION" "$ASSET" \
