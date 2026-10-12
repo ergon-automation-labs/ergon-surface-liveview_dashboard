@@ -25,7 +25,7 @@ defmodule BotArmyDashboardLiveview.RoutesMountTest do
   @endpoint BotArmyDashboardLiveview.Endpoint
 
   @routes ~w(
-    / household-hud yearning-phone body-phone wardrobe-phone devotion-phone
+    / household-hud yearning-phone body-phone devotion-phone
     fitness-handheld gtd-handheld system-health-handheld energy-mood-handheld timer-handheld
     habit-anchors quest-status reflection
     timer-phone habits-phone quest-phone reflect-phone party-phone energy-mood-phone
@@ -49,6 +49,26 @@ defmodule BotArmyDashboardLiveview.RoutesMountTest do
 
     # A trailing slash is the same path, and a bookmark may carry one.
     assert get(build_conn(), "/hypnosis-phone/").status == 302
+  end
+
+  # The wardrobe's screen went to a different origin, which is the case this map cannot
+  # answer with a relative path: `/` here is this dashboard, and no screen on it holds a
+  # closet. The address is built from the host the bookmark arrived on, and it is a
+  # different *port* — so a phone that opened `http://<phone-host>:30011/wardrobe-phone`
+  # has to be sent to `<phone-host>:30014`, never to localhost, which would be the phone.
+  test "a retired screen that went to her own panel is sent there, on the host that asked" do
+    conn = get(build_conn(), "/wardrobe-phone")
+    assert conn.status == 302
+
+    assert Plug.Conn.get_resp_header(conn, "location") == [
+             "http://www.example.com:30014/?tab=closet"
+           ]
+
+    assert get(build_conn(), "/wardrobe-phone/").status == 302
+
+    # And there is no relative form of it to fall back to, which is precisely what the
+    # map is shaped to prevent.
+    assert BotArmyDashboardLiveview.Retired.moved_to("/wardrobe-phone") == :her_closet
   end
 
   # The plug only answers for the paths it knows. Everything else is a 404, which is not a

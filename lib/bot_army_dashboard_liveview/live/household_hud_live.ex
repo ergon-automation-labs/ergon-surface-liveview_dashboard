@@ -46,6 +46,7 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDLive do
 
   use Phoenix.LiveView
   alias BotArmyDashboardLiveview.Broker
+  alias BotArmyDashboardLiveview.HerPanel
   alias BotArmyDashboardLiveview.PhoneNav
   require Logger
 
@@ -55,11 +56,12 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDLive do
   @chorus_subject "wife_care.chorus.categories"
   @request_timeout 3_000
 
-  # Her panel. The household runs two instances of the wife care release — the
-  # authority's and hers — and this handheld is hers, so the exit leads to the
-  # one whose verbs it names. (`docs/wife_care/PANELS.md` in the elixir_bots
-  # monorepo has the three-surface map.)
-  @panel_port 30014
+  # Her panel, and where its address is written down. The household runs two
+  # instances of the wife care release — the authority's and hers — and this handheld
+  # is hers, so every link out of here names the one whose verbs it means. The host and
+  # the port live in `BotArmyDashboardLiveview.HerPanel`, because the house screen is no
+  # longer the only thing here that points at it; `docs/wife_care/PANELS.md` in the
+  # elixir_bots monorepo has the three-surface map. This screen keeps no copy of either.
 
   # The screen answers all of this in one read; the strip only decides what is
   # drawn. Keeping the keys here means a typo cannot quietly add a sixth lens.
@@ -72,7 +74,7 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDLive do
       socket
       |> assign(hud: HUD.build(nil, nil), loading?: true, asked_at: nil)
       |> assign(tab: "now")
-      |> assign(control_panel_url: control_panel_url(socket.host_uri))
+      |> assign(control_panel_url: HerPanel.url(socket.host_uri))
 
     if connected?(socket) do
       {:ok, fetch(socket)}
@@ -153,18 +155,6 @@ defmodule BotArmyDashboardLiveview.HouseholdHUDLive do
     Logger.debug("[HouseholdHUD] #{subject} answered nothing: #{inspect(reason)}")
     nil
   end
-
-  # The link has to name the host this dashboard was reached on. From a phone or
-  # a second machine, "localhost" is the *viewer's* machine, where the control
-  # panel is not running — which is how a working panel came to look like one that
-  # did not exist. `socket.host_uri` is this request's own host.
-  defp control_panel_url(host_uri) do
-    System.get_env("WIFE_CARE_CONTROL_PANEL_URL") ||
-      "http://#{panel_host(host_uri)}:#{@panel_port}"
-  end
-
-  defp panel_host(%URI{host: host}) when is_binary(host) and host != "", do: host
-  defp panel_host(_host_uri), do: "localhost"
 
   defp clock do
     DateTime.utc_now() |> DateTime.to_time() |> Time.to_iso8601() |> String.slice(0, 5)

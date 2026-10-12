@@ -34,7 +34,6 @@ defmodule BotArmyDashboardLiveview.Router do
       live("/party-select-phone", PartySelectPhoneLive)
       live("/yearning-phone", YearningPhoneLive)
       live("/body-phone", BodyPhoneLive)
-      live("/wardrobe-phone", WardrobePhoneLive)
       live("/devotion-phone", DevotionPhoneLive)
       live("/fitness-handheld", FitnessHandheldLive)
       live("/gtd-handheld", GTDHandheldLive)
@@ -55,10 +54,14 @@ defmodule BotArmyDashboardLiveview.Router do
       live("/session-history-phone", SessionHistoryPhoneLive)
     end
 
-    # The shelf's own page is retired: it is drawn inside the window now, and it was
-    # never on the bar. What is left of it is where it went — see
-    # `BotArmyDashboardLiveview.Retired`, which answers a bookmark with the move rather
-    # than a 404. It is not in `live_session` because there is no screen here.
+    # Two paths here used to be screens. The shelf's own page is gone because the shelf is
+    # drawn inside the window now, and it was never on the bar; the wardrobe's is gone
+    # because the closet is hers, on her own panel behind her own link, and a screen on an
+    # open surface that could put a set on her *and claim whose voice it was* was the wrong
+    # half of that. Both are answered by `BotArmyDashboardLiveview.Retired`, which turns a
+    # bookmark into the move rather than a 404. Neither is in `live_session`, because there
+    # is no screen behind either one.
     get("/hypnosis-phone", Retired, [])
+    get("/wardrobe-phone", Retired, [])
   end
 end

@@ -12,7 +12,6 @@ defmodule BotArmyDashboardLiveview.PhoneNavModal do
      "The window she is in with the party, and the shelf inside it"},
     {"/yearning-phone", "💗", "Yearning", "Her own number, never measured"},
     {"/body-phone", "🫀", "Body", "Five channels, her own points"},
-    {"/wardrobe-phone", "👗", "Wardrobe", "What is in it, and what is on her"},
     {"/devotion-phone", "🕯️", "Devotion", "Words back to the goddess"},
     {"/timer-phone", "⏱️", "Timer", "Focus sessions with task linking"},
     {"/habits-phone", "✓", "Habits", "Daily shame-free check-ins"},

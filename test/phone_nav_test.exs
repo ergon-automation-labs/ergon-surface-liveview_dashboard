@@ -60,6 +60,12 @@ defmodule BotArmyDashboardLiveview.PhoneNavTest do
     assert {@yearning_page, "💗", "Yearning"} in handhelds
     assert {@body_page, "🫀", "Body"} in handhelds
     assert {@devotion_page, "🕯️", "Devotion"} in handhelds
+    # The wardrobe is not one of them either, and for a different reason than the shelf:
+    # a wear is a write whose meaning is whose voice it was, and this surface is open. The
+    # closet is hers, on her own panel, and it says the same thing this screen used to say
+    # about which of the two ways a set got on her.
+    refute {"/wardrobe-phone", "👗", "Wardrobe"} in handhelds
+    assert PhoneNav.get_emoji("/wardrobe-phone") == nil
     # The shelf is deliberately not one of them: what she asked to hear is offered while
     # a call is open, and that fact is on the house screen, not on a bar every page draws.
     refute {"/hypnosis-phone", "🌀", "Hypnosis"} in handhelds
@@ -71,7 +77,7 @@ defmodule BotArmyDashboardLiveview.PhoneNavTest do
     assert PhoneNav.get_emoji("/party-phone") == "🎭"
 
     # One option each, not one page with modes.
-    assert length(handhelds) == 15
+    assert length(handhelds) == 14
     routes = Enum.map(handhelds, &elem(&1, 0))
     assert Enum.uniq(routes) == routes
   end

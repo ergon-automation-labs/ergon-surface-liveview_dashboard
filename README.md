@@ -237,6 +237,10 @@ Visit http://localhost:8080/chore, etc.
 
 ## This surface's docs
 
+- [`docs/RETIRED_SCREENS.md`](docs/RETIRED_SCREENS.md) — the paths that used to be a
+  screen and where they went: why a retired path answers with a move rather than a
+  `404`, why one destination may be on a *different origin*, and what left the bar when
+  the shelf's page and the wardrobe's screen were retired.
 - [`docs/REFLECTION_READBACK.md`](docs/REFLECTION_READBACK.md) — the reflection
   and tavern-window read-back lanes: the request subjects, the bell/cadence laws,
   the refusal rules, and the "a `live/2` mounts twice" trap that decides how these

@@ -13,8 +13,15 @@ defmodule BotArmyDashboardLiveview.PhoneNav do
   screen that is for reporting. They sit next to the house, ahead of the timer,
   because the two things only she can report are closer to her than the work.
 
-  The wardrobe follows the body for a plainer reason: what she is wearing is the
-  one thing the house kept changing and the handheld had no way to touch at all.
+  The wardrobe is **not** on this bar, and it is not on it for a harder reason than the
+  shelf's. It sat here, and it did put sets on her from the screen she carries — but this
+  surface is open, and a wear is a write whose whole meaning is *whose voice it was*: the
+  bot records `chosen` from the name the surface claims, and a screen anyone on the
+  network can reach was claiming both of them. The closet is hers, on her own panel,
+  behind her own link, where the name it files under is the session it came from and not
+  a constant in a component. Nothing is lost by the bar dropping it: the panel puts a set
+  on, adds one, edits one and puts one away, and it now says the same thing this screen
+  said about which of the two ways it got there.
 
   The shelf is not on this bar, and that is a decision rather than an omission. It did
   sit here, labelled the way someone would look for it; what she asked to hear is a
@@ -35,7 +42,6 @@ defmodule BotArmyDashboardLiveview.PhoneNav do
     {"/party-phone", "🎭", "Window"},
     {"/yearning-phone", "💗", "Yearning"},
     {"/body-phone", "🫀", "Body"},
-    {"/wardrobe-phone", "👗", "Wardrobe"},
     {"/devotion-phone", "🕯️", "Devotion"},
     {"/timer-phone", "⏱️", "Timer"},
     {"/habits-phone", "✓", "Habits"},
