@@ -20,11 +20,11 @@ defmodule BotArmyDashboardLiveview.Retired do
   her own control panel, behind her own link. So this map has two kinds of destination,
   and the difference is not decoration. `{:same_host, path}` is a place on this dashboard,
   and it is relative on purpose: whichever host the bookmark arrived on is the host the
-  screen behind it is served from. `:her_closet`, `:her_reports` and `:her_tasks` are **different
-  origins**, so they cannot be relative — a relative hop would land on this dashboard's
-  own `/?tab=closet`, which no screen here holds. They are built from the arriving host by
-  `HerPanel`, for the same reason the house screen's exit link is: `localhost` in an
-  address a phone opened is the phone.
+  screen behind it is served from. `:her_closet`, `:her_reports`, `:her_tasks` and
+  `:her_reflect` are **different origins**, so they cannot be relative — a relative hop
+  would land on this dashboard's own `/?tab=closet`, which no screen here holds. They are
+  built from the arriving host by `HerPanel`, for the same reason the house screen's exit
+  link is: `localhost` in an address a phone opened is the phone.
 
   ## The reports went the same way, for the same reason
 
@@ -52,6 +52,24 @@ defmodule BotArmyDashboardLiveview.Retired do
   half of the reports' defect rather than the same one. What remains is the count: two
   screens drawing one list are two answers to *what should I do next*, and the one on the
   open surface is the one nobody is holding.
+
+  ## The reflect screens are the reports' defect exactly, and the worst of them
+
+  Two paths are retired into her panel's **Reflect** group: `/reflection` (the desk screen)
+  and `/reflect-phone`. These are not the smaller half of anything. Both screens wrote
+  `companion.reflections.capture` — her own words, in her own journal — from a surface
+  anyone on the network can reach, and neither one carries an identity at all: the store
+  knows a reflection's text, its prompt and a `dedupe_key`, and it has **no notion of a
+  person** (the only handle on a row is that key). So the page that sent the write was the
+  entire answer to *whose words are these*, and it was the page on the open surface. The
+  five report screens at least had a name on the wire; these had none.
+
+  Her panel holds that write under her session's own identity (`slave`, the hand she uses
+  it with — §47 of the bot's control surface contract), and it draws the same three things
+  the retired pair drew: the prompt she is asked, the journal as the confirmation of a
+  write, and the companion's answer when it lands. Both paths therefore answer with a move
+  into that group. Nothing about the reading is lost: the two screens *read* the same
+  subjects the panel reads, and the panel's own group is one she is holding.
   """
 
   import Plug.Conn
@@ -67,7 +85,9 @@ defmodule BotArmyDashboardLiveview.Retired do
     "/habits-phone" => :her_reports,
     "/habit-anchors" => :her_reports,
     "/gtd-phone" => :her_tasks,
-    "/gtd-handheld" => :her_tasks
+    "/gtd-handheld" => :her_tasks,
+    "/reflection" => :her_reflect,
+    "/reflect-phone" => :her_reflect
   }
 
   def init(opts), do: opts
@@ -96,6 +116,7 @@ defmodule BotArmyDashboardLiveview.Retired do
   defp location(:her_closet, host), do: HerPanel.closet_url_from_host(host)
   defp location(:her_reports, host), do: HerPanel.how_i_am_url_from_host(host)
   defp location(:her_tasks, host), do: HerPanel.tasks_url_from_host(host)
+  defp location(:her_reflect, host), do: HerPanel.reflect_url_from_host(host)
 
   @doc """
   Where a retired path goes, for the tests and for anything that has to name it.

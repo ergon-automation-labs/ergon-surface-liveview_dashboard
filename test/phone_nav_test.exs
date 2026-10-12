@@ -43,6 +43,13 @@ defmodule BotArmyDashboardLiveview.PhoneNavTest do
   # paths answer with a move into her panel's Tasks group.
   @retired_gtd ["/gtd-phone", "/gtd-handheld"]
 
+  # The reflect pair left for the reports' reason without the smaller half: both screens
+  # wrote her own words into her journal and put **no identity in the write at all** — a
+  # reflection is text, a prompt and a `dedupe_key`, and the store has no notion of a
+  # person — so the page that sent it answered *whose words are these* by itself. Both paths
+  # answer with a move into her panel's Reflect group (§47).
+  @retired_reflect ["/reflection", "/reflect-phone"]
+
   setup do
     Application.put_env(@app, :broker_transport, BrokerStub)
     Application.put_env(@app, :broker_stub_listener, self())
@@ -67,8 +74,10 @@ defmodule BotArmyDashboardLiveview.PhoneNavTest do
 
     # The five report screens are gone, and gone from the lookup too, so nothing can
     # render a bar entry for one by naming it. So is GTD — it was an entry until the box
-    # it drew moved to her panel behind her own link.
-    for route <- @retired_reports ++ @retired_gtd do
+    # it drew moved to her panel behind her own link — and so is Reflect, which was an
+    # entry until the journal it wrote moved to the panel, where the hand that wrote it is
+    # known (§45, §47).
+    for route <- @retired_reports ++ @retired_gtd ++ @retired_reflect do
       refute Enum.any?(handhelds, fn {r, _emoji, _label} -> r == route end)
       assert PhoneNav.get_emoji(route) == nil
     end
@@ -82,7 +91,7 @@ defmodule BotArmyDashboardLiveview.PhoneNavTest do
     assert PhoneNav.get_emoji("/hypnosis-phone") == nil
 
     # One option each, not one page with modes.
-    assert length(handhelds) == 8
+    assert length(handhelds) == 7
     routes = Enum.map(handhelds, &elem(&1, 0))
     assert Enum.uniq(routes) == routes
   end
@@ -93,10 +102,12 @@ defmodule BotArmyDashboardLiveview.PhoneNavTest do
     # The shelf's page was reachable from this menu and nowhere else. It is a redirect to
     # the window now, so a menu that still listed it would offer a screen that is not
     # there — and the shelf would have two homes again, which is the thing retiring it
-    # settled. The five report screens and the GTD pair are the same case: their paths
-    # answer with a move into her panel, so listing one here would offer a screen this
-    # surface does not have.
-    for retired <- @retired_reports ++ @retired_gtd ++ ["/hypnosis-phone", "/wardrobe-phone"] do
+    # settled. The five report screens, the GTD pair and the reflect pair are the same
+    # case: their paths answer with a move into her panel, so listing one here would offer a
+    # screen this surface does not have.
+    for retired <-
+          @retired_reports ++
+            @retired_gtd ++ @retired_reflect ++ ["/hypnosis-phone", "/wardrobe-phone"] do
       refute Enum.any?(handhelds, fn {route, _emoji, _label, _hint} -> route == retired end)
     end
 

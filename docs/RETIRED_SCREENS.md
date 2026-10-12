@@ -15,11 +15,12 @@ is answered. Its destinations come in two kinds, and the difference is load-bear
 | `:her_closet` | `/wardrobe-phone` → her panel's closet | A **different origin**. `/` on this dashboard is this dashboard; no screen here holds a closet. The address is built from the arriving host by `HerPanel`, never from `localhost`. |
 | `:her_reports` | `/body-phone` → her panel's **How I am** | The same different origin, for the same reason — and five paths share it, because the distinction worth keeping is *where her own numbers live*. |
 | `:her_tasks` | `/gtd-phone` → her panel's **Tasks** | The same different origin again. Two paths share it, and neither of them was a report: what they drew was the box her tasks live in. |
+| `:her_reflect` | `/reflection` → her panel's **Reflect** | The same different origin, and the two paths share it for the same reason as the tasks pair: two doors onto one box. What is behind them is her journal. |
 
 A path the map does not know is a `404`, and says so. That is not a screen either, but
 it is not a lie about one.
 
-All nine retired paths are `get` routes outside `live_session`, because there is no
+All eleven retired paths are `get` routes outside `live_session`, because there is no
 screen behind any one of them.
 
 ## `/hypnosis-phone` — the shelf's own page
@@ -137,11 +138,49 @@ entries → 8; the long-press menu loses the same line. `test/view_read_path_tes
 the lesson those tests carried — a read that died must say so rather than show an empty
 state — by moving it onto the health screen, which is one of the two that still read.
 
+## The reflect screens — the reports' defect exactly, and the worst of the set
+
+`/reflection` (the desk screen) and `/reflect-phone` are **not** the smaller half of
+anything. The five report screens had a name on the wire — the bot files those writes
+under `:slave` without being told, so at least the name was known — and these two had
+**nothing**. Both wrote `companion.reflections.capture`: her own words, in her own journal,
+from a surface anyone on the network can reach. A reflection's shape is text, a prompt and
+a `dedupe_key`; the store has **no notion of a person**, so the page that sent the write was
+the entire answer to *whose words are these*, and it was the page on the open surface.
+
+Her panel's **Reflect** group (§47 of the bot's control surface contract) is where that
+write belongs now: it holds `companion.reflections.capture` under her own session's
+identity (`slave`, the hand she uses it with), asks the same question, draws the journal as
+the confirmation of a write, and shows the companion's answer when it lands. It reads the
+same two subjects the retired pair read (`companion.reflections.list`, and the row by id),
+and it does not read `companion.reflections.read` — a subject the old screens used and the
+panel has no business asking for.
+
+Both paths land on that one group. As with the GTD pair, the desk screen and the phone
+screen were the same screen twice, so retiring one and not the other would have left a
+second door open to the same box.
+
+**What did not move with it: the bell.** The screen woken by `events.llm.job.completed` was
+one of these two — the bridge broadcasts it to `dashboard:reflections`, and the screen
+re-read the answer on it, with a ten-second poll as the guarantee. Her panel polls at the
+same cadence and does **not** subscribe to the bell, so an answer arrives up to one poll
+late. The bell is an accelerator and the poll is the guarantee (that was the retired
+module's own phrasing), so nothing is lost in correctness — but the acceleration is gone,
+and `nats_bridge.ex` still broadcasts to `dashboard:reflections` for a listener this
+surface no longer has.
+
+Removed with them: `ReflectionLive`, `ReflectPhoneLive`, `ReflectionWindow` (the wire
+module only those two screens read), and their three test files. The bar is 8 entries → 7;
+the long-press menu loses the same line. The lessons those tests carried are pinned in her
+panel now — a refusal is not an empty store, `pending` is a state and not a synonym for *no
+answer*, and a read that never came back says so (`test/wife_care_control_liveview/
+panel_live_test.exs`, "The companion did not answer…").
+
 ## What the bar and the menu carry now
 
-Eight screens: **House**, **Window** (with the shelf inside it), Timer, Quest, Reflect,
-Energy, Fitness, Health. The five report screens are not among them, and neither is the
-wardrobe or GTD. A menu that still listed one would offer a screen that is not there —
+Seven screens: **House**, **Window** (with the shelf inside it), Timer, Quest, Energy,
+Fitness, Health. The five report screens are not among them, and neither is the wardrobe,
+GTD or Reflect. A menu that still listed one would offer a screen that is not there —
 the same fog the retirement was for, drawn a second time. `test/phone_nav_test.exs`
 pins both lists, and `test/routes_mount_test.exs` pins that each retired path answers
 with its move.

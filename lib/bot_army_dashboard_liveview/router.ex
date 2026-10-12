@@ -37,10 +37,8 @@ defmodule BotArmyDashboardLiveview.Router do
       live("/energy-mood-handheld", EnergyMoodHandheldLive)
       live("/timer-handheld", TimerHandheldLive)
       live("/quest-status", QuestStatusLive)
-      live("/reflection", ReflectionLive)
       live("/timer-phone", TimerPhoneLive)
       live("/quest-phone", QuestPhoneLive)
-      live("/reflect-phone", ReflectPhoneLive)
       live("/energy-mood-phone", EnergyMoodPhoneLive)
       live("/fitness-phone", FitnessPhoneLive)
       live("/system-health-phone", SystemHealthPhoneLive)
@@ -63,6 +61,13 @@ defmodule BotArmyDashboardLiveview.Router do
     # screens drawing one list are two answers to *what should I do next*, and the one on
     # the open surface is the one nobody is holding (§45).
     #
+    # `/reflection` and `/reflect-phone` are the report screens' defect exactly, and the
+    # worst of the set: both wrote `companion.reflections.capture` — her own words, in her
+    # own journal — with **no identity in the write at all**. A reflection knows text, a
+    # prompt and a `dedupe_key`; it has no notion of a person, so the page that sent the
+    # write was the whole answer to *whose words are these*. Her panel holds that write
+    # under her own login and draws the same question, box and journal (§47).
+    #
     # All of them are answered by `BotArmyDashboardLiveview.Retired`, which turns a
     # bookmark into the move rather than a 404. None is in `live_session`, because there
     # is no screen behind any one of them.
@@ -75,5 +80,7 @@ defmodule BotArmyDashboardLiveview.Router do
     get("/habit-anchors", Retired, [])
     get("/gtd-phone", Retired, [])
     get("/gtd-handheld", Retired, [])
+    get("/reflection", Retired, [])
+    get("/reflect-phone", Retired, [])
   end
 end

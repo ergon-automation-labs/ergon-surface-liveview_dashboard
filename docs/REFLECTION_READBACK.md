@@ -1,5 +1,27 @@
 # The read-back lanes: reflections and the tavern window
 
+> **Status (2026-10-12): the reflections half of this document is history — the screen it
+> describes is retired.** `/reflect-phone` and `/reflection` are gone: both wrote her own
+> words into her journal and put **no identity in the write at all** — a reflection is text,
+> a prompt and a `dedupe_key`, and the store has no notion of a person, so the page that sent
+> it was the whole answer to *whose words are these*, on a surface anyone on the network can
+> reach. Her panel's **Reflect** group holds that write under her own login and draws the same
+> question, box and journal (§47 of `bot_army_wife_care/docs/CONTROL_SURFACE_CONTRACT.md`), and
+> both paths answer with a `302` into it. `ReflectionWindow` and its three test files went with
+> them, so the file names in the table below no longer exist.
+>
+> **What is not history, and what this document is still for:** the rule it was written to
+> establish — *a write's confirmation is a re-read, never the write's own reply* — is a standing
+> rule that outlived the screen, and it is pinned in her panel now (`Reflect`'s five readings,
+> and `panel_live_test.exs`). The tavern lane below is **live and unchanged**:
+> `/party-phone`, `PartyWindow`, `dashboard:party`, and `test/party_window_test.exs`.
+>
+> Two things did change for reflections and are worth knowing before reading the table:
+> her panel does **not** read `companion.reflections.read` (a subject these screens used), and
+> it does **not** subscribe to `events.llm.job.completed` — it polls at the same ten-second
+> cadence, so an answer arrives up to one poll late. The bell was always the accelerator and
+> the poll the guarantee.
+
 Two phone screens used to write and then claim success without ever reading:
 
 - **`/reflect-phone`** and **`/reflection`** published `events.reflection.captured`

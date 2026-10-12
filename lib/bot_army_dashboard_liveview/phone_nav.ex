@@ -28,6 +28,16 @@ defmodule BotArmyDashboardLiveview.PhoneNav do
   panel reads the same task box and offers the same done and not-now. Its path is retired
   into the Tasks group, and its handheld twin went with it.
 
+  **Reflect used to be here too**, and it is the *worst* of these rather than the smaller
+  half of one: the screen wrote her own words into her journal, and the write carried **no
+  identity at all**. A reflection knows text, a prompt and a `dedupe_key` — the store has no
+  notion of a person — so the page that sent it was the whole answer to *whose words are
+  these*, and this surface is open. Her panel's **Reflect** group holds that write under her
+  own login, with the same question, the same box and the same journal (§47). Both reflect
+  paths are retired into that group. Nothing is lost by dropping it from the bar: the panel
+  reads the same two subjects, and the journal is drawn where the hand that wrote it is
+  known.
+
   The wardrobe is **not** on this bar, and it is not on it for a harder reason than the
   shelf's. It sat here, and it did put sets on her from the screen she carries — but this
   surface is open, and a wear is a write whose whole meaning is *whose voice it was*: the
@@ -57,7 +67,6 @@ defmodule BotArmyDashboardLiveview.PhoneNav do
     {"/party-phone", "🎭", "Window"},
     {"/timer-phone", "⏱️", "Timer"},
     {"/quest-phone", "⚔️", "Quest"},
-    {"/reflect-phone", "📝", "Reflect"},
     {"/energy-mood-phone", "🌡️", "Energy"},
     {"/fitness-phone", "💪", "Fitness"},
     {"/system-health-phone", "⚙️", "Health"}

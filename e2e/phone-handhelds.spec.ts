@@ -102,54 +102,22 @@ test.describe('Nova Phone Handhelds', () => {
     });
   });
 
-  test.describe('Reflection Phone Handheld', () => {
-    test('should load reflection page', async ({ page }) => {
-      await page.goto(`${BASE_URL}/reflect-phone`);
-      await expect(page.locator('.view-title')).toContainText('Reflection');
-    });
+  // Reflect is her panel's now (§47), and it is the report screens' defect exactly: both
+  // screens wrote her own words into her journal from a surface anyone on the network can
+  // reach, and the write carried no identity at all — a reflection is text, a prompt and a
+  // `dedupe_key`, and the store has no notion of a person. What replaced it is drawn on
+  // 30014 behind her own link, so both of its paths answer with the move instead of a
+  // screen. A 404 would turn "your journal moved" into "you typed it wrong", on a phone,
+  // from a home screen icon that was added when the screen was real.
+  test.describe('Reflection Phone Handheld — retired into her panel', () => {
+    for (const path of ['/reflection', '/reflect-phone']) {
+      test(`${path} answers with a move, not a 404`, async ({ page }) => {
+        const response = await page.request.get(`${BASE_URL}${path}`, { maxRedirects: 0 });
 
-    test('should display prompt', async ({ page }) => {
-      await page.goto(`${BASE_URL}/reflect-phone`);
-
-      const prompt = page.locator('.prompt-phone');
-      await expect(prompt).toBeVisible();
-
-      // Prompt should have text
-      const text = await prompt.textContent();
-      expect(text?.length).toBeGreaterThan(0);
-    });
-
-    test('should have textarea input', async ({ page }) => {
-      await page.goto(`${BASE_URL}/reflect-phone`);
-
-      const textarea = page.locator('.reflection-input-phone');
-      await expect(textarea).toBeVisible();
-
-      // Should be focusable
-      await textarea.focus();
-      await textarea.type('Test reflection');
-
-      const value = await textarea.inputValue();
-      expect(value).toBe('Test reflection');
-    });
-
-    test('should display character count', async ({ page }) => {
-      await page.goto(`${BASE_URL}/reflect-phone`);
-
-      const textarea = page.locator('.reflection-input-phone');
-      const charCount = page.locator('.char-count-phone');
-
-      // Initially should be 0
-      await expect(charCount).toContainText('0 characters');
-
-      // Type some text
-      await textarea.type('Hello world');
-
-      // Check count updates (this might require waiting for phx-change event)
-      await page.waitForTimeout(100);
-      const text = await charCount.textContent();
-      expect(text).toContain('characters');
-    });
+        expect(response.status()).toBe(302);
+        expect(response.headers()['location']).toContain(':30014/?tab=reflect');
+      });
+    }
   });
 
   test.describe('Energy-Mood Phone Handheld', () => {
@@ -316,13 +284,13 @@ test.describe('Nova Phone Handhelds', () => {
     test('should support keyboard navigation', async ({ page }) => {
       await page.goto(`${BASE_URL}/timer-phone`);
 
-      // Should be able to focus elements
-      const textarea = page.locator('.reflection-input-phone');
-      if (await textarea.isVisible()) {
-        await textarea.focus();
-        const focused = await textarea.evaluate((el: HTMLElement) => el === document.activeElement);
-        expect(focused).toBeTruthy();
-      }
+      // This used to focus the reflect screen's textarea — a screen that is her panel's
+      // now (§47), so the check had begun passing by finding nothing. Keep the lesson on a
+      // control that is actually here: a bar link has to be reachable and focusable.
+      const navLink = page.locator('.phone-nav-bar a').first();
+      await navLink.focus();
+      const focused = await navLink.evaluate((el: HTMLElement) => el === document.activeElement);
+      expect(focused).toBeTruthy();
     });
   });
 });

@@ -1,6 +1,6 @@
 # Nova Handheld E2E Tests
 
-Playwright-based end-to-end tests for the Nova handheld interfaces (GTD, fitness, system health, energy/mood).
+Playwright-based end-to-end tests for the Nova handheld interfaces (fitness, system health, energy/mood), plus the redirects the retired ones left behind.
 
 ## What's Tested
 
@@ -16,6 +16,14 @@ Playwright-based end-to-end tests for the Nova handheld interfaces (GTD, fitness
   `/gtd-handheld` and `/gtd-phone` both answer with a `302` into it; the two tests that
   pinned that screen's gamepad walkthrough went with it, and the redirect is pinned in
   `phone-handhelds.spec.ts`.
+
+- **Reflect Phone** — *retired.* The screen is her panel's **Reflect** group now (§47), and
+  it is the report screens' defect exactly: the write had **no identity in it at all** — a
+  reflection is text, a prompt and a `dedupe_key`, and the store has no notion of a person —
+  so the page that sent it answered *whose words are these* by itself, on a surface anyone
+  on the network can reach. `/reflection` and `/reflect-phone` both answer with a `302` into
+  that group; the five tests that pinned the screen's prompt, textarea, character count and
+  title went with it, and the redirect is pinned in `phone-handhelds.spec.ts`.
 
 - **System Health Handheld** (`/system-health-handheld`)
   - Bot listing and navigation

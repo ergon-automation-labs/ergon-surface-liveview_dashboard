@@ -15,6 +15,13 @@ defmodule BotArmyDashboardLiveview.PhoneNavModal do
   that box behind her own link (§45). A menu is a promise that the screen is there — so
   this one no longer promises GTD here, and `/gtd-phone` and `/gtd-handheld` both answer
   with where it went.
+
+  Reflect was the seventh, and it is the one that should never have been on an open menu at
+  all: the screen wrote her own words into her journal and put **no identity in the write**
+  — a reflection is text, a prompt and a `dedupe_key`, and the store has no notion of a
+  person — so the page that sent it answered *whose words are these* by itself. Her panel's
+  Reflect group is that box behind her own link (§47), and `/reflection` and `/reflect-phone`
+  both answer with where it went.
   """
 
   use Phoenix.Component
@@ -25,7 +32,6 @@ defmodule BotArmyDashboardLiveview.PhoneNavModal do
      "The window she is in with the party, and the shelf inside it"},
     {"/timer-phone", "⏱️", "Timer", "Focus sessions with task linking"},
     {"/quest-phone", "⚔️", "Quest", "Story progression tracker"},
-    {"/reflect-phone", "📝", "Reflect", "Post-work narrative capture"},
     {"/energy-mood-phone", "🌡️", "Energy", "Energy & mood context"},
     {"/fitness-phone", "💪", "Fitness", "Workout logging"},
     {"/system-health-phone", "⚙️", "Health", "Bot & NATS status"}

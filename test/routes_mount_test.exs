@@ -27,8 +27,8 @@ defmodule BotArmyDashboardLiveview.RoutesMountTest do
   @routes ~w(
     / household-hud
     fitness-handheld system-health-handheld energy-mood-handheld timer-handheld
-    quest-status reflection
-    timer-phone quest-phone reflect-phone party-phone energy-mood-phone
+    quest-status
+    timer-phone quest-phone party-phone energy-mood-phone
     fitness-phone system-health-phone session-history-phone
   )
 
@@ -120,6 +120,31 @@ defmodule BotArmyDashboardLiveview.RoutesMountTest do
 
     assert BotArmyDashboardLiveview.HerPanel.tasks_url_from_host("air") ==
              "http://air:30014/?tab=tasks"
+  end
+
+  # The reflect pair is the report screens' defect exactly, and the worst of the set: both
+  # wrote her own words into her journal from a surface anyone on the network can reach,
+  # and the write carried **no identity at all** — a reflection is text, a prompt and a
+  # `dedupe_key`, and the store has no notion of a person, so the page that sent the write
+  # was the whole answer to *whose words are these*. Her panel holds that write under her own
+  # login and draws the same question, box and journal (§47). Both paths go to that group,
+  # and they go as one destination: the desk screen and the phone screen were two doors onto
+  # one box.
+  test "the retired reflect screens hand their bookmarks to her panel's reflect group" do
+    for path <- ~w(/reflection /reflect-phone) do
+      conn = get(build_conn(), path)
+      assert conn.status == 302, "#{path} did not answer with a move"
+
+      assert Plug.Conn.get_resp_header(conn, "location") == [
+               "http://www.example.com:30014/?tab=reflect"
+             ]
+
+      assert get(build_conn(), path <> "/").status == 302
+      assert BotArmyDashboardLiveview.Retired.moved_to(path) == :her_reflect
+    end
+
+    assert BotArmyDashboardLiveview.HerPanel.reflect_url_from_host("air") ==
+             "http://air:30014/?tab=reflect"
   end
 
   # The plug only answers for the paths it knows. Everything else is a 404, which is not a
