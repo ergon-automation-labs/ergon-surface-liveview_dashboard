@@ -15,7 +15,11 @@ defmodule BotArmyDashboardLiveview.FitnessHandheldLive do
        selected_index: 0,
        loading: true,
        logging: false,
-       message: nil
+       message: nil,
+       # The outcome of a tap lives in its own assign. It used to live in
+       # `message`, and the re-read that follows a successful log overwrote it —
+       # so "✓ Logged: …" appeared and vanished within the same frame.
+       notice: nil
      )
      |> fetch_recent_workouts()}
   end
@@ -52,26 +56,26 @@ defmodule BotArmyDashboardLiveview.FitnessHandheldLive do
   def handle_info({:workout_logged, title}, socket) do
     {:noreply,
      socket
-     |> assign(logging: false, message: "✓ Logged: #{title}")
+     |> assign(logging: false, notice: "✓ Logged: #{title}")
      |> fetch_recent_workouts()}
   end
 
   @impl true
   def handle_info({:workout_log_failed, msg}, socket) do
-    {:noreply, assign(socket, logging: false, message: "✗ #{msg}")}
+    {:noreply, assign(socket, logging: false, notice: "✗ #{msg}")}
   end
 
   @impl true
   def handle_event("gamepad-up", _params, socket) do
     index = max(socket.assigns.selected_index - 1, 0)
-    {:noreply, assign(socket, selected_index: index, message: nil)}
+    {:noreply, assign(socket, selected_index: index, message: nil, notice: nil)}
   end
 
   @impl true
   def handle_event("gamepad-down", _params, socket) do
     count = length(socket.assigns.workouts)
     index = min(socket.assigns.selected_index + 1, count - 1)
-    {:noreply, assign(socket, selected_index: index, message: nil)}
+    {:noreply, assign(socket, selected_index: index, message: nil, notice: nil)}
   end
 
   @impl true
@@ -92,22 +96,46 @@ defmodule BotArmyDashboardLiveview.FitnessHandheldLive do
     parent = self()
 
     Task.start_link(fn ->
-      try do
-        payload = %{
-          exercise_type: workout["exercise_type"] || workout["title"],
-          duration_minutes: workout["duration_minutes"] || 30,
-          intensity: workout["intensity"] || "moderate"
-        }
+      payload = %{
+        "workout_type" => workout["exercise_type"] || workout["title"],
+        "duration_minutes" => workout["duration_minutes"] || 30,
+        "intensity" => workout["intensity"] || "moderate",
+        "title" => workout["title"]
+      }
 
-        case Broker.request("fitness.set.log", Jason.encode!(%{payload: payload}), timeout: 5000) do
-          {:ok, _response} ->
-            send(parent, {:workout_logged, workout["title"]})
+      # This used to ask `fitness.set.log` for a body it cannot read. That
+      # handler wants `exercise_name`/`reps_achieved`/`reps_target` and answers
+      # `{"error": "missing_required_fields"}` for anything else — a reply with no
+      # `"ok"` at all. The screen matched `{:ok, _response}` and said
+      # "✓ Logged: …" over a write that had been refused, every time.
+      #
+      # `fitness.workout.log` is the verb that records a workout, and it answers
+      # with `BotArmyLibraryRuntime.NATS.Reply`, so the confirmation can be the
+      # reply rather than the fact that something came back.
+      case Broker.request("fitness.workout.log", Jason.encode!(payload), timeout: 5_000) do
+        {:ok, %{body: body}} ->
+          case Jason.decode(body) do
+            {:ok, %{"ok" => true}} ->
+              send(parent, {:workout_logged, workout["title"]})
 
-          {:error, _} ->
-            send(parent, {:workout_log_failed, "Failed to log workout"})
-        end
-      rescue
-        _ -> send(parent, {:workout_log_failed, "Error logging workout"})
+            {:ok, %{"ok" => false} = reply} ->
+              send(parent, {:workout_log_failed, reply["error"] || "the bot refused the log"})
+
+            {:ok, %{"error" => reason}} ->
+              send(parent, {:workout_log_failed, reason})
+
+            _ ->
+              send(
+                parent,
+                {:workout_log_failed, "the fitness bot replied in an unexpected shape"}
+              )
+          end
+
+        {:error, :timeout} ->
+          send(parent, {:workout_log_failed, "the fitness bot did not answer in time"})
+
+        {:error, _} ->
+          send(parent, {:workout_log_failed, "the fitness bot is not reachable"})
       end
     end)
 
@@ -131,6 +159,9 @@ defmodule BotArmyDashboardLiveview.FitnessHandheldLive do
               <div class="empty-icon">💪</div>
               <p><%= @message || "No workouts yet" %></p>
               <p class="hint">Log your first workout!</p>
+              <%= if @notice do %>
+                <div class="message"><%= @notice %></div>
+              <% end %>
             </div>
           <% else %>
             <div class="workout-card">
@@ -171,8 +202,8 @@ defmodule BotArmyDashboardLiveview.FitnessHandheldLive do
                 </div>
               </div>
 
-              <%= if @message do %>
-                <div class="message"><%= @message %></div>
+              <%= if @notice do %>
+                <div class="message"><%= @notice %></div>
               <% end %>
 
               <div class="counter">

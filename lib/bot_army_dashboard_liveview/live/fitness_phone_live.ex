@@ -1,6 +1,7 @@
 defmodule BotArmyDashboardLiveview.FitnessPhoneLive do
   use Phoenix.LiveView
   alias Phoenix.PubSub
+  alias BotArmyDashboardLiveview.Broker
   alias BotArmyDashboardLiveview.PhoneNav
   alias BotArmyDashboardLiveview.SyncStatus
 
@@ -164,23 +165,36 @@ defmodule BotArmyDashboardLiveview.FitnessPhoneLive do
     parent = self()
 
     Task.start_link(fn ->
-      try do
-        payload = %{
-          "type" => to_string(socket.assigns.selected_type),
-          "intensity" => to_string(socket.assigns.selected_intensity),
-          "duration_minutes" => socket.assigns.duration_minutes,
-          "timestamp" => DateTime.utc_now() |> DateTime.to_iso8601()
-        }
+      payload = %{
+        "workout_type" => to_string(socket.assigns.selected_type),
+        "intensity" => to_string(socket.assigns.selected_intensity),
+        "duration_minutes" => socket.assigns.duration_minutes
+      }
 
-        case Gnat.pub(:nats_connection, "events.fitness.workout_logged", Jason.encode!(payload)) do
-          :ok ->
-            send(parent, {:workout_logged})
+      # This used to `Gnat.pub` `events.fitness.workout_logged`, which no bot has
+      # ever subscribed to — and a fire-and-forget publish returns `:ok` whether
+      # or not anybody is listening, so the phone said "Workout logged!" while
+      # nothing was written anywhere. `fitness.workout.log` is the verb that
+      # writes, and since 2026-10-11 it answers, so the confirmation is a reply
+      # rather than an assumption.
+      case Broker.request("fitness.workout.log", Jason.encode!(payload), timeout: 5_000) do
+        {:ok, %{body: body}} ->
+          case Jason.decode(body) do
+            {:ok, %{"ok" => true}} ->
+              send(parent, {:workout_logged})
 
-          _ ->
-            send(parent, {:publish_failed})
-        end
-      rescue
-        _ -> send(parent, {:publish_failed})
+            {:ok, %{"ok" => false} = reply} ->
+              send(parent, {:workout_failed, reply["error"] || "the fitness bot refused the log"})
+
+            _ ->
+              send(parent, {:workout_failed, "the fitness bot replied in an unexpected shape"})
+          end
+
+        {:error, :timeout} ->
+          send(parent, {:workout_failed, "the fitness bot did not answer in time"})
+
+        {:error, _} ->
+          send(parent, {:workout_failed, "the fitness bot is not reachable"})
       end
     end)
 
@@ -207,11 +221,14 @@ defmodule BotArmyDashboardLiveview.FitnessPhoneLive do
   end
 
   @impl true
-  def handle_info({:publish_failed}, socket) do
+  def handle_info({:workout_failed, reason}, socket) do
+    # The old failure said "Failed to log workout" and nothing else. The refusal
+    # now carries the bot's own words, which is the difference between "the log
+    # did not happen" and "the log did not happen, because …".
     {:noreply,
      socket
-     |> assign(message: "✗ Failed to log workout")
-     |> schedule_message_clear(2000)}
+     |> assign(message: "✗ #{reason}")
+     |> schedule_message_clear(4000)}
   end
 
   defp schedule_message_clear(socket, delay_ms) do
