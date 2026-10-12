@@ -13,12 +13,13 @@ is answered. Its destinations come in two kinds, and the difference is load-bear
 | --- | --- | --- |
 | `{:same_host, path}` | `/hypnosis-phone` → `/party-phone?moved=shelf` | Relative on purpose: whichever host the bookmark arrived on is the host the screen behind it is served from. |
 | `:her_closet` | `/wardrobe-phone` → her panel's closet | A **different origin**. `/` on this dashboard is this dashboard; no screen here holds a closet. The address is built from the arriving host by `HerPanel`, never from `localhost`. |
+| `:her_reports` | `/body-phone` → her panel's **How I am** | The same different origin, for the same reason — and five paths share it, because the distinction worth keeping is *where her own numbers live*. |
 
 A path the map does not know is a `404`, and says so. That is not a screen either, but
 it is not a lie about one.
 
-Both retired paths are `get` routes outside `live_session`, because there is no screen
-behind either.
+All seven retired paths are `get` routes outside `live_session`, because there is no
+screen behind any one of them.
 
 ## `/hypnosis-phone` — the shelf's own page
 
@@ -66,4 +67,53 @@ re-verify) and `WardrobePhoneLive`, plus their two test files. The bar is 15 ent
 
 The bar still carries the **window** (with the shelf inside it) and the **house**
 (the household HUD). The reporting screens — Yearning, Body, Devotion, and the rest —
-are untouched by this and still live here.
+were still here when the wardrobe went; they are gone now, and the section below is
+where they went.
+
+## The five report screens — Yearning, Body, Devotion, Habits, Anchors
+
+These are the same defect as the wardrobe, **without even a name attached**, which is
+the worse half. Each one *made* one of her reports:
+
+| Path | The write it made |
+| --- | --- |
+| `/yearning-phone` | `record_goddess_proximity` |
+| `/body-phone` | `record_body_reading` — and it also carried the **escape card**: `record_cage_escape`, `undo_cage_escape`, `set_cage_escape_period` |
+| `/devotion-phone` | `subject_reply` |
+| `/habits-phone` | `record_hygiene_event` |
+| `/habit-anchors` | `record_hygiene_event`, against an anchor's items |
+
+The bot files **all** of them under `:slave` without being told — the identity is not on
+the wire at all — so the page that sent the write was the only thing on this surface
+that knew whose hand was on the screen, and this surface is open. A body reading or an
+urge filed by a screen nobody authenticated is not a report; it is a number with no
+owner.
+
+Her own panel makes all five behind her own link (§44 of the bot's control surface
+contract), and the house screen still **reads** what they wrote: both the yearning
+indicator and the five body channels are drawn on the household HUD, with no tap and no
+ladder, saying in its own words that she logs them on her own screen. So nothing is lost
+by the bar dropping them — the read stayed where it was and the write went where the
+identity is.
+
+All five land on one destination, and that is a decision rather than a shortcut: the
+distinction worth keeping is *where her own numbers live*, and one group she can
+recognise is a better answer to a bookmark than five addresses that each have to be
+right. (The panel does not read a `moved=` parameter, so the redirect is unexplained —
+unlike the shelf, which lands on the window that draws it. The group's own heading is
+the explanation.)
+
+Removed with them: `BodyPhoneLive`, `YearningPhoneLive`, `DevotionPhoneLive`,
+`HabitsPhoneLive`, `HabitAnchorsLive`, and the two modules that became dead with them —
+`SelfReport` (its only readers were the body and yearning screens) and `HabitItems`
+(its only readers were the two habits screens). Six test files went with them. The bar
+is 14 entries → 9; the long-press menu is 13 → 9.
+
+## What the bar and the menu carry now
+
+Nine screens: **House**, **Window** (with the shelf inside it), Timer, Quest, Reflect,
+Energy, Fitness, GTD, Health. The five report screens are not among them, and neither
+is the wardrobe. A menu that still listed one would offer a screen that is not there —
+the same fog the retirement was for, drawn a second time. `test/phone_nav_test.exs`
+pins both lists, and `test/routes_mount_test.exs` pins that each retired path answers
+with its move.

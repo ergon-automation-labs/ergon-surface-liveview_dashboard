@@ -48,29 +48,30 @@ test.describe('Nova Phone Handhelds', () => {
     });
   });
 
-  test.describe('Habits Phone Handheld', () => {
-    test('should load habits page', async ({ page }) => {
-      await page.goto(`${BASE_URL}/habits-phone`);
-      await expect(page.locator('.view-title')).toContainText('Daily Check-In');
-    });
+  test.describe('Retired report screens', () => {
+    // These five used to be screens here, and they wrote her own reports from an open
+    // surface: the bot files a body reading, a yearning, a hygiene event and the three
+    // cage writes under `:slave` without being told, so the page that sent the write was
+    // the only thing that knew whose hand was on the screen. They make them on her own
+    // panel behind her own link now (§44), and each path hands the bookmark there.
+    for (const path of [
+      '/yearning-phone',
+      '/body-phone',
+      '/devotion-phone',
+      '/habits-phone',
+      '/habit-anchors',
+    ]) {
+      test(`should send ${path} to her panel`, async ({ page }) => {
+        const response = await page.goto(`${BASE_URL}${path}`);
 
-    test('should navigate with D-pad events', async ({ page }) => {
-      await page.goto(`${BASE_URL}/habits-phone`);
+        // A 302 with a destination, not a 404: the path was a real screen, and a phone
+        // may hold it as a home-screen icon. `/habits-phone` is the one this spec used to
+        // drive, so the assertion is worth keeping for that path in particular.
+        expect([301, 302, 307, 308]).toContain(response?.status());
 
-      // Initial habit name
-      const initialHabit = await page.locator('.habit-name-large').textContent();
-
-      // Simulate gamepad-down event
-      await page.evaluate(() => {
-        const event = new CustomEvent('gamepad-down', { bubbles: true });
-        document.querySelector('.handheld-container')?.dispatchEvent(event);
+        await expect(page).toHaveURL(/\?tab=how_i_am$/);
       });
-
-      // Habit should change (or stay same if only one)
-      const newHabit = await page.locator('.habit-name-large').textContent();
-      // Just verify the element still exists and is visible
-      await expect(page.locator('.habit-name-large')).toBeVisible();
-    });
+    }
   });
 
   test.describe('Quest Phone Handheld', () => {
@@ -256,12 +257,20 @@ test.describe('Nova Phone Handhelds', () => {
     test('should navigate between pages via nav bar', async ({ page }) => {
       await page.goto(`${BASE_URL}/timer-phone`);
 
-      // Click on habits nav item
-      const habitsLink = page.locator('.nav-item:has-text("Habits")');
-      if (await habitsLink.isVisible()) {
-        await habitsLink.click();
-        await page.waitForURL('**/habits-phone');
-        await expect(page).toHaveURL(/habits-phone/);
+      // The bar carries the screens that are here. Habits used to be one and is not any
+      // more — the bar no longer offers it, so this walks the house instead.
+      const houseLink = page.locator('.nav-item:has-text("House")');
+      await expect(houseLink).toBeVisible();
+      await houseLink.click();
+      await page.waitForURL('**/household-hud');
+      await expect(page).toHaveURL(/household-hud/);
+    });
+
+    test('should not offer a retired report screen in the bar', async ({ page }) => {
+      await page.goto(`${BASE_URL}/timer-phone`);
+
+      for (const label of ['Yearning', 'Body', 'Devotion', 'Habits', 'Anchors']) {
+        await expect(page.locator(`.nav-item:has-text("${label}")`)).toHaveCount(0);
       }
     });
 

@@ -1,23 +1,20 @@
 defmodule BotArmyDashboardLiveview.PhoneNavTest do
   @moduledoc """
-  The two reporting screens are navigation entries, not corners of another page.
+  The bar is the list of screens that still exist, and this module is where that is pinned.
 
-  Yearning and a body reading used to be two cards under the timer, which made
-  the place a report is made the place a timer is run — so a tap on a point was
-  one touch away from starting a countdown, and the only way to the ladders was a
-  screen that had nothing to do with them. They are peer options in the nav bar
-  now, the way fitness and gtd are, and this module pins that:
+  Yearning, Body, Devotion, Habits and Anchors were navigation entries, and they were the
+  right thing to be one: they were hers to say rather than corners of the house's read, so
+  each was its own page instead of a card under the timer, where a tap on a point was one
+  touch away from starting a countdown. What was wrong with them was not the shape of the
+  entry — it was the write behind it. The bot files a body reading, a yearning, a hygiene
+  event and the three cage writes under `:slave` **without being told**, so the identity is
+  not on the wire at all and the page that sent it was the only thing on this open surface
+  that knew whose hand was on the screen. Her panel makes all five reports behind her own
+  link now (§44), and each path is retired into her **How I am** group.
 
-    * both routes are in the bar, and each screen offers itself as its own entry;
-    * the shelf is not in the bar: it is offered from the call card on the house
-      screen while a call is open, because a phrase in the air is a moment and a
-      bar is on every page at once — and the card opens the window the shelf is
-      drawn inside, which is the one screen here she is *in* rather than reading
-      about herself from;
-    * each screen carries **only its own** card and **only its own** write;
-    * neither screen carries a `TouchCarousel` hook, so a tap on a point means
-      one thing and cannot reach a second handler;
-    * the timer screen no longer carries either ladder.
+  So this module pins the lists: what the bar carries, what the long-press menu carries, and
+  what neither offers any more. A menu that still listed a retired screen would offer a
+  screen that is not there — the same fog the retirement was for, drawn a second time.
   """
   use ExUnit.Case, async: false
 
@@ -31,18 +28,18 @@ defmodule BotArmyDashboardLiveview.PhoneNavTest do
   @endpoint BotArmyDashboardLiveview.Endpoint
   @app :bot_army_dashboard_liveview
 
-  @yearning_page "/yearning-phone"
-  @body_page "/body-phone"
-  @devotion_page "/devotion-phone"
-
-  defp reporting_pages, do: [@yearning_page, @body_page, @devotion_page]
+  # The five paths that used to be screens here, and are her panel's now.
+  @retired_reports [
+    "/yearning-phone",
+    "/body-phone",
+    "/devotion-phone",
+    "/habits-phone",
+    "/habit-anchors"
+  ]
 
   setup do
     Application.put_env(@app, :broker_transport, BrokerStub)
     Application.put_env(@app, :broker_stub_listener, self())
-    # An empty panel state still builds both cards: the house scale and the
-    # fallback channel list are this surface's, and every channel reads "not
-    # reported". A bot that answers with its own list replaces both.
     Application.put_env(@app, :broker_stub_reply, Jason.encode!(%{"ok" => true, "data" => %{}}))
 
     on_exit(fn ->
@@ -54,30 +51,31 @@ defmodule BotArmyDashboardLiveview.PhoneNavTest do
     :ok
   end
 
-  test "the nav bar carries the reporting screens, as peers of the others" do
+  test "the bar carries the screens that are here, and no report screen" do
     handhelds = PhoneNav.all_handhelds()
 
-    assert {@yearning_page, "💗", "Yearning"} in handhelds
-    assert {@body_page, "🫀", "Body"} in handhelds
-    assert {@devotion_page, "🕯️", "Devotion"} in handhelds
-    # The wardrobe is not one of them either, and for a different reason than the shelf:
-    # a wear is a write whose meaning is whose voice it was, and this surface is open. The
-    # closet is hers, on her own panel, and it says the same thing this screen used to say
-    # about which of the two ways a set got on her.
+    # The house is first on purpose — it is the screen she lives on — and the window is
+    # the one screen here she is *in* rather than reading about herself from.
+    assert {"/household-hud", "🏠", "House"} in handhelds
+    assert {"/party-phone", "🎭", "Window"} in handhelds
+
+    # The five report screens are gone, and gone from the lookup too, so nothing can
+    # render a bar entry for one by naming it.
+    for route <- @retired_reports do
+      refute Enum.any?(handhelds, fn {r, _emoji, _label} -> r == route end)
+      assert PhoneNav.get_emoji(route) == nil
+    end
+
+    # The wardrobe and the shelf were never entries for reasons of their own: a wear is a
+    # write whose meaning is whose voice it was, and a phrase in the air is a moment rather
+    # than a place a bar on every page should offer.
     refute {"/wardrobe-phone", "👗", "Wardrobe"} in handhelds
     assert PhoneNav.get_emoji("/wardrobe-phone") == nil
-    # The shelf is deliberately not one of them: what she asked to hear is offered while
-    # a call is open, and that fact is on the house screen, not on a bar every page draws.
     refute {"/hypnosis-phone", "🌀", "Hypnosis"} in handhelds
     assert PhoneNav.get_emoji("/hypnosis-phone") == nil
 
-    # The window is the one screen here she is in rather than reading about herself
-    # from, and the shelf is drawn inside it.
-    assert {"/party-phone", "🎭", "Window"} in handhelds
-    assert PhoneNav.get_emoji("/party-phone") == "🎭"
-
     # One option each, not one page with modes.
-    assert length(handhelds) == 14
+    assert length(handhelds) == 9
     routes = Enum.map(handhelds, &elem(&1, 0))
     assert Enum.uniq(routes) == routes
   end
@@ -88,10 +86,11 @@ defmodule BotArmyDashboardLiveview.PhoneNavTest do
     # The shelf's page was reachable from this menu and nowhere else. It is a redirect to
     # the window now, so a menu that still listed it would offer a screen that is not
     # there — and the shelf would have two homes again, which is the thing retiring it
-    # settled.
-    refute Enum.any?(handhelds, fn {route, _emoji, _label, _hint} ->
-             route == "/hypnosis-phone"
-           end)
+    # settled. The five report screens are the same case: their paths answer with a move
+    # into her panel, so listing one here would offer a screen this surface does not have.
+    for retired <- @retired_reports ++ ["/hypnosis-phone", "/wardrobe-phone"] do
+      refute Enum.any?(handhelds, fn {route, _emoji, _label, _hint} -> route == retired end)
+    end
 
     # And the menu is where the shelf is announced instead: it is drawn inside the window,
     # so the window's own line has to say so or the shelf is nowhere she would look.
@@ -106,46 +105,17 @@ defmodule BotArmyDashboardLiveview.PhoneNavTest do
     assert Enum.uniq(routes) == routes
   end
 
-  test "each reporting screen is its own page, and says so in the bar" do
-    for route <- reporting_pages() do
-      html = render(page(route, "nav-item"))
-
-      assert html =~ ~s(href="#{route}")
-      assert html =~ ~s(class="nav-item active")
-    end
-  end
-
-  test "each screen draws its own card, and not the other one" do
-    yearning = render(page(@yearning_page, "Yearning — the goddess-focus indicator"))
-    assert yearning =~ "never measured"
-    refute yearning =~ "The body — 5 channels"
-
-    body = render(page(@body_page, "The body — 5 channels"))
-    refute body =~ "the goddess-focus indicator"
-  end
-
-  test "each screen carries only its own write" do
-    yearning = render(page(@yearning_page, ~s(phx-click="record_yearning")))
-    refute yearning =~ "record_body_reading"
-
-    body = render(page(@body_page, ~s(phx-click="record_body_reading")))
-    refute body =~ "record_yearning"
-  end
-
-  # The placement rule, behaviourally: the hook is what pushes a bare `tap`, and
-  # on a screen that had it a tap on a point would drive whatever listens for
-  # that. It is not on these screens at all.
-  test "a reporting screen has no touch carousel, so a tap means one thing" do
-    for route <- reporting_pages() do
-      refute render(page(route, "nav-item")) =~ ~s(phx-hook="TouchCarousel")
-    end
-  end
-
-  test "the timer screen no longer carries either ladder" do
+  # The placement rule that outlived the screens: the timer is where a countdown runs, and
+  # a tap on a point must not be able to reach it. The ladders used to sit under the timer
+  # and then on pages of their own; they are on her panel now, and this is the half of the
+  # old rule that still has a subject.
+  test "the timer screen carries no ladder and no report write" do
     html = render(page("/timer-phone", "nav-item"))
 
     refute html =~ "record_yearning"
     refute html =~ "record_body_reading"
+    refute html =~ "record_goddess_proximity"
+    refute html =~ "record_hygiene_event"
     refute html =~ "tap a point to log it"
   end
 

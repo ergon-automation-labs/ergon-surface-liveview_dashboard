@@ -32,19 +32,14 @@ defmodule BotArmyDashboardLiveview.Router do
       # no party there is no window, so this is the screen that makes one — and the link
       # between them goes both ways.
       live("/party-select-phone", PartySelectPhoneLive)
-      live("/yearning-phone", YearningPhoneLive)
-      live("/body-phone", BodyPhoneLive)
-      live("/devotion-phone", DevotionPhoneLive)
       live("/fitness-handheld", FitnessHandheldLive)
       live("/gtd-handheld", GTDHandheldLive)
       live("/system-health-handheld", SystemHealthHandheldLive)
       live("/energy-mood-handheld", EnergyMoodHandheldLive)
       live("/timer-handheld", TimerHandheldLive)
-      live("/habit-anchors", HabitAnchorsLive)
       live("/quest-status", QuestStatusLive)
       live("/reflection", ReflectionLive)
       live("/timer-phone", TimerPhoneLive)
-      live("/habits-phone", HabitsPhoneLive)
       live("/quest-phone", QuestPhoneLive)
       live("/reflect-phone", ReflectPhoneLive)
       live("/energy-mood-phone", EnergyMoodPhoneLive)
@@ -54,14 +49,25 @@ defmodule BotArmyDashboardLiveview.Router do
       live("/session-history-phone", SessionHistoryPhoneLive)
     end
 
-    # Two paths here used to be screens. The shelf's own page is gone because the shelf is
+    # Seven paths here used to be screens. The shelf's own page is gone because the shelf is
     # drawn inside the window now, and it was never on the bar; the wardrobe's is gone
     # because the closet is hers, on her own panel behind her own link, and a screen on an
     # open surface that could put a set on her *and claim whose voice it was* was the wrong
-    # half of that. Both are answered by `BotArmyDashboardLiveview.Retired`, which turns a
-    # bookmark into the move rather than a 404. Neither is in `live_session`, because there
-    # is no screen behind either one.
+    # half of that. The five report screens are gone for the same defect without even a
+    # name: `record_body_reading`, `record_goddess_proximity`, `record_hygiene_event` and
+    # the three cage writes are all filed by the bot under `:slave`, so the page that sent
+    # the write was the only thing that knew whose hand was on the screen — and this
+    # surface is open. Her panel makes all five reports behind her own link now.
+    #
+    # All of them are answered by `BotArmyDashboardLiveview.Retired`, which turns a
+    # bookmark into the move rather than a 404. None is in `live_session`, because there
+    # is no screen behind any one of them.
     get("/hypnosis-phone", Retired, [])
     get("/wardrobe-phone", Retired, [])
+    get("/yearning-phone", Retired, [])
+    get("/body-phone", Retired, [])
+    get("/devotion-phone", Retired, [])
+    get("/habits-phone", Retired, [])
+    get("/habit-anchors", Retired, [])
   end
 end

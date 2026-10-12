@@ -25,10 +25,10 @@ defmodule BotArmyDashboardLiveview.RoutesMountTest do
   @endpoint BotArmyDashboardLiveview.Endpoint
 
   @routes ~w(
-    / household-hud yearning-phone body-phone devotion-phone
+    / household-hud
     fitness-handheld gtd-handheld system-health-handheld energy-mood-handheld timer-handheld
-    habit-anchors quest-status reflection
-    timer-phone habits-phone quest-phone reflect-phone party-phone energy-mood-phone
+    quest-status reflection
+    timer-phone quest-phone reflect-phone party-phone energy-mood-phone
     fitness-phone system-health-phone gtd-phone session-history-phone
   )
 
@@ -69,6 +69,35 @@ defmodule BotArmyDashboardLiveview.RoutesMountTest do
     # And there is no relative form of it to fall back to, which is precisely what the
     # map is shaped to prevent.
     assert BotArmyDashboardLiveview.Retired.moved_to("/wardrobe-phone") == :her_closet
+  end
+
+  # The five report screens are the same case as the closet, and the reason is worth
+  # restating where the behaviour is pinned: the bot files each of these writes under
+  # `:slave` without being told, so the page that sent the write was the only thing that
+  # knew whose hand was on the screen — and this surface is open. They all land on the one
+  # group that holds her reports, because the distinction worth keeping is *where her own
+  # numbers live*, and one group she can recognise is a better answer to a bookmark than
+  # five addresses that each have to be right.
+  test "the five retired report screens all hand their bookmark to her panel" do
+    for path <- ~w(/yearning-phone /body-phone /devotion-phone /habits-phone /habit-anchors) do
+      conn = get(build_conn(), path)
+      assert conn.status == 302, "#{path} did not answer with a move"
+
+      assert Plug.Conn.get_resp_header(conn, "location") == [
+               "http://www.example.com:30014/?tab=how_i_am"
+             ]
+
+      # A trailing slash is the same path, as it is for every other retired path.
+      assert get(build_conn(), path <> "/").status == 302
+
+      # And it is the *kind*, not a URL: an address computed with no request behind it
+      # would be an address for the wrong machine.
+      assert BotArmyDashboardLiveview.Retired.moved_to(path) == :her_reports
+    end
+
+    # One destination for all five, which is the decision this test is really about.
+    assert BotArmyDashboardLiveview.HerPanel.how_i_am_url_from_host("air") ==
+             "http://air:30014/?tab=how_i_am"
   end
 
   # The plug only answers for the paths it knows. Everything else is a 404, which is not a

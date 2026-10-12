@@ -20,10 +20,24 @@ defmodule BotArmyDashboardLiveview.Retired do
   her own control panel, behind her own link. So this map has two kinds of destination,
   and the difference is not decoration. `{:same_host, path}` is a place on this dashboard,
   and it is relative on purpose: whichever host the bookmark arrived on is the host the
-  screen behind it is served from. `:her_closet` is a **different origin**, so it cannot
-  be relative — a relative hop would land on this dashboard's own `/?tab=closet`, which no
-  screen here holds. It is built from the arriving host by `HerPanel`, for the same reason
-  the house screen's exit link is: `localhost` in an address a phone opened is the phone.
+  screen behind it is served from. `:her_closet` and `:her_reports` are **different
+  origins**, so they cannot be relative — a relative hop would land on this dashboard's
+  own `/?tab=closet`, which no screen here holds. They are built from the arriving host by
+  `HerPanel`, for the same reason the house screen's exit link is: `localhost` in an
+  address a phone opened is the phone.
+
+  ## The reports went the same way, for the same reason
+
+  Five paths are retired into her panel's **How I am** group: `/yearning-phone`,
+  `/body-phone` (which also carried the escape card), `/devotion-phone`, `/habits-phone`
+  and `/habit-anchors`. Every one of them *made* one of her reports, and the bot files all
+  of them under `:slave` without being told — so the page that sent the write was the only
+  thing here that knew whose hand was on the screen, and this surface is open. The closet
+  was the same defect with a name attached; these had none, which is the worse half.
+
+  They all land on the same group, and that is deliberate rather than a shortcut: the
+  distinction worth keeping is *where her own numbers live*, and one group she can
+  recognise is a better answer to a bookmark than five addresses that have to be right.
 
   A path this module does not know is a 404 and says so. That is not a screen either,
   but it is not a lie about one.
@@ -35,7 +49,12 @@ defmodule BotArmyDashboardLiveview.Retired do
 
   @moved %{
     "/hypnosis-phone" => {:same_host, "/party-phone?moved=shelf"},
-    "/wardrobe-phone" => :her_closet
+    "/wardrobe-phone" => :her_closet,
+    "/yearning-phone" => :her_reports,
+    "/body-phone" => :her_reports,
+    "/devotion-phone" => :her_reports,
+    "/habits-phone" => :her_reports,
+    "/habit-anchors" => :her_reports
   }
 
   def init(opts), do: opts
@@ -62,12 +81,13 @@ defmodule BotArmyDashboardLiveview.Retired do
 
   defp location({:same_host, path}, _host), do: path
   defp location(:her_closet, host), do: HerPanel.closet_url_from_host(host)
+  defp location(:her_reports, host), do: HerPanel.how_i_am_url_from_host(host)
 
   @doc """
   Where a retired path goes, for the tests and for anything that has to name it.
 
-  A same-host destination is returned as the relative path it is. The closet's is returned
-  as the *kind*, not as a URL: it depends on the host the bookmark arrived on, so an answer
+  A same-host destination is returned as the relative path it is. Hers are returned as
+  the *kind*, not as a URL: they depend on the host the bookmark arrived on, so an answer
   computed with no request behind it would be an address for the wrong machine — the one
   thing this module exists to avoid. Callers that want the address have to supply a host.
   """

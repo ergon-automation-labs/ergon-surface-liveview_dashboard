@@ -2,6 +2,13 @@ defmodule BotArmyDashboardLiveview.PhoneNavModal do
   @moduledoc """
   Context menu modal for long-press page switching.
   Triggered by long-press on any phone handheld.
+
+  The list is the bar's list, with a line about each screen. It carried five other
+  entries until they were retired — Yearning, Body, Devotion, Habits, Anchors — and
+  none of them is offered here: a menu that still listed one would be offering a
+  screen that is not there, which is the same fog the retirement was for. What they
+  made is on her own panel now, in the **How I am** group, and the house screen still
+  reads both numbers.
   """
 
   use Phoenix.Component
@@ -10,11 +17,7 @@ defmodule BotArmyDashboardLiveview.PhoneNavModal do
     {"/household-hud", "🏠", "House", "What is waiting, and what she asked for"},
     {"/party-phone", "🎭", "Window",
      "The window she is in with the party, and the shelf inside it"},
-    {"/yearning-phone", "💗", "Yearning", "Her own number, never measured"},
-    {"/body-phone", "🫀", "Body", "Five channels, her own points"},
-    {"/devotion-phone", "🕯️", "Devotion", "Words back to the goddess"},
     {"/timer-phone", "⏱️", "Timer", "Focus sessions with task linking"},
-    {"/habits-phone", "✓", "Habits", "Daily shame-free check-ins"},
     {"/quest-phone", "⚔️", "Quest", "Story progression tracker"},
     {"/reflect-phone", "📝", "Reflect", "Post-work narrative capture"},
     {"/energy-mood-phone", "🌡️", "Energy", "Energy & mood context"},

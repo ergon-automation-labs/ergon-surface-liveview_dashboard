@@ -1,9 +1,13 @@
 defmodule BotArmyDashboardLiveview.HouseholdHUDReadOnlyTest do
-  # The household HUD reads; her own numbers are reported on `/timer-phone`. That
-  # split is a design decision (a reading screen and a reporting screen are not
-  # the same screen), and a decision nobody can break by accident is a pin.
+  # The household HUD reads; her own numbers are reported on her own panel
+  # (`wife_care_control_liveview`, the **How I am** group). That split is a design
+  # decision (a reading screen and a reporting screen are not the same screen), and a
+  # decision nobody can break by accident is a pin. It was `/timer-phone` once and
+  # then `/body-phone`; both were the wrong answer for the same reason — the bot files
+  # these writes under `:slave` without being told, so the surface that sent one was
+  # the only thing that knew whose hand was on the screen.
   #
-  # The stub harness is the same one the two moved report tests use: one reply
+  # The stub harness is the same one the moved report tests use: one reply
   # answers every subject, so this module is not async.
   use ExUnit.Case, async: false
 

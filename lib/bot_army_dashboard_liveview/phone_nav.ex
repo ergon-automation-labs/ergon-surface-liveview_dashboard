@@ -8,10 +8,17 @@ defmodule BotArmyDashboardLiveview.PhoneNav do
   — and until this bar carried it the page had no way in except a URL someone had
   to remember. A screen nobody can navigate to is not a screen.
 
-  Yearning and body follow it because they are hers to say, and they are their
-  own screens rather than corners of the house's read: a report belongs on the
-  screen that is for reporting. They sit next to the house, ahead of the timer,
-  because the two things only she can report are closer to her than the work.
+  ## What is not on this bar, and the two reasons
+
+  **Yearning and Body used to be here** (with Devotion, Habits and Anchors). They were
+  her own screens, and this bar was their way in. They are gone because the write on each
+  one was the wrong half: the bot files `record_body_reading`, `record_goddess_proximity`,
+  `record_hygiene_event` and the three cage writes under `:slave` **without being told**,
+  so the identity is not on the wire at all and the page that sent it was the only thing
+  here that knew whose hand was on the screen — on a surface anyone on the network can
+  reach. Her panel makes all five reports behind her own link now, and the cards here
+  still *read* what they wrote (the house screen draws both numbers), so nothing is lost
+  by the bar dropping them. Their paths are retired into her **How I am** group.
 
   The wardrobe is **not** on this bar, and it is not on it for a harder reason than the
   shelf's. It sat here, and it did put sets on her from the screen she carries — but this
@@ -40,12 +47,7 @@ defmodule BotArmyDashboardLiveview.PhoneNav do
   @handhelds [
     {"/household-hud", "🏠", "House"},
     {"/party-phone", "🎭", "Window"},
-    {"/yearning-phone", "💗", "Yearning"},
-    {"/body-phone", "🫀", "Body"},
-    {"/devotion-phone", "🕯️", "Devotion"},
     {"/timer-phone", "⏱️", "Timer"},
-    {"/habits-phone", "✓", "Habits"},
-    {"/habit-anchors", "🪥", "Anchors"},
     {"/quest-phone", "⚔️", "Quest"},
     {"/reflect-phone", "📝", "Reflect"},
     {"/energy-mood-phone", "🌡️", "Energy"},
