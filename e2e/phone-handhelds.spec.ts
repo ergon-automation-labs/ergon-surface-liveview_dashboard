@@ -191,33 +191,19 @@ test.describe('Nova Phone Handhelds', () => {
     });
   });
 
-  test.describe('GTD Phone Handheld', () => {
-    test('should load GTD page', async ({ page }) => {
-      await page.goto(`${BASE_URL}/gtd-phone`);
-      await expect(page.locator('.view-title')).toContainText('GTD');
-    });
+  // The GTD screen is her panel's now (§45). The box it drew — a list, a defer and a done
+  // over `bridge.task.*` — is drawn on 30014 behind her own link, so both of its paths
+  // answer with the move instead of a screen. A 404 would turn "the tasks moved" into "you
+  // typed it wrong", on a phone, from a home screen icon that was added when it was real.
+  test.describe('GTD Phone Handheld — retired into her panel', () => {
+    for (const path of ['/gtd-phone', '/gtd-handheld']) {
+      test(`${path} answers with a move, not a 404`, async ({ page }) => {
+        const response = await page.request.get(`${BASE_URL}${path}`, { maxRedirects: 0 });
 
-    test('should show projects on start', async ({ page }) => {
-      await page.goto(`${BASE_URL}/gtd-phone`);
-
-      const section = page.locator('.gtd-section-phone');
-      if (await section.isVisible()) {
-        const title = page.locator('.section-title');
-        await expect(title).toContainText('Projects');
-      }
-    });
-
-    test('should support swipe-to-complete on tasks', async ({ page }) => {
-      await page.goto(`${BASE_URL}/gtd-phone`);
-
-      // Check for swipeable task display
-      const taskDisplay = page.locator('.task-display[data-swipeable="true"]');
-
-      if (await taskDisplay.isVisible()) {
-        await expect(taskDisplay).toHaveAttribute('data-swipe-action', 'complete');
-        await expect(page.locator('.swipe-hint')).toContainText('Swipe to complete');
-      }
-    });
+        expect(response.status()).toBe(302);
+        expect(response.headers()['location']).toContain(':30014/?tab=tasks');
+      });
+    }
   });
 
   test.describe('System Health Phone Handheld', () => {

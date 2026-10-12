@@ -20,7 +20,7 @@ defmodule BotArmyDashboardLiveview.Retired do
   her own control panel, behind her own link. So this map has two kinds of destination,
   and the difference is not decoration. `{:same_host, path}` is a place on this dashboard,
   and it is relative on purpose: whichever host the bookmark arrived on is the host the
-  screen behind it is served from. `:her_closet` and `:her_reports` are **different
+  screen behind it is served from. `:her_closet`, `:her_reports` and `:her_tasks` are **different
   origins**, so they cannot be relative — a relative hop would land on this dashboard's
   own `/?tab=closet`, which no screen here holds. They are built from the arriving host by
   `HerPanel`, for the same reason the house screen's exit link is: `localhost` in an
@@ -41,6 +41,17 @@ defmodule BotArmyDashboardLiveview.Retired do
 
   A path this module does not know is a 404 and says so. That is not a screen either,
   but it is not a lie about one.
+
+  ## The GTD screen is the same move, and the smaller half of the same defect
+
+  Two paths are retired into her panel's **Tasks** group: `/gtd-phone` and
+  `/gtd-handheld`. What they drew was not one of her reports but the box her tasks live
+  in — a list, a defer and a done over `bridge.task.*` — and her panel's Tasks group draws
+  that box with those verbs, which is what makes this a move rather than a second copy.
+  Their writes did carry an identity (`slave`, through the bridge), so this is the smaller
+  half of the reports' defect rather than the same one. What remains is the count: two
+  screens drawing one list are two answers to *what should I do next*, and the one on the
+  open surface is the one nobody is holding.
   """
 
   import Plug.Conn
@@ -54,7 +65,9 @@ defmodule BotArmyDashboardLiveview.Retired do
     "/body-phone" => :her_reports,
     "/devotion-phone" => :her_reports,
     "/habits-phone" => :her_reports,
-    "/habit-anchors" => :her_reports
+    "/habit-anchors" => :her_reports,
+    "/gtd-phone" => :her_tasks,
+    "/gtd-handheld" => :her_tasks
   }
 
   def init(opts), do: opts
@@ -82,6 +95,7 @@ defmodule BotArmyDashboardLiveview.Retired do
   defp location({:same_host, path}, _host), do: path
   defp location(:her_closet, host), do: HerPanel.closet_url_from_host(host)
   defp location(:her_reports, host), do: HerPanel.how_i_am_url_from_host(host)
+  defp location(:her_tasks, host), do: HerPanel.tasks_url_from_host(host)
 
   @doc """
   Where a retired path goes, for the tests and for anything that has to name it.

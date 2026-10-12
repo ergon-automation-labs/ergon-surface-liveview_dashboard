@@ -14,11 +14,12 @@ is answered. Its destinations come in two kinds, and the difference is load-bear
 | `{:same_host, path}` | `/hypnosis-phone` → `/party-phone?moved=shelf` | Relative on purpose: whichever host the bookmark arrived on is the host the screen behind it is served from. |
 | `:her_closet` | `/wardrobe-phone` → her panel's closet | A **different origin**. `/` on this dashboard is this dashboard; no screen here holds a closet. The address is built from the arriving host by `HerPanel`, never from `localhost`. |
 | `:her_reports` | `/body-phone` → her panel's **How I am** | The same different origin, for the same reason — and five paths share it, because the distinction worth keeping is *where her own numbers live*. |
+| `:her_tasks` | `/gtd-phone` → her panel's **Tasks** | The same different origin again. Two paths share it, and neither of them was a report: what they drew was the box her tasks live in. |
 
 A path the map does not know is a `404`, and says so. That is not a screen either, but
 it is not a lie about one.
 
-All seven retired paths are `get` routes outside `live_session`, because there is no
+All nine retired paths are `get` routes outside `live_session`, because there is no
 screen behind any one of them.
 
 ## `/hypnosis-phone` — the shelf's own page
@@ -110,11 +111,37 @@ readers were the two habits screens) and `Devotion` (the devotion screen's own h
 openers, the draft, and the `subject_reply` write). Six test files went with them. The bar
 is 14 entries → 9; the long-press menu is 13 → 9.
 
+## The GTD screen and its handheld — the smaller half of the same defect
+
+The report screens above are the worse half of one defect: a write with **no identity on
+the wire at all**. These two are the smaller half, and the difference is worth stating
+precisely, because it is the difference between *the wrong voice was used* and *there are
+two answers*. What they wrote went through the bridge as `slave`, so nothing was filed
+under the wrong hand. What they drew was a list, a defer and a done over `bridge.task.*`
+— the box her tasks live in — on a surface anyone on the network can reach.
+
+That is still a defect, and the reason is one sentence long: **a task list is an answer
+to *what should I do next*.** Two screens drawing one list are two answers to it, and the
+one on the open surface is the one nobody is holding. Her own panel's **Tasks** group
+draws the same box with the same verbs (§45 of the bot's control surface contract), which
+is what makes this a move rather than a deletion with extra steps — the done and the
+not-now are both there, reading the same tasks.
+
+Both paths land on that one group. The handheld went with the phone not because anyone
+linked to it, but because it drew **the same** screen: retiring one and not the other
+would have left a second answer reachable by URL. (The handheld's twin for the reports was
+retired on the same rule.)
+
+Removed with them: `GtdPhoneLive`, `GTDHandheldLive`, and their test files. The bar is 9
+entries → 8; the long-press menu loses the same line. `test/view_read_path_test.exs` kept
+the lesson those tests carried — a read that died must say so rather than show an empty
+state — by moving it onto the health screen, which is one of the two that still read.
+
 ## What the bar and the menu carry now
 
-Nine screens: **House**, **Window** (with the shelf inside it), Timer, Quest, Reflect,
-Energy, Fitness, GTD, Health. The five report screens are not among them, and neither
-is the wardrobe. A menu that still listed one would offer a screen that is not there —
+Eight screens: **House**, **Window** (with the shelf inside it), Timer, Quest, Reflect,
+Energy, Fitness, Health. The five report screens are not among them, and neither is the
+wardrobe or GTD. A menu that still listed one would offer a screen that is not there —
 the same fog the retirement was for, drawn a second time. `test/phone_nav_test.exs`
 pins both lists, and `test/routes_mount_test.exs` pins that each retired path answers
 with its move.

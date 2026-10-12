@@ -27,18 +27,20 @@ defmodule BotArmyDashboardLiveview.HerPanel do
   cannot infer from the request it got. It replaces host *and* port together, because
   a value that only replaced the port could not express `https://…`.
 
-  ## Two groups, because one place now answers several paths
+  ## Three groups, because one place now answers several paths
 
-  The closet's address was the first one a screen needed, and the reports' address is the
-  second: five screens on this dashboard used to *make* her reports, and all five are
-  retired into her panel's **How I am** group. A group has an address on her panel
-  (§39/§44 of the bot's control surface contract), so a bookmarked path hands the
+  The closet's address was the first one a screen needed, the reports' address is the
+  second — five screens on this dashboard used to *make* her reports, and all five are
+  retired into her panel's **How I am** group — and the tasks' address is the third: the
+  GTD screen here drew a list, a defer and a done over `bridge.task.*`, and her panel's
+  **Tasks** group is the same box with the same verbs. A group has an address on her panel
+  (§39/§44/§45 of the bot's control surface contract), so a bookmarked path hands the
   bookmark to the screen it was really about rather than to the panel's front door.
   """
 
   # The panel's port on this household's machines. `docs/wife_care/PANELS.md` in the
   # elixir_bots monorepo has the three-surface map, and the 30014 row is this one.
-  @port 30014
+  @port 30_014
 
   # The closet group inside her panel. A group has an address there (§39 of the bot's
   # control surface contract), which is what lets a retired path hand a bookmark to the
@@ -48,6 +50,10 @@ defmodule BotArmyDashboardLiveview.HerPanel do
   # The group her own reports are made in. Same reason as the closet's: each retired
   # report screen hands a bookmark to the card it was about.
   @how_i_am "/?tab=how_i_am"
+
+  # The group her tasks are worked in. Same rule as the reports': the GTD screen here was
+  # a list, a defer and a done, and the panel's Tasks group is that box.
+  @tasks "/?tab=tasks"
 
   @doc "Her panel's base URL, off the host this request arrived on."
   @spec url(URI.t() | nil) :: String.t()
@@ -77,6 +83,17 @@ defmodule BotArmyDashboardLiveview.HerPanel do
   @doc "The same, for a Plug connection."
   @spec how_i_am_url_from_host(String.t() | nil) :: String.t()
   def how_i_am_url_from_host(host), do: url_from_host(host) <> @how_i_am
+
+  @doc """
+  The group her tasks are worked in, as an absolute URL — a different origin, like the
+  reports', so it must be one.
+  """
+  @spec tasks_url(URI.t() | nil) :: String.t()
+  def tasks_url(host_uri), do: url(host_uri) <> @tasks
+
+  @doc "The same, for a Plug connection."
+  @spec tasks_url_from_host(String.t() | nil) :: String.t()
+  def tasks_url_from_host(host), do: url_from_host(host) <> @tasks
 
   defp base(host) do
     System.get_env("WIFE_CARE_CONTROL_PANEL_URL") || "http://#{host}:#{@port}"

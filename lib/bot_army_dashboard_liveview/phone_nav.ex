@@ -20,6 +20,14 @@ defmodule BotArmyDashboardLiveview.PhoneNav do
   still *read* what they wrote (the house screen draws both numbers), so nothing is lost
   by the bar dropping them. Their paths are retired into her **How I am** group.
 
+  **GTD used to be here**, and it is the smaller half of that defect rather than the same
+  one: its writes did carry an identity — the screen sent `slave` through the bridge — but
+  the list was still drawn on an open surface, and a task list is an answer to *what should
+  I do next*. Her panel's **Tasks** group draws the same box with the same verbs (§45), so
+  the bar keeps the copy she is holding. Nothing is lost by dropping this one either: the
+  panel reads the same task box and offers the same done and not-now. Its path is retired
+  into the Tasks group, and its handheld twin went with it.
+
   The wardrobe is **not** on this bar, and it is not on it for a harder reason than the
   shelf's. It sat here, and it did put sets on her from the screen she carries — but this
   surface is open, and a wear is a write whose whole meaning is *whose voice it was*: the
@@ -52,7 +60,6 @@ defmodule BotArmyDashboardLiveview.PhoneNav do
     {"/reflect-phone", "📝", "Reflect"},
     {"/energy-mood-phone", "🌡️", "Energy"},
     {"/fitness-phone", "💪", "Fitness"},
-    {"/gtd-phone", "📋", "GTD"},
     {"/system-health-phone", "⚙️", "Health"}
   ]
 

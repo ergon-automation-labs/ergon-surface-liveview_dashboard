@@ -9,6 +9,12 @@ defmodule BotArmyDashboardLiveview.PhoneNavModal do
   screen that is not there, which is the same fog the retirement was for. What they
   made is on her own panel now, in the **How I am** group, and the house screen still
   reads both numbers.
+
+  GTD was a sixth entry, and it left for the smaller half of the same reason: it drew the
+  box her tasks live in, on a surface anyone on the network can reach, and her panel draws
+  that box behind her own link (§45). A menu is a promise that the screen is there — so
+  this one no longer promises GTD here, and `/gtd-phone` and `/gtd-handheld` both answer
+  with where it went.
   """
 
   use Phoenix.Component
@@ -22,7 +28,6 @@ defmodule BotArmyDashboardLiveview.PhoneNavModal do
     {"/reflect-phone", "📝", "Reflect", "Post-work narrative capture"},
     {"/energy-mood-phone", "🌡️", "Energy", "Energy & mood context"},
     {"/fitness-phone", "💪", "Fitness", "Workout logging"},
-    {"/gtd-phone", "📋", "GTD", "Projects & tasks"},
     {"/system-health-phone", "⚙️", "Health", "Bot & NATS status"}
   ]
 

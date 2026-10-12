@@ -53,18 +53,11 @@ defmodule BotArmyDashboardLiveview.ViewReadPathTest do
     end
   end
 
-  test "the projects screen shows the projects the broker answered with" do
-    install_reply(
-      ~s({"projects":[{"id":"p1","name":"Water the plants","description":"they are thirsty"}]})
-    )
-
-    {:ok, view, _html} = live(build_conn(), "/gtd-phone")
-
-    await(view, "Water the plants")
-    assert render(view) =~ "they are thirsty"
-    refute render(view) =~ "Loading projects..."
-  end
-
+  # The projects screen and its "shows what the broker answered with" twin used to be
+  # pinned here. Both went with `/gtd-phone`: the box they drew is her panel's Tasks group
+  # now (§45), and this dashboard has no screen that reads `bridge.project.list` any more.
+  # The lesson they carried — an async read has to reach the screen — is pinned below on
+  # the health screens, which are the ones that are still here.
   test "the health screen stops saying it is checking" do
     install_reply(~s({"bots":[{"id":"wife_care","name":"Wife Care","status":"ok"}]}))
 
@@ -75,16 +68,19 @@ defmodule BotArmyDashboardLiveview.ViewReadPathTest do
   end
 
   # The lie this file exists for. A read that failed used to arrive as `[]`, and
-  # `[]` renders as "No projects found" — a claim about the world made by a screen
-  # that had not heard anything at all.
-  test "a read that failed says so instead of showing an empty list" do
+  # `[]` renders as an empty state — a claim about the world made by a screen that had
+  # not heard anything at all. This is the *crash* shape of a failed read (the health
+  # screens' other test is the timeout shape), and the screen it is pinned on is one of
+  # the two that still read; it used to be pinned on `/gtd-phone`, which is her panel's
+  # Tasks group now.
+  test "a read that died says so instead of showing an empty list" do
     install_reply({:exit, {:noproc, {:gen_server, :call, []}}})
 
-    {:ok, view, _html} = live(build_conn(), "/gtd-phone")
+    {:ok, view, _html} = live(build_conn(), "/system-health-phone")
 
     await(view, "Can\u2019t reach the bot")
     assert render(view) =~ "the bot is not reachable right now"
-    refute render(view) =~ "Loading projects..."
+    refute render(view) =~ "Checking system..."
   end
 
   test "the health screen reports a failed read as a failed read" do

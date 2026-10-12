@@ -26,10 +26,10 @@ defmodule BotArmyDashboardLiveview.RoutesMountTest do
 
   @routes ~w(
     / household-hud
-    fitness-handheld gtd-handheld system-health-handheld energy-mood-handheld timer-handheld
+    fitness-handheld system-health-handheld energy-mood-handheld timer-handheld
     quest-status reflection
     timer-phone quest-phone reflect-phone party-phone energy-mood-phone
-    fitness-phone system-health-phone gtd-phone session-history-phone
+    fitness-phone system-health-phone session-history-phone
   )
 
   for route <- @routes do
@@ -98,6 +98,28 @@ defmodule BotArmyDashboardLiveview.RoutesMountTest do
     # One destination for all five, which is the decision this test is really about.
     assert BotArmyDashboardLiveview.HerPanel.how_i_am_url_from_host("air") ==
              "http://air:30014/?tab=how_i_am"
+  end
+
+  # The GTD screen is the same case with a name on the write: the identity was on the wire
+  # (`slave`, through the bridge), so nothing was filed under the wrong hand — but the list
+  # was still drawn on an open surface, and a task list is an answer to *what should I do
+  # next*. Both of its paths go to the one group that holds that box, and the handheld twin
+  # goes with the phone because the screen it drew is gone, not because anyone linked to it.
+  test "the retired GTD screen and its handheld hand their bookmarks to her panel's tasks" do
+    for path <- ~w(/gtd-phone /gtd-handheld) do
+      conn = get(build_conn(), path)
+      assert conn.status == 302, "#{path} did not answer with a move"
+
+      assert Plug.Conn.get_resp_header(conn, "location") == [
+               "http://www.example.com:30014/?tab=tasks"
+             ]
+
+      assert get(build_conn(), path <> "/").status == 302
+      assert BotArmyDashboardLiveview.Retired.moved_to(path) == :her_tasks
+    end
+
+    assert BotArmyDashboardLiveview.HerPanel.tasks_url_from_host("air") ==
+             "http://air:30014/?tab=tasks"
   end
 
   # The plug only answers for the paths it knows. Everything else is a 404, which is not a

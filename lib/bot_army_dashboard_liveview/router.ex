@@ -33,7 +33,6 @@ defmodule BotArmyDashboardLiveview.Router do
       # between them goes both ways.
       live("/party-select-phone", PartySelectPhoneLive)
       live("/fitness-handheld", FitnessHandheldLive)
-      live("/gtd-handheld", GTDHandheldLive)
       live("/system-health-handheld", SystemHealthHandheldLive)
       live("/energy-mood-handheld", EnergyMoodHandheldLive)
       live("/timer-handheld", TimerHandheldLive)
@@ -45,11 +44,10 @@ defmodule BotArmyDashboardLiveview.Router do
       live("/energy-mood-phone", EnergyMoodPhoneLive)
       live("/fitness-phone", FitnessPhoneLive)
       live("/system-health-phone", SystemHealthPhoneLive)
-      live("/gtd-phone", GtdPhoneLive)
       live("/session-history-phone", SessionHistoryPhoneLive)
     end
 
-    # Seven paths here used to be screens. The shelf's own page is gone because the shelf is
+    # Nine paths here used to be screens. The shelf's own page is gone because the shelf is
     # drawn inside the window now, and it was never on the bar; the wardrobe's is gone
     # because the closet is hers, on her own panel behind her own link, and a screen on an
     # open surface that could put a set on her *and claim whose voice it was* was the wrong
@@ -58,6 +56,12 @@ defmodule BotArmyDashboardLiveview.Router do
     # the three cage writes are all filed by the bot under `:slave`, so the page that sent
     # the write was the only thing that knew whose hand was on the screen — and this
     # surface is open. Her panel makes all five reports behind her own link now.
+    #
+    # The GTD pair went the same way for the smaller half of that reason. `/gtd-phone` and
+    # `/gtd-handheld` drew the box her tasks live in — a list, a defer and a done over
+    # `bridge.task.*` — and her panel's Tasks group draws that box with the same verbs. Two
+    # screens drawing one list are two answers to *what should I do next*, and the one on
+    # the open surface is the one nobody is holding (§45).
     #
     # All of them are answered by `BotArmyDashboardLiveview.Retired`, which turns a
     # bookmark into the move rather than a 404. None is in `live_session`, because there
@@ -69,5 +73,7 @@ defmodule BotArmyDashboardLiveview.Router do
     get("/devotion-phone", Retired, [])
     get("/habits-phone", Retired, [])
     get("/habit-anchors", Retired, [])
+    get("/gtd-phone", Retired, [])
+    get("/gtd-handheld", Retired, [])
   end
 end

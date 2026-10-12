@@ -11,12 +11,11 @@ Playwright-based end-to-end tests for the Nova handheld interfaces (GTD, fitness
   - Message feedback
   - State display and descriptions
 
-- **GTD Handheld** (`/gtd-handheld`)
-  - Project listing and navigation
-  - Project-to-tasks transition
-  - Task navigation and selection
-  - Control hints display
-  - Empty state handling
+- **GTD Handheld** — *retired.* The screen is her panel's **Tasks** group now (§45:
+  the box a task list is an answer to is hers, and it is drawn behind her own link).
+  `/gtd-handheld` and `/gtd-phone` both answer with a `302` into it; the two tests that
+  pinned that screen's gamepad walkthrough went with it, and the redirect is pinned in
+  `phone-handhelds.spec.ts`.
 
 - **System Health Handheld** (`/system-health-handheld`)
   - Bot listing and navigation
@@ -76,7 +75,6 @@ Tests simulate gamepad input through Phoenix LiveView event dispatching:
 
 - `helpers/gamepad.ts` - Gamepad event simulation utilities
 - `tests/energy-mood.spec.ts` - Energy/mood checkpoint tests
-- `tests/gtd-handheld.spec.ts` - GTD interface tests
 - `tests/system-health.spec.ts` - System health interface tests
 
 ## Adding New Tests

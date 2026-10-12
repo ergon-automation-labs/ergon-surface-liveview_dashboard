@@ -37,6 +37,12 @@ defmodule BotArmyDashboardLiveview.PhoneNavTest do
     "/habit-anchors"
   ]
 
+  # The GTD screen and its handheld left for the smaller half of that reason: the write did
+  # carry an identity — the screen sent `slave` through the bridge — but the list was still
+  # drawn on an open surface, and a task list is an answer to *what should I do next*. Both
+  # paths answer with a move into her panel's Tasks group.
+  @retired_gtd ["/gtd-phone", "/gtd-handheld"]
+
   setup do
     Application.put_env(@app, :broker_transport, BrokerStub)
     Application.put_env(@app, :broker_stub_listener, self())
@@ -60,8 +66,9 @@ defmodule BotArmyDashboardLiveview.PhoneNavTest do
     assert {"/party-phone", "🎭", "Window"} in handhelds
 
     # The five report screens are gone, and gone from the lookup too, so nothing can
-    # render a bar entry for one by naming it.
-    for route <- @retired_reports do
+    # render a bar entry for one by naming it. So is GTD — it was an entry until the box
+    # it drew moved to her panel behind her own link.
+    for route <- @retired_reports ++ @retired_gtd do
       refute Enum.any?(handhelds, fn {r, _emoji, _label} -> r == route end)
       assert PhoneNav.get_emoji(route) == nil
     end
@@ -75,7 +82,7 @@ defmodule BotArmyDashboardLiveview.PhoneNavTest do
     assert PhoneNav.get_emoji("/hypnosis-phone") == nil
 
     # One option each, not one page with modes.
-    assert length(handhelds) == 9
+    assert length(handhelds) == 8
     routes = Enum.map(handhelds, &elem(&1, 0))
     assert Enum.uniq(routes) == routes
   end
@@ -86,9 +93,10 @@ defmodule BotArmyDashboardLiveview.PhoneNavTest do
     # The shelf's page was reachable from this menu and nowhere else. It is a redirect to
     # the window now, so a menu that still listed it would offer a screen that is not
     # there — and the shelf would have two homes again, which is the thing retiring it
-    # settled. The five report screens are the same case: their paths answer with a move
-    # into her panel, so listing one here would offer a screen this surface does not have.
-    for retired <- @retired_reports ++ ["/hypnosis-phone", "/wardrobe-phone"] do
+    # settled. The five report screens and the GTD pair are the same case: their paths
+    # answer with a move into her panel, so listing one here would offer a screen this
+    # surface does not have.
+    for retired <- @retired_reports ++ @retired_gtd ++ ["/hypnosis-phone", "/wardrobe-phone"] do
       refute Enum.any?(handhelds, fn {route, _emoji, _label, _hint} -> route == retired end)
     end
 
