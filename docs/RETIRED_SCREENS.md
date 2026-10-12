@@ -104,9 +104,10 @@ unlike the shelf, which lands on the window that draws it. The group's own headi
 the explanation.)
 
 Removed with them: `BodyPhoneLive`, `YearningPhoneLive`, `DevotionPhoneLive`,
-`HabitsPhoneLive`, `HabitAnchorsLive`, and the two modules that became dead with them —
-`SelfReport` (its only readers were the body and yearning screens) and `HabitItems`
-(its only readers were the two habits screens). Six test files went with them. The bar
+`HabitsPhoneLive`, `HabitAnchorsLive`, and the three modules that became dead with them —
+`SelfReport` (its only readers were the body and yearning screens), `HabitItems` (its only
+readers were the two habits screens) and `Devotion` (the devotion screen's own helper: the
+openers, the draft, and the `subject_reply` write). Six test files went with them. The bar
 is 14 entries → 9; the long-press menu is 13 → 9.
 
 ## What the bar and the menu carry now
