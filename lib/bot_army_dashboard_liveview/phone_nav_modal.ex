@@ -32,7 +32,6 @@ defmodule BotArmyDashboardLiveview.PhoneNavModal do
      "The window she is in with the party, and the shelf inside it"},
     {"/timer-phone", "⏱️", "Timer", "Focus sessions with task linking"},
     {"/quest-phone", "⚔️", "Quest", "Story progression tracker"},
-    {"/energy-mood-phone", "🌡️", "Energy", "Energy & mood context"},
     {"/fitness-phone", "💪", "Fitness", "Workout logging"},
     {"/system-health-phone", "⚙️", "Health", "Bot & NATS status"}
   ]

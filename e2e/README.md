@@ -1,15 +1,18 @@
 # Nova Handheld E2E Tests
 
-Playwright-based end-to-end tests for the Nova handheld interfaces (fitness, system health, energy/mood), plus the redirects the retired ones left behind.
+Playwright-based end-to-end tests for the Nova handheld interfaces (fitness, system health), plus the redirects the retired ones left behind.
 
 ## What's Tested
 
-- **Energy/Mood Handheld** (`/energy-mood-handheld`)
-  - D-pad navigation through energy levels and moods
-  - View transitions
-  - Button actions (A/B)
-  - Message feedback
-  - State display and descriptions
+- **Energy/Mood Handheld** — *retired.* The screen is her panel's **Energy** group now
+  (§49), and its defect was the quietest of the set: the check-in was a `Gnat.pub/3` to
+  `events.context.updated`, a publish with no reply, so "Context saved" confirmed only
+  that a byte had reached the socket — and with no subscriber it reached nobody. The
+  reading is about her rather than a decision about her, so nothing is gated; the panel
+  asks `wife_care.energy.record` and reads the reading back. `/energy-mood-phone` and
+  `/energy-mood-handheld` both answer with a `302` into that group; the screen's own
+  spec (`tests/energy-mood.spec.ts`) went with it, and the redirect is pinned in
+  `phone-handhelds.spec.ts`.
 
 - **GTD Handheld** — *retired.* The screen is her panel's **Tasks** group now (§45:
   the box a task list is an answer to is hers, and it is drawn behind her own link).
@@ -82,7 +85,6 @@ Tests simulate gamepad input through Phoenix LiveView event dispatching:
 ## Test Structure
 
 - `helpers/gamepad.ts` - Gamepad event simulation utilities
-- `tests/energy-mood.spec.ts` - Energy/mood checkpoint tests
 - `tests/system-health.spec.ts` - System health interface tests
 
 ## Adding New Tests

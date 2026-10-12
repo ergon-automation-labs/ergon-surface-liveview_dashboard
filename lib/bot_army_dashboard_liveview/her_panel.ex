@@ -27,7 +27,7 @@ defmodule BotArmyDashboardLiveview.HerPanel do
   cannot infer from the request it got. It replaces host *and* port together, because
   a value that only replaced the port could not express `https://…`.
 
-  ## Four groups, because one place now answers several paths
+  ## Five groups, because one place now answers several paths
 
   The closet's address was the first one a screen needed, the reports' address is the
   second — five screens on this dashboard used to *make* her reports, and all five are
@@ -35,8 +35,13 @@ defmodule BotArmyDashboardLiveview.HerPanel do
   GTD screen here drew a list, a defer and a done over `bridge.task.*`, and her panel's
   **Tasks** group is the same box with the same verbs. The reflect screens are the fourth:
   they wrote her own words into her journal, with no identity in the write at all, and her
-  panel's **Reflect** group is where that write belongs now. A group has an address on her
-  panel (§39/§44/§45/§47 of the bot's control surface contract), so a bookmarked path hands
+  panel's **Reflect** group is where that write belongs now. The energy screen is the fifth,
+  and the smallest of the five: it drew the last reading and filed a check-in by *publishing*
+  `events.context.updated` — a byte on a socket that no subscriber had to receive — so the
+  "Context saved" it showed confirmed nothing, and when the panel was asked instead it
+  answered honestly. Her panel's **Energy** group asks `wife_care.energy.record` and reads
+  the reading back off the bot's own reply (§49). A group has an address on her panel
+  (§39/§44/§45/§47/§49 of the bot's control surface contract), so a bookmarked path hands
   the bookmark to the screen it was really about rather than to the panel's front door.
   """
 
@@ -62,6 +67,12 @@ defmodule BotArmyDashboardLiveview.HerPanel do
   # under her own login (§47), so a bookmarked path hands the bookmark to the question, the
   # box, and the journal it was about.
   @reflect "/?tab=reflect"
+
+  # The group she gives an energy reading from. The screen here drew the last reading and
+  # filed a check-in through a publish nobody had to read, so the confirmation was a byte
+  # that left the socket; the panel's Energy group asks the subject and reads the reading
+  # back, which is the confirmation (§49).
+  @energy "/?tab=energy"
 
   @doc "Her panel's base URL, off the host this request arrived on."
   @spec url(URI.t() | nil) :: String.t()
@@ -113,6 +124,17 @@ defmodule BotArmyDashboardLiveview.HerPanel do
   @doc "The same, for a Plug connection."
   @spec reflect_url_from_host(String.t() | nil) :: String.t()
   def reflect_url_from_host(host), do: url_from_host(host) <> @reflect
+
+  @doc """
+  The group she gives an energy reading from, as an absolute URL — a different origin, like
+  the other four, so it must be one.
+  """
+  @spec energy_url(URI.t() | nil) :: String.t()
+  def energy_url(host_uri), do: url(host_uri) <> @energy
+
+  @doc "The same, for a Plug connection."
+  @spec energy_url_from_host(String.t() | nil) :: String.t()
+  def energy_url_from_host(host), do: url_from_host(host) <> @energy
 
   defp base(host) do
     System.get_env("WIFE_CARE_CONTROL_PANEL_URL") || "http://#{host}:#{@port}"

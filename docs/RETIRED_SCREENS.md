@@ -16,11 +16,12 @@ is answered. Its destinations come in two kinds, and the difference is load-bear
 | `:her_reports` | `/body-phone` → her panel's **How I am** | The same different origin, for the same reason — and five paths share it, because the distinction worth keeping is *where her own numbers live*. |
 | `:her_tasks` | `/gtd-phone` → her panel's **Tasks** | The same different origin again. Two paths share it, and neither of them was a report: what they drew was the box her tasks live in. |
 | `:her_reflect` | `/reflection` → her panel's **Reflect** | The same different origin, and the two paths share it for the same reason as the tasks pair: two doors onto one box. What is behind them is her journal. |
+| `:her_energy` | `/energy-mood-phone` → her panel's **Energy** | The same different origin, and this pair is the only retire whose defect was not about *who* could write: the check-in left as a publish with no reply, so the screen confirmed a byte on a socket rather than a stored reading. |
 
 A path the map does not know is a `404`, and says so. That is not a screen either, but
 it is not a lie about one.
 
-All eleven retired paths are `get` routes outside `live_session`, because there is no
+All thirteen retired paths are `get` routes outside `live_session`, because there is no
 screen behind any one of them.
 
 ## `/hypnosis-phone` — the shelf's own page
@@ -160,6 +161,43 @@ Both paths land on that one group. As with the GTD pair, the desk screen and the
 screen were the same screen twice, so retiring one and not the other would have left a
 second door open to the same box.
 
+## The energy screens — the only retire about a *confirmation* rather than a permission
+
+`/energy-mood-phone` and `/energy-mood-handheld` drew the last energy reading and filed a
+check-in. They are not the reports' defect: they carried an identity on the wire, and a
+reading is about her rather than a decision taken about her — which is why §10 says
+recording energy is deliberately **not** gated by the pause gate. They are not the GTD
+pair either, where the cost was two answers to one question. Their defect is narrower and
+quieter, and it is the one thing a check-in has to get right.
+
+The check-in went out as `Gnat.pub/3` to `events.context.updated` — a **publish**, with no
+reply. `:ok` from a publish means the bytes reached the socket, not that a bot received
+them and not that anything was stored, and with no subscriber that day the bytes reached
+nobody at all. The screen drew **"Context saved"** over that. So the confirmation was a
+statement about a write the page could not see, and a link that said "saved" while
+nothing was saved is worse than one that said nothing: it teaches her to distrust the
+word, and the next genuine save reads the same.
+
+Her panel's **Energy** group (§49 of the bot's control surface contract) asks
+`wife_care.energy.record` instead. The reply *is* the bot's answer — a refusal arrives in
+the bot's own words rather than as a silent no-op — and the card above is redrawn from the
+reading the bot now holds, which is the only confirmation this page claims. It also draws
+the three ways of having nothing as three different sentences: a word the bot has never
+been given is not a zero, a failed read is not "no reading", and a block that arrived but
+cannot be read out is a fault in the answer rather than a fact about her.
+
+Both paths land on that group. The handheld twin goes with the phone because the screen
+it drew is gone, not because anyone linked to it — the same rule the GTD pair followed.
+Nothing about the reading is lost: the panel reads the same pet-layer reply these screens
+read (the `energy_detail` block), and the one subject the old screens *wrote* it now asks
+and reads back.
+
+**What did not move with them: the publish.** `events.context.updated` still exists and
+other producers still send it; what stopped is this surface treating a publish as a
+confirmation. The lesson the retired modules carried — *a write's confirmation is a
+re-read, never the write's own reply* — is pinned in `docs/REFLECTION_READBACK.md` and in
+her panel's tests.
+
 **What did not move with it: the bell.** The screen woken by `events.llm.job.completed` was
 one of these two — the bridge broadcasts it to `dashboard:reflections`, and the screen
 re-read the answer on it, with a ten-second poll as the guarantee. Her panel polls at the
@@ -178,9 +216,9 @@ panel_live_test.exs`, "The companion did not answer…").
 
 ## What the bar and the menu carry now
 
-Seven screens: **House**, **Window** (with the shelf inside it), Timer, Quest, Energy,
-Fitness, Health. The five report screens are not among them, and neither is the wardrobe,
-GTD or Reflect. A menu that still listed one would offer a screen that is not there —
+Six screens: **House**, **Window** (with the shelf inside it), Timer, Quest, Fitness,
+Health. The five report screens are not among them, and neither is the wardrobe, GTD,
+Reflect or Energy. A menu that still listed one would offer a screen that is not there —
 the same fog the retirement was for, drawn a second time. `test/phone_nav_test.exs`
 pins both lists, and `test/routes_mount_test.exs` pins that each retired path answers
 with its move.

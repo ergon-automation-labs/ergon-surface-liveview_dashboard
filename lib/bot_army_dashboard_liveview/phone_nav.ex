@@ -67,7 +67,6 @@ defmodule BotArmyDashboardLiveview.PhoneNav do
     {"/party-phone", "🎭", "Window"},
     {"/timer-phone", "⏱️", "Timer"},
     {"/quest-phone", "⚔️", "Quest"},
-    {"/energy-mood-phone", "🌡️", "Energy"},
     {"/fitness-phone", "💪", "Fitness"},
     {"/system-health-phone", "⚙️", "Health"}
   ]

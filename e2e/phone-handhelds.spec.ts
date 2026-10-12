@@ -120,22 +120,23 @@ test.describe('Nova Phone Handhelds', () => {
     }
   });
 
-  test.describe('Energy-Mood Phone Handheld', () => {
-    test('should load energy-mood page', async ({ page }) => {
-      await page.goto(`${BASE_URL}/energy-mood-phone`);
-      await expect(page.locator('.view-title')).toContainText('How Are You');
-    });
+  // Energy is her panel's now (§49), and it is the quietest retire of the set: the
+  // check-in went out as a `Gnat.pub/3` to `events.context.updated`, a publish with no
+  // reply, so "Context saved" was drawn over a byte that only had to reach the socket —
+  // with no subscriber it reached nobody. The reading is about her rather than a decision
+  // about her, so there is nothing to gate; her panel asks `wife_care.energy.record` and
+  // reads the reading back, on 30014 behind her own link. Both paths answer with the move
+  // instead of a screen, for the same reason as the others: a 404 would turn "how you are
+  // moved" into "you typed it wrong", on a phone, from a home screen icon.
+  test.describe('Energy-Mood Phone Handheld — retired into her panel', () => {
+    for (const path of ['/energy-mood-phone', '/energy-mood-handheld']) {
+      test(`${path} answers with a move, not a 404`, async ({ page }) => {
+        const response = await page.request.get(`${BASE_URL}${path}`, { maxRedirects: 0 });
 
-    test('should show energy selection', async ({ page }) => {
-      await page.goto(`${BASE_URL}/energy-mood-phone`);
-
-      const energyDisplay = page.locator('.energy-display-phone');
-      await expect(energyDisplay).toBeVisible();
-
-      // Check for energy items
-      const activeItem = page.locator('.energy-item.active');
-      await expect(activeItem).toBeVisible();
-    });
+        expect(response.status()).toBe(302);
+        expect(response.headers()['location']).toContain(':30014/?tab=energy');
+      });
+    }
   });
 
   test.describe('Fitness Phone Handheld', () => {

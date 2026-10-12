@@ -20,8 +20,8 @@ defmodule BotArmyDashboardLiveview.Retired do
   her own control panel, behind her own link. So this map has two kinds of destination,
   and the difference is not decoration. `{:same_host, path}` is a place on this dashboard,
   and it is relative on purpose: whichever host the bookmark arrived on is the host the
-  screen behind it is served from. `:her_closet`, `:her_reports`, `:her_tasks` and
-  `:her_reflect` are **different origins**, so they cannot be relative — a relative hop
+  screen behind it is served from. `:her_closet`, `:her_reports`, `:her_tasks`,
+  `:her_reflect` and `:her_energy` are **different origins**, so they cannot be relative — a relative hop
   would land on this dashboard's own `/?tab=closet`, which no screen here holds. They are
   built from the arriving host by `HerPanel`, for the same reason the house screen's exit
   link is: `localhost` in an address a phone opened is the phone.
@@ -70,6 +70,25 @@ defmodule BotArmyDashboardLiveview.Retired do
   write, and the companion's answer when it lands. Both paths therefore answer with a move
   into that group. Nothing about the reading is lost: the two screens *read* the same
   subjects the panel reads, and the panel's own group is one she is holding.
+
+  ## The energy screens confirmed nothing, which is why they cannot stay
+
+  Two paths are retired into her panel's **Energy** group: `/energy-mood-phone` and
+  `/energy-mood-handheld`. They are not the reports' defect — they carried an identity on
+  the wire, and the reading they sent was about her rather than a decision about her — and
+  they are not the GTD pair either, where the cost was two answers to one question. Their
+  own defect is narrower and worse for being invisible: the check-in was sent by
+  `Gnat.pub/3` to `events.context.updated`, a publish with no reply. `:ok` from a publish
+  means the bytes reached the socket, not that a bot received them and not that anything
+  was stored — and with no subscriber that day the bytes reached nobody at all. The screen
+  drew **"Context saved"** over that, so the one thing a check-in has to be able to say,
+  *it was kept*, was the one thing this screen could not know.
+
+  Her panel's Energy group asks `wife_care.energy.record` (§49) instead: the reply is the
+  bot's own answer, a refusal arrives in the bot's words rather than as a silent no-op, and
+  the card above is redrawn from the reading the bot now holds. The three ways of recording
+  nothing are three different sentences there, which is the whole point: a failed read is
+  not "no reading", and a word the bot has never been given is not a zero.
   """
 
   import Plug.Conn
@@ -87,7 +106,9 @@ defmodule BotArmyDashboardLiveview.Retired do
     "/gtd-phone" => :her_tasks,
     "/gtd-handheld" => :her_tasks,
     "/reflection" => :her_reflect,
-    "/reflect-phone" => :her_reflect
+    "/reflect-phone" => :her_reflect,
+    "/energy-mood-phone" => :her_energy,
+    "/energy-mood-handheld" => :her_energy
   }
 
   def init(opts), do: opts
@@ -117,6 +138,7 @@ defmodule BotArmyDashboardLiveview.Retired do
   defp location(:her_reports, host), do: HerPanel.how_i_am_url_from_host(host)
   defp location(:her_tasks, host), do: HerPanel.tasks_url_from_host(host)
   defp location(:her_reflect, host), do: HerPanel.reflect_url_from_host(host)
+  defp location(:her_energy, host), do: HerPanel.energy_url_from_host(host)
 
   @doc """
   Where a retired path goes, for the tests and for anything that has to name it.

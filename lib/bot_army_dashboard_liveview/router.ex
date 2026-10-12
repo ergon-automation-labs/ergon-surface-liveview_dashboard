@@ -34,18 +34,16 @@ defmodule BotArmyDashboardLiveview.Router do
       live("/party-select-phone", PartySelectPhoneLive)
       live("/fitness-handheld", FitnessHandheldLive)
       live("/system-health-handheld", SystemHealthHandheldLive)
-      live("/energy-mood-handheld", EnergyMoodHandheldLive)
       live("/timer-handheld", TimerHandheldLive)
       live("/quest-status", QuestStatusLive)
       live("/timer-phone", TimerPhoneLive)
       live("/quest-phone", QuestPhoneLive)
-      live("/energy-mood-phone", EnergyMoodPhoneLive)
       live("/fitness-phone", FitnessPhoneLive)
       live("/system-health-phone", SystemHealthPhoneLive)
       live("/session-history-phone", SessionHistoryPhoneLive)
     end
 
-    # Nine paths here used to be screens. The shelf's own page is gone because the shelf is
+    # Thirteen paths here used to be screens. The shelf's own page is gone because the shelf is
     # drawn inside the window now, and it was never on the bar; the wardrobe's is gone
     # because the closet is hers, on her own panel behind her own link, and a screen on an
     # open surface that could put a set on her *and claim whose voice it was* was the wrong
@@ -68,6 +66,14 @@ defmodule BotArmyDashboardLiveview.Router do
     # write was the whole answer to *whose words are these*. Her panel holds that write
     # under her own login and draws the same question, box and journal (§47).
     #
+    # `/energy-mood-phone` and `/energy-mood-handheld` are the narrowest defect of the set,
+    # and the quietest. Their check-in was a `Gnat.pub/3` to `events.context.updated` — a
+    # publish with no reply — so "Context saved" was drawn over a byte that only had to
+    # reach the socket, and with no subscriber it reached nobody. The energy reading is
+    # about her rather than a decision about her, so the fix is not a gate; it is asking
+    # `wife_care.energy.record` and reading the reading back, which is what her panel's
+    # Energy group does (§49), and where both paths now send their bookmarks.
+    #
     # All of them are answered by `BotArmyDashboardLiveview.Retired`, which turns a
     # bookmark into the move rather than a 404. None is in `live_session`, because there
     # is no screen behind any one of them.
@@ -82,5 +88,7 @@ defmodule BotArmyDashboardLiveview.Router do
     get("/gtd-handheld", Retired, [])
     get("/reflection", Retired, [])
     get("/reflect-phone", Retired, [])
+    get("/energy-mood-phone", Retired, [])
+    get("/energy-mood-handheld", Retired, [])
   end
 end

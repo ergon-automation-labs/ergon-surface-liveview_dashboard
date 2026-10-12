@@ -26,9 +26,9 @@ defmodule BotArmyDashboardLiveview.RoutesMountTest do
 
   @routes ~w(
     / household-hud
-    fitness-handheld system-health-handheld energy-mood-handheld timer-handheld
+    fitness-handheld system-health-handheld timer-handheld
     quest-status
-    timer-phone quest-phone party-phone energy-mood-phone
+    timer-phone quest-phone party-phone
     fitness-phone system-health-phone session-history-phone
   )
 
@@ -145,6 +145,31 @@ defmodule BotArmyDashboardLiveview.RoutesMountTest do
 
     assert BotArmyDashboardLiveview.HerPanel.reflect_url_from_host("air") ==
              "http://air:30014/?tab=reflect"
+  end
+
+  # The energy pair is the quietest retire of the set, and the only one whose defect was not
+  # about *who* could write: a check-in was sent by `Gnat.pub/3` to `events.context.updated`,
+  # a publish with no reply, so "Context saved" was drawn over a byte that only had to reach
+  # the socket — and with no subscriber it reached nobody. The reading is about her rather
+  # than a decision about her, so the fix is not a gate: her panel's Energy group asks
+  # `wife_care.energy.record` and reads the reading back (§49). Both paths go there, the
+  # handheld twin with the phone because the screen it drew is gone rather than because
+  # anyone linked to it.
+  test "the retired energy screens hand their bookmarks to her panel's energy group" do
+    for path <- ~w(/energy-mood-phone /energy-mood-handheld) do
+      conn = get(build_conn(), path)
+      assert conn.status == 302, "#{path} did not answer with a move"
+
+      assert Plug.Conn.get_resp_header(conn, "location") == [
+               "http://www.example.com:30014/?tab=energy"
+             ]
+
+      assert get(build_conn(), path <> "/").status == 302
+      assert BotArmyDashboardLiveview.Retired.moved_to(path) == :her_energy
+    end
+
+    assert BotArmyDashboardLiveview.HerPanel.energy_url_from_host("air") ==
+             "http://air:30014/?tab=energy"
   end
 
   # The plug only answers for the paths it knows. Everything else is a 404, which is not a

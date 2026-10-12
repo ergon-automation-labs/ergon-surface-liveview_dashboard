@@ -50,6 +50,14 @@ defmodule BotArmyDashboardLiveview.PhoneNavTest do
   # answer with a move into her panel's Reflect group (§47).
   @retired_reflect ["/reflection", "/reflect-phone"]
 
+  # The energy pair left for a reason none of the others had: their check-in was a
+  # `Gnat.pub/3` to `events.context.updated` — a publish with no reply — so "Context
+  # saved" was drawn over a byte that only had to reach the socket, and with no subscriber
+  # it reached nobody. The reading is about her rather than a decision about her, so there
+  # is nothing to gate; her panel's Energy group asks `wife_care.energy.record` and reads
+  # the reading back (§49). Both paths answer with a move into that group.
+  @retired_energy ["/energy-mood-phone", "/energy-mood-handheld"]
+
   setup do
     Application.put_env(@app, :broker_transport, BrokerStub)
     Application.put_env(@app, :broker_stub_listener, self())
@@ -76,8 +84,9 @@ defmodule BotArmyDashboardLiveview.PhoneNavTest do
     # render a bar entry for one by naming it. So is GTD — it was an entry until the box
     # it drew moved to her panel behind her own link — and so is Reflect, which was an
     # entry until the journal it wrote moved to the panel, where the hand that wrote it is
-    # known (§45, §47).
-    for route <- @retired_reports ++ @retired_gtd ++ @retired_reflect do
+    # known (§45, §47). And so is Energy, which was an entry until the reading came from the
+    # bot's reply rather than from a publish nobody had to answer (§49).
+    for route <- @retired_reports ++ @retired_gtd ++ @retired_reflect ++ @retired_energy do
       refute Enum.any?(handhelds, fn {r, _emoji, _label} -> r == route end)
       assert PhoneNav.get_emoji(route) == nil
     end
@@ -91,7 +100,7 @@ defmodule BotArmyDashboardLiveview.PhoneNavTest do
     assert PhoneNav.get_emoji("/hypnosis-phone") == nil
 
     # One option each, not one page with modes.
-    assert length(handhelds) == 7
+    assert length(handhelds) == 6
     routes = Enum.map(handhelds, &elem(&1, 0))
     assert Enum.uniq(routes) == routes
   end
@@ -107,7 +116,8 @@ defmodule BotArmyDashboardLiveview.PhoneNavTest do
     # screen this surface does not have.
     for retired <-
           @retired_reports ++
-            @retired_gtd ++ @retired_reflect ++ ["/hypnosis-phone", "/wardrobe-phone"] do
+            @retired_gtd ++
+            @retired_reflect ++ @retired_energy ++ ["/hypnosis-phone", "/wardrobe-phone"] do
       refute Enum.any?(handhelds, fn {route, _emoji, _label, _hint} -> route == retired end)
     end
 
