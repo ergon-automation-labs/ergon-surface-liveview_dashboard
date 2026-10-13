@@ -20,9 +20,9 @@ defmodule BotArmyDashboardLiveview.Retired do
   her own control panel, behind her own link. So this map has two kinds of destination,
   and the difference is not decoration. `{:same_host, path}` is a place on this dashboard,
   and it is relative on purpose: whichever host the bookmark arrived on is the host the
-  screen behind it is served from. `:her_closet`, `:her_reports`, `:her_tasks`,
-  `:her_reflect` and `:her_energy` are **different origins**, so they cannot be relative — a relative hop
-  would land on this dashboard's own `/?tab=closet`, which no screen here holds. They are
+  screen behind it is served from. Every `:her_*` kind is a **different origin**, so none of
+  them can be relative — a relative hop would land on this dashboard's own `/?tab=closet`,
+  which no screen here holds. They are
   built from the arriving host by `HerPanel`, for the same reason the house screen's exit
   link is: `localhost` in an address a phone opened is the phone.
 
@@ -112,6 +112,23 @@ defmodule BotArmyDashboardLiveview.Retired do
   foggy person gives up. Her panel's Quest group draws the open steps and counts the rows it
   drew (§50). Both pairs are therefore moves rather than gates, and each path hands its
   bookmark to the group that holds what it was about.
+
+  ## The fitness pair is the sixth copy of one vocabulary, and the last copy here
+
+  Two paths are retired into her panel's **Fitness** group: `/fitness-phone` and
+  `/fitness-handheld`. This is the one retire here whose defect is a **word** rather than a
+  write, and it is the defect the bot itself spent five retires undoing. The phone screen
+  carried its own list of what a workout is — `@workout_types` and `@intensity_levels`,
+  hard-coded in the view — which made a sixth copy of a vocabulary that had already been
+  retired five times inside the bot. A screen with its own list can send the bot a word it
+  folds onto `"other"` and then draw the row back under the name it invented, so the open
+  surface and the bot disagree about what she did while both are showing her the same log.
+
+  Her panel's **Fitness** group asks `fitness.workout.options` and draws the activities and
+  the intensities **and the bot's own words for them** off the wire (§46), so the picker can
+  only offer what the bot accepts and a stored row can only be named as the bot named it.
+  That is what makes this a move rather than a second opinion — and it is why the fix had to
+  reach the bot: a vocabulary cannot be corrected on the surface that invented it.
   """
 
   import Plug.Conn
@@ -135,7 +152,9 @@ defmodule BotArmyDashboardLiveview.Retired do
     "/timer-phone" => :her_timer,
     "/timer-handheld" => :her_timer,
     "/quest-phone" => :her_quest,
-    "/quest-status" => :her_quest
+    "/quest-status" => :her_quest,
+    "/fitness-phone" => :her_fitness,
+    "/fitness-handheld" => :her_fitness
   }
 
   def init(opts), do: opts
@@ -168,6 +187,7 @@ defmodule BotArmyDashboardLiveview.Retired do
   defp location(:her_energy, host), do: HerPanel.energy_url_from_host(host)
   defp location(:her_timer, host), do: HerPanel.timer_url_from_host(host)
   defp location(:her_quest, host), do: HerPanel.quest_url_from_host(host)
+  defp location(:her_fitness, host), do: HerPanel.fitness_url_from_host(host)
 
   @doc """
   Where a retired path goes, for the tests and for anything that has to name it.

@@ -26,8 +26,8 @@ defmodule BotArmyDashboardLiveview.RoutesMountTest do
 
   @routes ~w(
     / household-hud
-    fitness-handheld system-health-handheld
-    fitness-phone system-health-phone session-history-phone
+    system-health-handheld
+    system-health-phone session-history-phone
     party-phone
   )
 
@@ -203,6 +203,31 @@ defmodule BotArmyDashboardLiveview.RoutesMountTest do
 
     assert BotArmyDashboardLiveview.HerPanel.quest_url_from_host("air") ==
              "http://air:30014/?tab=quest"
+  end
+
+  # The fitness pair is the one retire here whose defect is a **word** rather than a write: the
+  # phone screen carried its own list of what a workout is — a sixth copy of a vocabulary the
+  # bot had already retired five times over — so it could send a word the bot folds onto
+  # `"other"` and then draw the row back under the name it invented. Her panel's Fitness group
+  # draws the bot's own activities, intensities and words off `fitness.workout.options` (§46),
+  # so the picker can only offer what the bot takes and a row can only be named as the bot named
+  # it. Both paths hand their bookmarks to that group; the handheld twin goes with the phone
+  # because the screen it drew is gone, not because anyone linked to it.
+  test "the retired fitness screens hand their bookmarks to her panel's fitness group" do
+    for path <- ~w(/fitness-phone /fitness-handheld) do
+      conn = get(build_conn(), path)
+      assert conn.status == 302, "#{path} did not answer with a move"
+
+      assert Plug.Conn.get_resp_header(conn, "location") == [
+               "http://www.example.com:30014/?tab=fitness"
+             ]
+
+      assert get(build_conn(), path <> "/").status == 302
+      assert BotArmyDashboardLiveview.Retired.moved_to(path) == :her_fitness
+    end
+
+    assert BotArmyDashboardLiveview.HerPanel.fitness_url_from_host("air") ==
+             "http://air:30014/?tab=fitness"
   end
 
   # The plug only answers for the paths it knows. Everything else is a 404, which is not a

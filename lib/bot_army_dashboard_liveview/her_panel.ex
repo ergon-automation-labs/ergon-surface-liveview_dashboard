@@ -27,7 +27,7 @@ defmodule BotArmyDashboardLiveview.HerPanel do
   cannot infer from the request it got. It replaces host *and* port together, because
   a value that only replaced the port could not express `https://…`.
 
-  ## Seven groups, because one place now answers several paths
+  ## Eight groups, because one place now answers several paths
 
   The closet's address was the first one a screen needed, the reports' address is the
   second — five screens on this dashboard used to *make* her reports, and all five are
@@ -54,6 +54,17 @@ defmodule BotArmyDashboardLiveview.HerPanel do
   group has an address on her panel (§39/§44/§45/§47/§49/§50/§51 of the bot's control surface
   contract), so a bookmarked path hands the bookmark to the screen it was really about rather
   than to the panel's front door.
+
+  The fitness pair makes eight, and it is the one group whose defect is a **word** rather than
+  a write. The two screens here carried their own list of what a workout is — `@workout_types`
+  and `@intensity_levels`, hard-coded in the phone view — a sixth copy of a vocabulary the bot
+  itself had already retired five times over. A screen with its own list can send the bot a
+  word it folds onto `"other"` and then draw the row back under the name it invented, so the
+  surface and the bot disagree about what she did while both are showing her the same log. Her
+  panel's **Fitness** group asks `fitness.workout.options` and draws the activities, the
+  intensities **and the bot's own words for them** off the wire (§46), so the picker can only
+  offer what the bot accepts and a stored row can only be named as the bot named it. That is
+  the eighth group, and the only one whose fix had to reach the bot rather than the screen.
   """
 
   # The panel's port on this household's machines. `docs/wife_care/PANELS.md` in the
@@ -95,6 +106,11 @@ defmodule BotArmyDashboardLiveview.HerPanel do
   # over the box her tasks live in; the panel's Quest group is that same box as the quest it is
   # a window on, and counts the rows it drew rather than a percentage (§50).
   @quest "/?tab=quest"
+
+  # The group the log is written from. The screens here carried their own vocabulary for what
+  # a workout is — a sixth copy of a list the bot had already retired five times — and the panel
+  # draws the bot's own words over the wire instead (§46).
+  @fitness "/?tab=fitness"
 
   @doc "Her panel's base URL, off the host this request arrived on."
   @spec url(URI.t() | nil) :: String.t()
@@ -179,6 +195,17 @@ defmodule BotArmyDashboardLiveview.HerPanel do
   @doc "The same, for a Plug connection."
   @spec quest_url_from_host(String.t() | nil) :: String.t()
   def quest_url_from_host(host), do: url_from_host(host) <> @quest
+
+  @doc """
+  The group the fitness log is written from, as an absolute URL — a different origin, like
+  the other seven, so it must be one.
+  """
+  @spec fitness_url(URI.t() | nil) :: String.t()
+  def fitness_url(host_uri), do: url(host_uri) <> @fitness
+
+  @doc "The same, for a Plug connection."
+  @spec fitness_url_from_host(String.t() | nil) :: String.t()
+  def fitness_url_from_host(host), do: url_from_host(host) <> @fitness
 
   defp base(host) do
     System.get_env("WIFE_CARE_CONTROL_PANEL_URL") || "http://#{host}:#{@port}"

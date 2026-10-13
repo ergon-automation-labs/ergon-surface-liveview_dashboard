@@ -31,6 +31,13 @@ defmodule BotArmyDashboardLiveview.PhoneNavModal do
   over the box her tasks live in, and her panel's Quest group draws the open steps and
   counts the rows it drew (§50). A menu is a promise that the screen is there, so it no
   longer promises either.
+
+  The fitness screens are the tenth and eleventh, and they left for a reason none of the
+  others had: their vocabulary. The phone screen held its own list of activities and
+  intensities — a sixth copy of what the bot had already retired five times — so it could
+  send a word the bot folds and draw it back under a word it invented. Her panel's Fitness
+  group draws the bot's own options off `fitness.workout.options` (§46), so a menu here
+  would offer only a second, older answer to *what is a workout*.
   """
 
   use Phoenix.Component
@@ -39,7 +46,6 @@ defmodule BotArmyDashboardLiveview.PhoneNavModal do
     {"/household-hud", "🏠", "House", "What is waiting, and what she asked for"},
     {"/party-phone", "🎭", "Window",
      "The window she is in with the party, and the shelf inside it"},
-    {"/fitness-phone", "💪", "Fitness", "Workout logging"},
     {"/system-health-phone", "⚙️", "Health", "Bot & NATS status"}
   ]
 

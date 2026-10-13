@@ -1,3 +1,14 @@
+/**
+ * SUPERSEDED — `/fitness-handheld` is retired.
+ *
+ * The screen was removed when the fitness log moved to her own panel (30014,
+ * `?tab=fitness`). `/fitness-handheld` now answers with a 302 to that group, so the
+ * `.handheld-container` this spec waits for never appears. The path is kept as a
+ * bookmark redirect only. The lesson this spec carried — a screen that reads must show
+ * what it read — is pinned in `test/view_read_path_test.exs` on the health screen.
+ *
+ * Skipped rather than deleted so a reader finds the reason instead of a gap.
+ */
 import { test, expect } from '@playwright/test';
 import {
   pressUp,
@@ -6,7 +17,7 @@ import {
   getSelectedItem,
 } from '../helpers/gamepad';
 
-test.describe('Fitness Handheld', () => {
+test.describe.skip('Fitness Handheld', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/fitness-handheld');
     // Wait for interface to load

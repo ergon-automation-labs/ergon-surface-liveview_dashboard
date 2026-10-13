@@ -19,11 +19,12 @@ is answered. Its destinations come in two kinds, and the difference is load-bear
 | `:her_energy` | `/energy-mood-phone` → her panel's **Energy** | The same different origin, and this pair is the only retire whose defect was not about *who* could write: the check-in left as a publish with no reply, so the screen confirmed a byte on a socket rather than a stored reading. |
 | `:her_timer` | `/timer-phone` → her panel's **Timers** | The same different origin, and the pair is the energy pair's defect a second time: the session was filed with a publish nobody had to read, and the running session's id lived in the page, so a reload lost both. The fix went past this surface — her panel's group holds the session in the bridge (§51). |
 | `:her_quest` | `/quest-phone` → her panel's **Quest** | The same different origin, and the pair is the GTD pair's defect and the worse half of it: a progress bar and a streak drawn over the box her tasks live in. Her panel counts the open steps it drew, and never a percentage (§50). |
+| `:her_fitness` | `/fitness-phone` → her panel's **Fitness** | The same different origin, and this pair is the only retire whose defect was a **word**: the screen carried its own list of activities and intensities — a sixth copy of the bot's vocabulary — so it could send a word the bot folds and draw it back under a word it invented. Her panel draws the bot's own options over the wire (§46). |
 
 A path the map does not know is a `404`, and says so. That is not a screen either, but
 it is not a lie about one.
 
-All seventeen retired paths are `get` routes outside `live_session`, because there is no
+All nineteen retired paths are `get` routes outside `live_session`, because there is no
 screen behind any one of them.
 
 ## `/hypnosis-phone` — the shelf's own page
@@ -269,10 +270,37 @@ their test files. The bar is 6 entries → 4 — Timer and Quest were two of the
 long-press menu loses the same two lines. `test/phone_nav_test.exs` pins both lists, and
 `test/routes_mount_test.exs` pins that each of the four paths answers with its move.
 
+## The fitness screens — the sixth copy of one vocabulary
+
+Two paths: `/fitness-phone` and `/fitness-handheld`. They are the one retire here whose
+defect is a **word** rather than a write, and saying so is what keeps this document honest.
+The phone screen carried its own list of what a workout is — `@workout_types` and
+`@intensity_levels`, hard-coded in the view — which made a **sixth** copy of a vocabulary the
+bot itself had already retired five times over. A screen with its own list can send the bot a
+word it folds onto `"other"` and then draw the row back under the name it invented, so the
+open surface and the bot disagree about what she did while both are showing her the same log.
+(The screens *did* write the right verb — `fitness.workout.log`, not the dead
+`events.fitness.workout_logged` publish an earlier version carried — so this is not the energy
+defect. What was wrong was the words, not the write.)
+
+Her panel's **Fitness** group (§46 of the bot's control surface contract) asks
+`fitness.workout.options` and draws the activities and the intensities **and the bot's own
+words for them** off the wire, so the picker can only offer what the bot accepts and a stored
+row can only be named as the bot named it. That is why the fix had to reach the bot — the
+`options` subject exists for exactly this — where the vocabulary could not be corrected on the
+surface that invented it. The panel also counts nothing: the card is what she has done, in
+felt time, with no streak and no total.
+
+Both paths land on that group. The handheld twin goes with the phone because the screen it
+drew is gone, not because anyone linked to it.
+
+Removed with them: `FitnessPhoneLive`, `FitnessHandheldLive`, and their two test files. The
+bar is 4 entries → 3, and the long-press menu loses the same line.
+
 ## What the bar and the menu carry now
 
-Four screens: **House**, **Window** (with the shelf inside it), **Fitness**, **Health**. The
-five report screens are not among them, and neither is the wardrobe, GTD, Reflect, Energy,
-Timer or Quest. A menu that still listed one would offer a screen that is not there — the
-same fog the retirement was for, drawn a second time. `test/phone_nav_test.exs` pins both
-lists, and `test/routes_mount_test.exs` pins that each retired path answers with its move.
+Three screens: **House**, **Window** (with the shelf inside it), **Health**. The five report
+screens are not among them, and neither is the wardrobe, GTD, Reflect, Energy, Timer, Quest
+or Fitness. A menu that still listed one would offer a screen that is not there — the same
+fog the retirement was for, drawn a second time. `test/phone_nav_test.exs` pins both lists,
+and `test/routes_mount_test.exs` pins that each retired path answers with its move.

@@ -146,7 +146,7 @@ A textarea + submit, same shape as `ReflectionLive` (`phx-change` bound text, on
 
 ## New surfaces (routes)
 
-Following the existing `*-handheld` / `*-phone` pairing (`fitness-handheld`/`fitness-phone`, etc.):
+Following the existing `*-handheld` / `*-phone` pairing (`system-health-handheld`/`system-health-phone`, etc.):
 - `/party-select-phone` — choose who is with her — **built** (writes `rpg.party.*`; `/party-phone` is its
   front door and there is no separate nav entry)
 - `/party-phone` — the window: the party, the narrator, the session, the history, the reply box — **built**

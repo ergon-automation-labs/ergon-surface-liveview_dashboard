@@ -33,7 +33,7 @@ defmodule BotArmyDashboardLiveview.HerPanelTest do
     assert HerPanel.url_from_host("") == "http://localhost:30014"
   end
 
-  test "the closet, the reports, the tasks, the reflect, the energy, the timer and the quest are one address each, and absolute" do
+  test "the closet, the reports, the tasks, the reflect, the energy, the timer, the quest and the fitness are one address each, and absolute" do
     # A different port is a different origin, so none of these can ever be a relative path:
     # `/?tab=timer` on this dashboard is a group no screen here holds.
     for {url, tab} <- [
@@ -43,7 +43,8 @@ defmodule BotArmyDashboardLiveview.HerPanelTest do
           {HerPanel.reflect_url_from_host("192.168.1.50"), "reflect"},
           {HerPanel.energy_url_from_host("192.168.1.50"), "energy"},
           {HerPanel.timer_url_from_host("192.168.1.50"), "timer"},
-          {HerPanel.quest_url_from_host("192.168.1.50"), "quest"}
+          {HerPanel.quest_url_from_host("192.168.1.50"), "quest"},
+          {HerPanel.fitness_url_from_host("192.168.1.50"), "fitness"}
         ] do
       assert url == "http://192.168.1.50:30014/?tab=#{tab}"
       refute String.starts_with?(url, "/")
@@ -52,6 +53,7 @@ defmodule BotArmyDashboardLiveview.HerPanelTest do
     assert HerPanel.closet_url(URI.parse("http://192.168.1.50:30011/")) =~ ":30014/?tab=closet"
     assert HerPanel.timer_url(URI.parse("http://192.168.1.50:30011/")) =~ ":30014/?tab=timer"
     assert HerPanel.quest_url(URI.parse("http://192.168.1.50:30011/")) =~ ":30014/?tab=quest"
+    assert HerPanel.fitness_url(URI.parse("http://192.168.1.50:30011/")) =~ ":30014/?tab=fitness"
   end
 
   test "WIFE_CARE_CONTROL_PANEL_URL replaces the host and the port together" do

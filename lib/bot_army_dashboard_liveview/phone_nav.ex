@@ -66,6 +66,14 @@ defmodule BotArmyDashboardLiveview.PhoneNav do
   (§51). `/quest-phone` is the GTD screen's defect: it drew a progress bar over the box her
   tasks live in, and her panel's Quest group draws the open steps as a count (§50). A bar
   that still offered either would be a promise that the screen is here.
+
+  The fitness pair was the last thing on this bar to go, and it left for a reason none of the
+  others had: it was not the write that was wrong but the **words**. The phone screen carried
+  its own list of what a workout is — a sixth copy of a vocabulary the bot had already
+  retired five times — so it could offer an activity the bot folds onto `"other"` and then
+  draw the row back under a name it invented. Her panel's **Fitness** group asks
+  `fitness.workout.options` and draws the bot's own activities, intensities and words (§46),
+  so nothing on this bar has to know the vocabulary to write a workout.
   """
 
   use Phoenix.Component
@@ -73,7 +81,6 @@ defmodule BotArmyDashboardLiveview.PhoneNav do
   @handhelds [
     {"/household-hud", "🏠", "House"},
     {"/party-phone", "🎭", "Window"},
-    {"/fitness-phone", "💪", "Fitness"},
     {"/system-health-phone", "⚙️", "Health"}
   ]
 

@@ -32,14 +32,12 @@ defmodule BotArmyDashboardLiveview.Router do
       # no party there is no window, so this is the screen that makes one — and the link
       # between them goes both ways.
       live("/party-select-phone", PartySelectPhoneLive)
-      live("/fitness-handheld", FitnessHandheldLive)
       live("/system-health-handheld", SystemHealthHandheldLive)
-      live("/fitness-phone", FitnessPhoneLive)
       live("/system-health-phone", SystemHealthPhoneLive)
       live("/session-history-phone", SessionHistoryPhoneLive)
     end
 
-    # Seventeen paths here used to be screens. The shelf's own page is gone because the shelf is
+    # Nineteen paths here used to be screens. The shelf's own page is gone because the shelf is
     # drawn inside the window now, and it was never on the bar; the wardrobe's is gone
     # because the closet is hers, on her own panel behind her own link, and a screen on an
     # open surface that could put a set on her *and claim whose voice it was* was the wrong
@@ -84,6 +82,14 @@ defmodule BotArmyDashboardLiveview.Router do
     # list of nineteen things is where a foggy person gives up. Her panel's Quest group
     # draws the open steps and counts the rows it drew (§50).
     #
+    # `/fitness-phone` and `/fitness-handheld` are the one retire here whose defect is a
+    # **word** rather than a write. The phone screen carried its own list of what a workout
+    # is — a sixth copy of a vocabulary the bot had already retired five times over — so it
+    # could send a word the bot folds onto `"other"` and then draw the row back under the
+    # name it invented. Her panel's Fitness group draws the activities, the intensities and
+    # the bot's own words for them off `fitness.workout.options` (§46), so the picker can
+    # only offer what the bot takes and a row can only be named as the bot named it.
+    #
     # All of them are answered by `BotArmyDashboardLiveview.Retired`, which turns a
     # bookmark into the move rather than a 404. None is in `live_session`, because there
     # is no screen behind any one of them.
@@ -104,5 +110,7 @@ defmodule BotArmyDashboardLiveview.Router do
     get("/timer-handheld", Retired, [])
     get("/quest-phone", Retired, [])
     get("/quest-status", Retired, [])
+    get("/fitness-phone", Retired, [])
+    get("/fitness-handheld", Retired, [])
   end
 end

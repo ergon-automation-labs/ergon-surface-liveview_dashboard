@@ -68,9 +68,19 @@ defmodule BotArmyDashboardLiveview.PhoneNavTest do
   # rows it drew (§50). All four paths answer with a move into those two groups.
   @retired_timer ["/timer-phone", "/timer-handheld"]
   @retired_quest ["/quest-phone", "/quest-status"]
+
+  # The fitness pair left for a reason none of the others had: it was not the write that was
+  # wrong but the words. The phone screen carried its own list of what a workout is — a sixth
+  # copy of a vocabulary the bot had already retired five times — so it could offer an activity
+  # the bot folds onto `"other"` and then draw the row back under a name it invented. Her panel's
+  # Fitness group draws the bot's own activities, intensities and words off
+  # `fitness.workout.options` (§46). Both paths answer with a move into that group.
+  @retired_fitness ["/fitness-phone", "/fitness-handheld"]
+
   @retired_hers @retired_reports ++
                   @retired_gtd ++
-                  @retired_reflect ++ @retired_energy ++ @retired_timer ++ @retired_quest
+                  @retired_reflect ++
+                  @retired_energy ++ @retired_timer ++ @retired_quest ++ @retired_fitness
 
   setup do
     Application.put_env(@app, :broker_transport, BrokerStub)
@@ -114,7 +124,7 @@ defmodule BotArmyDashboardLiveview.PhoneNavTest do
     assert PhoneNav.get_emoji("/hypnosis-phone") == nil
 
     # One option each, not one page with modes.
-    assert length(handhelds) == 4
+    assert length(handhelds) == 3
     routes = Enum.map(handhelds, &elem(&1, 0))
     assert Enum.uniq(routes) == routes
   end
@@ -152,7 +162,7 @@ defmodule BotArmyDashboardLiveview.PhoneNavTest do
   # left: none of them may carry a ladder or one of the five report writes, whatever is
   # drawn on it.
   test "no screen that is left carries a ladder or a report write" do
-    html = render(page("/fitness-phone", "Fitness"))
+    html = render(page("/system-health-phone", "System Health"))
 
     refute html =~ "record_yearning"
     refute html =~ "record_body_reading"
