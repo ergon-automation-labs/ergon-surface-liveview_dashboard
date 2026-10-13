@@ -287,7 +287,7 @@ To add offline support to a handheld:
 
 ```javascript
 test('offline queue persists across reload', async ({ page }) => {
-  await page.goto('/timer-phone');
+  await page.goto('/fitness-phone');
   
   // Simulate offline
   await page.context().setOffline(true);

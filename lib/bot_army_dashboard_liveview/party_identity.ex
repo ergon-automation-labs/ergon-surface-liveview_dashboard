@@ -15,8 +15,9 @@ defmodule BotArmyDashboardLiveview.PartyIdentity do
   `rpg.party.remove` and `rpg.party.set_narrator` all resolve a user and refuse without
   one (`:missing_user_id`), and a party is keyed on the user it belongs to. A write that
   named nobody could read a party and never build one. So **every write here names the
-  party's user** — the same literal the fleet's own `/quest-status` sends, so `"abby"`
-  from this surface is the same person as `"abby"` in the window the party belongs to.
+  party's user** — the literal the retired `/quest-status` sent, and which these screens still
+  send, so `"abby"` from this surface is the same person as `"abby"` in the window the party
+  belongs to.
 
   ## The window's write names the user because the bot has to find the party from it
 

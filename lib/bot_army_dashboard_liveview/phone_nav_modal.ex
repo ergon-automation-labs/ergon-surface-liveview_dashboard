@@ -22,6 +22,15 @@ defmodule BotArmyDashboardLiveview.PhoneNavModal do
   person — so the page that sent it answered *whose words are these* by itself. Her panel's
   Reflect group is that box behind her own link (§47), and `/reflection` and `/reflect-phone`
   both answer with where it went.
+
+  The timer and the quest are the eighth and ninth, and they left for the two defects this
+  menu has now collected one of each. The timer screen filed its session with a publish
+  nobody had to read and kept the session's id in the page, so a reload lost a running
+  session and the only handle that could end it; her panel's Timers group holds the session
+  in the bridge (§51). The quest screen drew a progress bar and the status screen a streak
+  over the box her tasks live in, and her panel's Quest group draws the open steps and
+  counts the rows it drew (§50). A menu is a promise that the screen is there, so it no
+  longer promises either.
   """
 
   use Phoenix.Component
@@ -30,8 +39,6 @@ defmodule BotArmyDashboardLiveview.PhoneNavModal do
     {"/household-hud", "🏠", "House", "What is waiting, and what she asked for"},
     {"/party-phone", "🎭", "Window",
      "The window she is in with the party, and the shelf inside it"},
-    {"/timer-phone", "⏱️", "Timer", "Focus sessions with task linking"},
-    {"/quest-phone", "⚔️", "Quest", "Story progression tracker"},
     {"/fitness-phone", "💪", "Fitness", "Workout logging"},
     {"/system-health-phone", "⚙️", "Health", "Bot & NATS status"}
   ]

@@ -26,10 +26,9 @@ defmodule BotArmyDashboardLiveview.RoutesMountTest do
 
   @routes ~w(
     / household-hud
-    fitness-handheld system-health-handheld timer-handheld
-    quest-status
-    timer-phone quest-phone party-phone
+    fitness-handheld system-health-handheld
     fitness-phone system-health-phone session-history-phone
+    party-phone
   )
 
   for route <- @routes do
@@ -172,10 +171,44 @@ defmodule BotArmyDashboardLiveview.RoutesMountTest do
              "http://air:30014/?tab=energy"
   end
 
+  # The timer and the quest are the last two retires, and they are worth pinning apart from
+  # the rest because they are **not** the reports' defect. The timer's write carried `slave`
+  # and the quest's was a read, so nothing was filed under the wrong hand. The timer screen
+  # instead had the energy screen's defect — a session filed by a publish nobody had to read,
+  # with its id kept in the page, where a reload lost it — and her panel's Timers group holds
+  # the session in the bridge (§51). The quest screen had the GTD screen's defect and the worst
+  # half of it: a progress bar and a streak drawn over the box her tasks live in, where her
+  # panel draws the open steps and counts the rows it drew (§50). Both pairs hand their
+  # bookmarks to the group that holds what the screen was about.
+  test "the retired timer and quest screens hand their bookmarks to her panel's groups" do
+    for {paths, kind, tab} <- [
+          {~w(/timer-phone /timer-handheld), :her_timer, "timer"},
+          {~w(/quest-phone /quest-status), :her_quest, "quest"}
+        ] do
+      for one <- paths do
+        conn = get(build_conn(), one)
+        assert conn.status == 302, "#{one} did not answer with a move"
+
+        assert Plug.Conn.get_resp_header(conn, "location") == [
+                 "http://www.example.com:30014/?tab=#{tab}"
+               ]
+
+        assert get(build_conn(), one <> "/").status == 302
+        assert BotArmyDashboardLiveview.Retired.moved_to(one) == kind
+      end
+    end
+
+    assert BotArmyDashboardLiveview.HerPanel.timer_url_from_host("air") ==
+             "http://air:30014/?tab=timer"
+
+    assert BotArmyDashboardLiveview.HerPanel.quest_url_from_host("air") ==
+             "http://air:30014/?tab=quest"
+  end
+
   # The plug only answers for the paths it knows. Everything else is a 404, which is not a
   # screen either — but it is not a lie about one.
   test "a path the retirement map does not know is not answered with a move" do
-    assert BotArmyDashboardLiveview.Retired.moved_to("/quest-status") == nil
+    assert BotArmyDashboardLiveview.Retired.moved_to("/not-a-screen") == nil
 
     conn = get(build_conn(), "/not-a-screen")
     assert conn.status == 404

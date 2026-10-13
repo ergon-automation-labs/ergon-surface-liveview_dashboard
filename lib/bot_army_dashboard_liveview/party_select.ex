@@ -27,7 +27,7 @@ defmodule BotArmyDashboardLiveview.PartySelect do
 
   The party routes **require** a user and refuse without one (`:missing_user_id`), unlike the
   window routes, which resolve a session the fleet opens with no user on it. So this screen
-  names one — the same literal `/quest-status` sends — and the bot resolves it through
+  names one — the literal the retired `/quest-status` sent — and the bot resolves it through
   `BotArmyRpg.Identity.resolve_user_id/2`, the same call `rpg.session.*` makes, so `"abby"`
   here is the same person as `"abby"` in the window this party belongs to. A screen that named
   nobody could read the party and never build one, which is the dead end again.

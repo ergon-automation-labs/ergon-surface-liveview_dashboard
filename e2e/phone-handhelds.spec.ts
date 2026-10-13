@@ -8,46 +8,6 @@ test.describe('Nova Phone Handhelds', () => {
     await page.setViewportSize({ width: 375, height: 812 });
   });
 
-  test.describe('Timer Phone Handheld', () => {
-    test('should load timer page', async ({ page }) => {
-      await page.goto(`${BASE_URL}/timer-phone`);
-      await expect(page.locator('.view-title')).toContainText('Focus Timer');
-      await expect(page.locator('.handheld-container.timer-phone')).toBeVisible();
-    });
-
-    test('should show duration spinner', async ({ page }) => {
-      await page.goto(`${BASE_URL}/timer-phone`);
-      await expect(page.locator('.spinner-wheel')).toBeVisible();
-      await expect(page.locator('.duration-value')).toContainText('25');
-    });
-
-    test('should navigate through phone nav bar', async ({ page }) => {
-      await page.goto(`${BASE_URL}/timer-phone`);
-
-      // Check nav bar exists
-      const navBar = page.locator('.phone-nav-bar');
-      await expect(navBar).toBeVisible();
-
-      // Check timer nav item is active
-      const timerNav = page.locator('.nav-item.active');
-      await expect(timerNav).toContainText('Timer');
-    });
-
-    test('should open context menu on long-press', async ({ page }) => {
-      await page.goto(`${BASE_URL}/timer-phone`);
-
-      // Simulate long-press by programmatically triggering event
-      await page.evaluate(() => {
-        const event = new CustomEvent('long-press', { bubbles: true });
-        document.querySelector('.handheld-container')?.dispatchEvent(event);
-      });
-
-      // Check if modal appears
-      const modal = page.locator('.phone-nav-modal-overlay');
-      await expect(modal).toBeVisible();
-    });
-  });
-
   test.describe('Retired report screens', () => {
     // These five used to be screens here, and they wrote her own reports from an open
     // surface: the bot files a body reading, a yearning, a hygiene event and the three
@@ -72,34 +32,6 @@ test.describe('Nova Phone Handhelds', () => {
         await expect(page).toHaveURL(/\?tab=how_i_am$/);
       });
     }
-  });
-
-  test.describe('Quest Phone Handheld', () => {
-    test('should load quest page', async ({ page }) => {
-      await page.goto(`${BASE_URL}/quest-phone`);
-      await expect(page.locator('.view-title')).toContainText('Your Quest');
-    });
-
-    test('should display progress bar', async ({ page }) => {
-      await page.goto(`${BASE_URL}/quest-phone`);
-
-      // Check for progress bar
-      const progressBar = page.locator('.progress-bar-container-phone');
-      await expect(progressBar).toBeVisible();
-
-      // Check progress text exists
-      const progressText = page.locator('.progress-text-phone');
-      await expect(progressText).toBeVisible();
-    });
-
-    test('should display next task preview', async ({ page }) => {
-      await page.goto(`${BASE_URL}/quest-phone`);
-
-      const nextTaskCard = page.locator('.next-task-card');
-      if (await nextTaskCard.isVisible()) {
-        await expect(nextTaskCard.locator('.next-task-label')).toContainText("What's Next");
-      }
-    });
   });
 
   // Reflect is her panel's now (§47), and it is the report screens' defect exactly: both
@@ -135,6 +67,29 @@ test.describe('Nova Phone Handhelds', () => {
 
         expect(response.status()).toBe(302);
         expect(response.headers()['location']).toContain(':30014/?tab=energy');
+      });
+    }
+  });
+
+  // The timer and the quest are the last two to leave, and they are worth pinning apart
+  // because they are not the reports' defect. The timer screen had the *energy* defect a
+  // second time — the session was filed with a publish nobody had to read, and its id was
+  // kept in the page, where a reload took it — and her panel's Timers group holds the
+  // session in the bridge (§51). The quest screen had the *GTD* defect: a progress bar and a
+  // streak drawn over the box her tasks live in, where her panel counts the open steps
+  // (§50). A 404 would turn "your session moved" into "you typed it wrong", on a phone.
+  test.describe('Timer and Quest Phone Handhelds — retired into her panel', () => {
+    for (const [path, tab] of [
+      ['/timer-phone', 'timer'],
+      ['/timer-handheld', 'timer'],
+      ['/quest-phone', 'quest'],
+      ['/quest-status', 'quest'],
+    ] as const) {
+      test(`${path} answers with a move, not a 404`, async ({ page }) => {
+        const response = await page.request.get(`${BASE_URL}${path}`, { maxRedirects: 0 });
+
+        expect(response.status()).toBe(302);
+        expect(response.headers()['location']).toContain(`:30014/?tab=${tab}`);
       });
     }
   });
@@ -210,10 +165,11 @@ test.describe('Nova Phone Handhelds', () => {
 
   test.describe('Navigation', () => {
     test('should navigate between pages via nav bar', async ({ page }) => {
-      await page.goto(`${BASE_URL}/timer-phone`);
+      await page.goto(`${BASE_URL}/household-hud`);
 
       // The bar carries the screens that are here. Habits used to be one and is not any
-      // more — the bar no longer offers it, so this walks the house instead.
+      // more — nor is the timer, which left with the quest (§50/§51) — so this walks the
+      // house instead, which is the screen she lives on.
       const houseLink = page.locator('.nav-item:has-text("House")');
       await expect(houseLink).toBeVisible();
       await houseLink.click();
@@ -222,15 +178,15 @@ test.describe('Nova Phone Handhelds', () => {
     });
 
     test('should not offer a retired report screen in the bar', async ({ page }) => {
-      await page.goto(`${BASE_URL}/timer-phone`);
+      await page.goto(`${BASE_URL}/household-hud`);
 
-      for (const label of ['Yearning', 'Body', 'Devotion', 'Habits', 'Anchors']) {
+      for (const label of ['Yearning', 'Body', 'Devotion', 'Habits', 'Anchors', 'Timer', 'Quest']) {
         await expect(page.locator(`.nav-item:has-text("${label}")`)).toHaveCount(0);
       }
     });
 
     test('should show search in context menu', async ({ page }) => {
-      await page.goto(`${BASE_URL}/timer-phone`);
+      await page.goto(`${BASE_URL}/household-hud`);
 
       // Open context menu
       await page.evaluate(() => {
@@ -248,7 +204,7 @@ test.describe('Nova Phone Handhelds', () => {
 
   test.describe('Accessibility', () => {
     test('should have minimum touch target sizes', async ({ page }) => {
-      await page.goto(`${BASE_URL}/timer-phone`);
+      await page.goto(`${BASE_URL}/household-hud`);
 
       // Check control hints have min-height
       const controlHints = page.locator('.control-hint');
@@ -262,7 +218,7 @@ test.describe('Nova Phone Handhelds', () => {
     });
 
     test('should have readable text sizes', async ({ page }) => {
-      await page.goto(`${BASE_URL}/timer-phone`);
+      await page.goto(`${BASE_URL}/household-hud`);
 
       // Check view title size
       const title = page.locator('.view-title');
@@ -272,7 +228,7 @@ test.describe('Nova Phone Handhelds', () => {
     });
 
     test('should have sufficient color contrast', async ({ page }) => {
-      await page.goto(`${BASE_URL}/timer-phone`);
+      await page.goto(`${BASE_URL}/household-hud`);
 
       // Check that text is visible
       const title = page.locator('.view-title');
@@ -283,7 +239,7 @@ test.describe('Nova Phone Handhelds', () => {
     });
 
     test('should support keyboard navigation', async ({ page }) => {
-      await page.goto(`${BASE_URL}/timer-phone`);
+      await page.goto(`${BASE_URL}/household-hud`);
 
       // This used to focus the reflect screen's textarea — a screen that is her panel's
       // now (§47), so the check had begun passing by finding nothing. Keep the lesson on a

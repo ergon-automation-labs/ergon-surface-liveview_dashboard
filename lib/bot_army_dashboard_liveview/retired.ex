@@ -89,6 +89,29 @@ defmodule BotArmyDashboardLiveview.Retired do
   the card above is redrawn from the reading the bot now holds. The three ways of recording
   nothing are three different sentences there, which is the whole point: a failed read is
   not "no reading", and a word the bot has never been given is not a zero.
+
+  ## The timer and the quest are the pair this map's shape argued against
+
+  Four paths are retired into her panel's **Timers** and **Quest** groups: `/timer-phone`,
+  `/timer-handheld`, `/quest-phone` and `/quest-status`. They are the first retires here that
+  are *not* the reports' defect — and saying which defect they are is what keeps the map
+  honest. The timer's write carried an identity (`events.timer.session_completed`, filed under
+  the name the surface claimed) and the quest's was a read, so no journal was written from an
+  open surface. Their cost is the other half of the same coin, twice over.
+
+  The timer screens had the **energy** defect: the session was filed as a `events.timer.*`
+  event — a `Gnat.pub/3` with no reply — so the confirmation was a byte that had reached the
+  socket, and the running session's own id lived in the LiveView's state, where a reload
+  took it. That is why the fix is not a gate either: her panel's Timers group holds the
+  session **in the bridge** (`bridge.timer.list` and a 24h age-based sweep, §51), which is
+  the only place a session can survive a page it is not in.
+
+  The quest screens had the **GTD** defect, and the worst half of it: `/quest-phone` drew a
+  progress bar and `/quest-status` a streak — a board-shaped view of how much is done, which
+  is the view the panel refuses for exactly the reason a list of nineteen things is where a
+  foggy person gives up. Her panel's Quest group draws the open steps and counts the rows it
+  drew (§50). Both pairs are therefore moves rather than gates, and each path hands its
+  bookmark to the group that holds what it was about.
   """
 
   import Plug.Conn
@@ -108,7 +131,11 @@ defmodule BotArmyDashboardLiveview.Retired do
     "/reflection" => :her_reflect,
     "/reflect-phone" => :her_reflect,
     "/energy-mood-phone" => :her_energy,
-    "/energy-mood-handheld" => :her_energy
+    "/energy-mood-handheld" => :her_energy,
+    "/timer-phone" => :her_timer,
+    "/timer-handheld" => :her_timer,
+    "/quest-phone" => :her_quest,
+    "/quest-status" => :her_quest
   }
 
   def init(opts), do: opts
@@ -139,6 +166,8 @@ defmodule BotArmyDashboardLiveview.Retired do
   defp location(:her_tasks, host), do: HerPanel.tasks_url_from_host(host)
   defp location(:her_reflect, host), do: HerPanel.reflect_url_from_host(host)
   defp location(:her_energy, host), do: HerPanel.energy_url_from_host(host)
+  defp location(:her_timer, host), do: HerPanel.timer_url_from_host(host)
+  defp location(:her_quest, host), do: HerPanel.quest_url_from_host(host)
 
   @doc """
   Where a retired path goes, for the tests and for anything that has to name it.

@@ -58,6 +58,20 @@ defmodule BotArmyDashboardLiveview.PhoneNavTest do
   # the reading back (§49). Both paths answer with a move into that group.
   @retired_energy ["/energy-mood-phone", "/energy-mood-handheld"]
 
+  # The timer and the quest are the pair this map's shape argued against, and the last two to
+  # leave. They are not the reports' defect: the timer's write carried `slave` and the quest's
+  # was a read, so no journal was written from an open surface. The timer screen had the
+  # *energy* defect instead — the session was filed with a publish nobody had to read and the
+  # running session's id lived in the page, so a reload took both — and the quest screen had
+  # the *GTD* defect, drawing a progress bar and a streak over the box her tasks live in. Her
+  # panel's Timers group holds the session in the bridge (§51) and its Quest group counts the
+  # rows it drew (§50). All four paths answer with a move into those two groups.
+  @retired_timer ["/timer-phone", "/timer-handheld"]
+  @retired_quest ["/quest-phone", "/quest-status"]
+  @retired_hers @retired_reports ++
+                  @retired_gtd ++
+                  @retired_reflect ++ @retired_energy ++ @retired_timer ++ @retired_quest
+
   setup do
     Application.put_env(@app, :broker_transport, BrokerStub)
     Application.put_env(@app, :broker_stub_listener, self())
@@ -86,7 +100,7 @@ defmodule BotArmyDashboardLiveview.PhoneNavTest do
     # entry until the journal it wrote moved to the panel, where the hand that wrote it is
     # known (§45, §47). And so is Energy, which was an entry until the reading came from the
     # bot's reply rather than from a publish nobody had to answer (§49).
-    for route <- @retired_reports ++ @retired_gtd ++ @retired_reflect ++ @retired_energy do
+    for route <- @retired_hers do
       refute Enum.any?(handhelds, fn {r, _emoji, _label} -> r == route end)
       assert PhoneNav.get_emoji(route) == nil
     end
@@ -100,7 +114,7 @@ defmodule BotArmyDashboardLiveview.PhoneNavTest do
     assert PhoneNav.get_emoji("/hypnosis-phone") == nil
 
     # One option each, not one page with modes.
-    assert length(handhelds) == 6
+    assert length(handhelds) == 4
     routes = Enum.map(handhelds, &elem(&1, 0))
     assert Enum.uniq(routes) == routes
   end
@@ -115,9 +129,7 @@ defmodule BotArmyDashboardLiveview.PhoneNavTest do
     # case: their paths answer with a move into her panel, so listing one here would offer a
     # screen this surface does not have.
     for retired <-
-          @retired_reports ++
-            @retired_gtd ++
-            @retired_reflect ++ @retired_energy ++ ["/hypnosis-phone", "/wardrobe-phone"] do
+          @retired_hers ++ ["/hypnosis-phone", "/wardrobe-phone"] do
       refute Enum.any?(handhelds, fn {route, _emoji, _label, _hint} -> route == retired end)
     end
 
@@ -134,12 +146,13 @@ defmodule BotArmyDashboardLiveview.PhoneNavTest do
     assert Enum.uniq(routes) == routes
   end
 
-  # The placement rule that outlived the screens: the timer is where a countdown runs, and
-  # a tap on a point must not be able to reach it. The ladders used to sit under the timer
-  # and then on pages of their own; they are on her panel now, and this is the half of the
-  # old rule that still has a subject.
-  test "the timer screen carries no ladder and no report write" do
-    html = render(page("/timer-phone", "nav-item"))
+  # The placement rule that outlived the screens: a ladder used to sit under the timer, one
+  # tap from starting a countdown, and it is on her panel now. The timer screen itself is
+  # retired (§51), so the half of the rule that still has a subject is the screens that are
+  # left: none of them may carry a ladder or one of the five report writes, whatever is
+  # drawn on it.
+  test "no screen that is left carries a ladder or a report write" do
+    html = render(page("/fitness-phone", "Fitness"))
 
     refute html =~ "record_yearning"
     refute html =~ "record_body_reading"

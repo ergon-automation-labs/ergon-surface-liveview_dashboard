@@ -91,7 +91,7 @@ Nova already reframes tasks/projects as quests and gives them a narrator charact
 
 1. Player is about to start a task/quest → **party select** screen: choose 1-3 bot-characters for this task.
 2. Task runs. On task-state-change events (start, checkpoint, complete — reusing what already flows through `nats_bridge.ex`), the chosen party has a chance to generate a banter line as an **async LLM job**, not a blocking call.
-3. Player checks the banter feed whenever they have a moment (existing "check in" pattern from `quest-status`/`habit-anchors`) — sees new lines, can scroll history, can reply.
+3. Player checks the banter feed whenever they have a moment (the "check in" pattern the retired `quest-status`/`habit-anchors` screens used) — sees new lines, can scroll history, can reply.
 4. A reply is appended to that character's continuity thread and optionally triggers a follow-up job.
 5. On quest/task completion, affinity for the party members who were present increments. Crossing a threshold can unlock a new banter *topic* (a tag fed into the generation prompt), not a new UI.
 
@@ -146,7 +146,7 @@ A textarea + submit, same shape as `ReflectionLive` (`phx-change` bound text, on
 
 ## New surfaces (routes)
 
-Following the existing `*-handheld` / `*-phone` pairing (`timer-handheld`/`timer-phone`, etc.):
+Following the existing `*-handheld` / `*-phone` pairing (`fitness-handheld`/`fitness-phone`, etc.):
 - `/party-select-phone` — choose who is with her — **built** (writes `rpg.party.*`; `/party-phone` is its
   front door and there is no separate nav entry)
 - `/party-phone` — the window: the party, the narrator, the session, the history, the reply box — **built**

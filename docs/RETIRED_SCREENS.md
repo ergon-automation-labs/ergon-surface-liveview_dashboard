@@ -17,11 +17,13 @@ is answered. Its destinations come in two kinds, and the difference is load-bear
 | `:her_tasks` | `/gtd-phone` → her panel's **Tasks** | The same different origin again. Two paths share it, and neither of them was a report: what they drew was the box her tasks live in. |
 | `:her_reflect` | `/reflection` → her panel's **Reflect** | The same different origin, and the two paths share it for the same reason as the tasks pair: two doors onto one box. What is behind them is her journal. |
 | `:her_energy` | `/energy-mood-phone` → her panel's **Energy** | The same different origin, and this pair is the only retire whose defect was not about *who* could write: the check-in left as a publish with no reply, so the screen confirmed a byte on a socket rather than a stored reading. |
+| `:her_timer` | `/timer-phone` → her panel's **Timers** | The same different origin, and the pair is the energy pair's defect a second time: the session was filed with a publish nobody had to read, and the running session's id lived in the page, so a reload lost both. The fix went past this surface — her panel's group holds the session in the bridge (§51). |
+| `:her_quest` | `/quest-phone` → her panel's **Quest** | The same different origin, and the pair is the GTD pair's defect and the worse half of it: a progress bar and a streak drawn over the box her tasks live in. Her panel counts the open steps it drew, and never a percentage (§50). |
 
 A path the map does not know is a `404`, and says so. That is not a screen either, but
 it is not a lie about one.
 
-All thirteen retired paths are `get` routes outside `live_session`, because there is no
+All seventeen retired paths are `get` routes outside `live_session`, because there is no
 screen behind any one of them.
 
 ## `/hypnosis-phone` — the shelf's own page
@@ -214,11 +216,63 @@ panel now — a refusal is not an empty store, `pending` is a state and not a sy
 answer*, and a read that never came back says so (`test/wife_care_control_liveview/
 panel_live_test.exs`, "The companion did not answer…").
 
+## The timer and the quest — the pair this surface's own shape argued against
+
+Four paths: `/timer-phone`, `/timer-handheld`, `/quest-phone` and `/quest-status`. They are
+the first retires here that are **not** the reports' defect, and saying so is what keeps this
+document honest. The timer wrote through the bridge as `slave`, and the quest screen did not
+write at all — so nothing was filed under the wrong hand, and no journal was written from an
+open surface. Their cost is the other half of the same coin, twice over, which is why neither
+is a gate either.
+
+### `/timer-phone` and `/timer-handheld` — the energy defect, in a second place
+
+The timer screen filed its session as an `events.timer.*` event: a `Gnat.pub/3`, with no
+reply, so the **"Session logged"** it drew was a statement about bytes that had reached the
+socket, exactly the sentence the energy screen taught her not to trust. And the running
+session's own id lived in the LiveView's state — so a reload took the session *and* the only
+handle that could end it, leaving a timer running in the bridge that nothing on the page
+could finish.
+
+That is why the fix for this pair did not stay on this surface. A session that must survive a
+page it is not in has to live somewhere the page is not, so her panel's **Timers** group holds
+it **in the bridge**: the bridge gained `bridge.timer.list` and a 24h age-based sweep (§51 of
+the bot's control surface contract — a session abandoned by a closed tab expires instead of
+accumulating), and the panel asks for the list, asks the bridge to end the one she names, and
+throws the id away. The session's clock is the bridge's from beginning to end.
+
+### `/quest-phone` and `/quest-status` — the GTD defect, and the worst half of it
+
+`/quest-phone` drew a **progress bar** and `/quest-status` a **streak**, both over the box her
+tasks live in. A bar and a streak are a board-shaped view of *how much is done*, and that is
+the view this household refuses on purpose: a list of nineteen things is where a foggy person
+gives up, which is the exact reason the GTD screen was retired into her panel's Tasks group
+(§45). Two screens answering *how am I doing* with a percentage is that same fog, drawn a
+second time and with a number attached.
+
+Her panel's **Quest** group (§50) is where the quest went: it draws the open steps — the
+quest is the GTD project the steps belong to — and the only count is the count of the rows it
+drew. No bar, no percentage, no streak. That it is drawn at all, and not gated, is the same
+reasoning as the two it followed: a quest is a read, and reading is not a permission.
+
+### Why all four are moves rather than gates
+
+Neither defect is about *who* could write, so there is nothing here for a gate to admit. What
+was wrong was **where the state lived** (the timer's session, in the page) and **what shape a
+read took** (the quest's progress, as a bar). Both are answered by the screens her panel
+already holds — the session in the bridge, the steps counted — and so every one of the four
+paths hands its bookmark to the group that holds what it was about.
+
+Removed with them: `TimerPhoneLive`, `TimerHandheldLive`, `QuestPhoneLive`,
+`QuestStatusLive`, `QuestPayload` (the wire module only the two quest screens read), and
+their test files. The bar is 6 entries → 4 — Timer and Quest were two of the six — and the
+long-press menu loses the same two lines. `test/phone_nav_test.exs` pins both lists, and
+`test/routes_mount_test.exs` pins that each of the four paths answers with its move.
+
 ## What the bar and the menu carry now
 
-Six screens: **House**, **Window** (with the shelf inside it), Timer, Quest, Fitness,
-Health. The five report screens are not among them, and neither is the wardrobe, GTD,
-Reflect or Energy. A menu that still listed one would offer a screen that is not there —
-the same fog the retirement was for, drawn a second time. `test/phone_nav_test.exs`
-pins both lists, and `test/routes_mount_test.exs` pins that each retired path answers
-with its move.
+Four screens: **House**, **Window** (with the shelf inside it), **Fitness**, **Health**. The
+five report screens are not among them, and neither is the wardrobe, GTD, Reflect, Energy,
+Timer or Quest. A menu that still listed one would offer a screen that is not there — the
+same fog the retirement was for, drawn a second time. `test/phone_nav_test.exs` pins both
+lists, and `test/routes_mount_test.exs` pins that each retired path answers with its move.

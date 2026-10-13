@@ -27,7 +27,7 @@ defmodule BotArmyDashboardLiveview.HerPanel do
   cannot infer from the request it got. It replaces host *and* port together, because
   a value that only replaced the port could not express `https://…`.
 
-  ## Five groups, because one place now answers several paths
+  ## Seven groups, because one place now answers several paths
 
   The closet's address was the first one a screen needed, the reports' address is the
   second — five screens on this dashboard used to *make* her reports, and all five are
@@ -40,9 +40,20 @@ defmodule BotArmyDashboardLiveview.HerPanel do
   `events.context.updated` — a byte on a socket that no subscriber had to receive — so the
   "Context saved" it showed confirmed nothing, and when the panel was asked instead it
   answered honestly. Her panel's **Energy** group asks `wife_care.energy.record` and reads
-  the reading back off the bot's own reply (§49). A group has an address on her panel
-  (§39/§44/§45/§47/§49 of the bot's control surface contract), so a bookmarked path hands
-  the bookmark to the screen it was really about rather than to the panel's front door.
+  the reading back off the bot's own reply (§49).
+
+  The timer and the quest make seven, and they are the pair this map's shape argued *against*.
+  Neither screen had the reports' defect: the timer's write carried `slave` and the quest's
+  was a read, so nothing was filed under the wrong hand and no journal was written from an
+  open surface. What they cost was the other half of the same coin — the timer screen filed
+  its session through a publish nobody had to read (the energy defect exactly, in a second
+  place), and the quest screen drew a progress bar and a streak over the box her tasks live
+  in, which is the board-shaped view the panel refuses (the GTD defect). So both are moves
+  and not gates: her panel's **Timers** group holds the session **in the bridge** rather than
+  in a browser tab (§51), and its **Quest** group draws the open steps as a count (§50). A
+  group has an address on her panel (§39/§44/§45/§47/§49/§50/§51 of the bot's control surface
+  contract), so a bookmarked path hands the bookmark to the screen it was really about rather
+  than to the panel's front door.
   """
 
   # The panel's port on this household's machines. `docs/wife_care/PANELS.md` in the
@@ -73,6 +84,17 @@ defmodule BotArmyDashboardLiveview.HerPanel do
   # that left the socket; the panel's Energy group asks the subject and reads the reading
   # back, which is the confirmation (§49).
   @energy "/?tab=energy"
+
+  # The group a session is run from. The screen here filed the session with a publish and
+  # kept the id in the page, so a reload lost a running session and the id with it; the panel
+  # asks the bridge for the list and asks it to end the one she names, and the bridge holds
+  # the session itself (§51).
+  @timer "/?tab=timer"
+
+  # The group the open steps are worked from. The screen here drew a progress bar and a streak
+  # over the box her tasks live in; the panel's Quest group is that same box as the quest it is
+  # a window on, and counts the rows it drew rather than a percentage (§50).
+  @quest "/?tab=quest"
 
   @doc "Her panel's base URL, off the host this request arrived on."
   @spec url(URI.t() | nil) :: String.t()
@@ -135,6 +157,28 @@ defmodule BotArmyDashboardLiveview.HerPanel do
   @doc "The same, for a Plug connection."
   @spec energy_url_from_host(String.t() | nil) :: String.t()
   def energy_url_from_host(host), do: url_from_host(host) <> @energy
+
+  @doc """
+  The group a session is run from, as an absolute URL — a different origin, like the other
+  five, so it must be one.
+  """
+  @spec timer_url(URI.t() | nil) :: String.t()
+  def timer_url(host_uri), do: url(host_uri) <> @timer
+
+  @doc "The same, for a Plug connection."
+  @spec timer_url_from_host(String.t() | nil) :: String.t()
+  def timer_url_from_host(host), do: url_from_host(host) <> @timer
+
+  @doc """
+  The group the open steps are worked from, as an absolute URL — a different origin, like the
+  other six, so it must be one.
+  """
+  @spec quest_url(URI.t() | nil) :: String.t()
+  def quest_url(host_uri), do: url(host_uri) <> @quest
+
+  @doc "The same, for a Plug connection."
+  @spec quest_url_from_host(String.t() | nil) :: String.t()
+  def quest_url_from_host(host), do: url_from_host(host) <> @quest
 
   defp base(host) do
     System.get_env("WIFE_CARE_CONTROL_PANEL_URL") || "http://#{host}:#{@port}"

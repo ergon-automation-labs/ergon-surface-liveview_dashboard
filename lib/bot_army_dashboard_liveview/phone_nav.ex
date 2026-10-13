@@ -58,6 +58,14 @@ defmodule BotArmyDashboardLiveview.PhoneNav do
 
   The window is second because it is the only screen here she is *in* rather than
   reading about herself from: what gathered, who joined, and what has been said.
+
+  The timer and the quest were on this bar and are not, and they are the last two to
+  leave. `/timer-phone` is the energy screen's defect a second time — it filed the session
+  with a publish nobody had to read, and kept the running session's id in the page, so a
+  reload lost both — and her panel's Timers group holds the session **in the bridge**
+  (§51). `/quest-phone` is the GTD screen's defect: it drew a progress bar over the box her
+  tasks live in, and her panel's Quest group draws the open steps as a count (§50). A bar
+  that still offered either would be a promise that the screen is here.
   """
 
   use Phoenix.Component
@@ -65,8 +73,6 @@ defmodule BotArmyDashboardLiveview.PhoneNav do
   @handhelds [
     {"/household-hud", "🏠", "House"},
     {"/party-phone", "🎭", "Window"},
-    {"/timer-phone", "⏱️", "Timer"},
-    {"/quest-phone", "⚔️", "Quest"},
     {"/fitness-phone", "💪", "Fitness"},
     {"/system-health-phone", "⚙️", "Health"}
   ]

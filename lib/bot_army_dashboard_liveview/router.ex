@@ -34,16 +34,12 @@ defmodule BotArmyDashboardLiveview.Router do
       live("/party-select-phone", PartySelectPhoneLive)
       live("/fitness-handheld", FitnessHandheldLive)
       live("/system-health-handheld", SystemHealthHandheldLive)
-      live("/timer-handheld", TimerHandheldLive)
-      live("/quest-status", QuestStatusLive)
-      live("/timer-phone", TimerPhoneLive)
-      live("/quest-phone", QuestPhoneLive)
       live("/fitness-phone", FitnessPhoneLive)
       live("/system-health-phone", SystemHealthPhoneLive)
       live("/session-history-phone", SessionHistoryPhoneLive)
     end
 
-    # Thirteen paths here used to be screens. The shelf's own page is gone because the shelf is
+    # Seventeen paths here used to be screens. The shelf's own page is gone because the shelf is
     # drawn inside the window now, and it was never on the bar; the wardrobe's is gone
     # because the closet is hers, on her own panel behind her own link, and a screen on an
     # open surface that could put a set on her *and claim whose voice it was* was the wrong
@@ -74,6 +70,20 @@ defmodule BotArmyDashboardLiveview.Router do
     # `wife_care.energy.record` and reading the reading back, which is what her panel's
     # Energy group does (§49), and where both paths now send their bookmarks.
     #
+    # The timer pair is the energy defect in a second place, and it is the reason the fix
+    # went further than this surface. `/timer-phone` and `/timer-handheld` filed the session
+    # with a `events.timer.*` publish — no reply, so "Session logged" was drawn over bytes
+    # that had reached the socket — and they kept the running session's id in the page,
+    # where a reload took it and left a session nothing could end. Her panel's Timers group
+    # holds the session in the bridge instead (§51), which is the only place a session can
+    # survive a page it is not in.
+    #
+    # The quest pair is the GTD pair's defect, and the worst half of it. `/quest-phone` drew
+    # a progress bar and `/quest-status` a streak over the box her tasks live in — a
+    # board-shaped view of how much is done, which is the view her panel refuses because a
+    # list of nineteen things is where a foggy person gives up. Her panel's Quest group
+    # draws the open steps and counts the rows it drew (§50).
+    #
     # All of them are answered by `BotArmyDashboardLiveview.Retired`, which turns a
     # bookmark into the move rather than a 404. None is in `live_session`, because there
     # is no screen behind any one of them.
@@ -90,5 +100,9 @@ defmodule BotArmyDashboardLiveview.Router do
     get("/reflect-phone", Retired, [])
     get("/energy-mood-phone", Retired, [])
     get("/energy-mood-handheld", Retired, [])
+    get("/timer-phone", Retired, [])
+    get("/timer-handheld", Retired, [])
+    get("/quest-phone", Retired, [])
+    get("/quest-status", Retired, [])
   end
 end
