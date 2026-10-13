@@ -1,3 +1,11 @@
+// SUPERSEDED — and not run. This file sits outside Playwright's `testDir` (the config in
+// this directory points at `./tests`), and its `BASE_URL` still says port 4000 while the
+// dashboard has served 30011 for a long time. So nothing here executes in CI or in
+// `npx playwright test`. The live suite is `e2e/tests/*.spec.ts`. What this file is kept
+// for is the prose: the retired-path checks below are the record of what each move was,
+// and they are updated when a screen is retired even though Playwright will not run them.
+// The executed retirement pin is `test/routes_mount_test.exs` on the Elixir side.
+
 import { test, expect, Page } from '@playwright/test';
 
 const BASE_URL = 'http://localhost:4000';
